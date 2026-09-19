@@ -1,14 +1,38 @@
 {
-  "name": "smartcity",
-  "version": "1.0.0",
-  "main": "index.js",
+  "name": "smartcity-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SmartCity: чат-бот MAX и API для заявок жителей многоквартирного дома",
+  "main": "src/server.js",
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "NODE_EXTRA_CA_CERTS=certs/russian_trusted_ca.pem node --watch src/server.js",
+    "start": "NODE_EXTRA_CA_CERTS=certs/russian_trusted_ca.pem node src/server.js",
+    "test": "vitest run",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy",
+    "prisma:seed": "node prisma/seed.js",
+    "prisma:studio": "prisma studio",
+    "bot:simulate": "node scripts/simulate-bot.js"
   },
-  "author": "",
-  "license": "ISC",
-  "description": "",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "license": "MIT",
   "dependencies": {
-    "express": "^5.2.1"
+    "@maxhub/max-bot-api": "^0.3.1",
+    "@prisma/adapter-pg": "^7.10.0",
+    "@prisma/client": "^7.10.0",
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.0",
+    "express": "^5.2.1",
+    "nodemailer": "^10.0.10",
+    "pg": "^8.23.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "prisma": "^7.10.0",
+    "vitest": "^4.1.11"
   }
 }

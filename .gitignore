@@ -1,1 +1,16 @@
 node_modules/
+
+/generated/prisma
+
+# секреты
+.env
+server/.env
+
+# генерируемое
+server/src/generated/
+server/dist/
+server/_old/
+.DS_Store
+
+# настройки локальных инструментов
+.claude/

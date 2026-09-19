@@ -1,0 +1,506 @@
+openapi: 3.1.0
+info:
+  title: SmartCity API
+  version: 0.1.0
+  description: |
+    API мини-приложения «Умный дом» (MAX): заявки жителей многоквартирного дома, подписи (поддержка),
+    статусы и панель управляющей компании. Бот и API используют одну базу данных и одну бизнес-логику.
+
+    **Авторизация.** Каждый запрос (кроме `/api/dictionaries` и `/health`) передаёт подписанный initData
+    мини-приложения: `Authorization: MaxInitData <window.WebApp.initData>`. Сервер проверяет подпись
+    HMAC-SHA256 по токену бота и находит/создаёт пользователя по его MAX id.
+    В разработке (`DEV_AUTH_BYPASS=true`) вместо этого можно передать заголовок `X-Dev-User-Id: <maxUserId>`.
+servers:
+  - url: http://localhost:3000
+    description: Локальный сервер
+tags:
+  - name: system
+  - name: profile
+  - name: catalogs
+  - name: requests
+  - name: uk
+    description: Только для сотрудников УК (role = UK_EMPLOYEE)
+
+components:
+  securitySchemes:
+    MaxInitData:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: 'Формат: `MaxInitData <initData>`'
+    DevUser:
+      type: apiKey
+      in: header
+      name: X-Dev-User-Id
+      description: Только при DEV_AUTH_BYPASS=true
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string, examples: [unauthorized, forbidden, not_found, conflict, validation_error, onboarding_required, apartment_not_found, building_not_found] }
+            message: { type: string }
+    RequestCategory:
+      type: string
+      enum: [NOISE, ELEVATOR, PLUMBING, ELECTRICITY, REPAIR, CLEANING, SECURITY, OTHER]
+    RequestStatus:
+      type: string
+      enum: [VOTING, SUBMITTED, IN_PROGRESS, DELEGATED, RESOLVED, REJECTED, EXPIRED]
+      description: |
+        VOTING — на сборе подписей; SUBMITTED — передана в УК; IN_PROGRESS — решается;
+        DELEGATED — передана в ответственную организацию; RESOLVED — сделано; REJECTED — отклонена;
+        EXPIRED — срок сбора подписей истёк.
+    RequestPriority:
+      type: string
+      enum: [NORMAL, EMERGENCY]
+    ResidentType:
+      type: string
+      enum: [OWNER, TENANT]
+    User:
+      type: object
+      properties:
+        id: { type: integer }
+        maxUserId: { type: string, description: MAX id пользователя (строка, т.к. BigInt) }
+        role: { type: string, enum: [RESIDENT, UK_EMPLOYEE] }
+        roleLabel: { type: string }
+        firstName: { type: string }
+        lastName: { type: [string, 'null'] }
+        username: { type: [string, 'null'] }
+        name: { type: string }
+        house:
+          type: [object, 'null']
+          properties:
+            id: { type: integer }
+            address: { type: string }
+            votePercent: { type: integer }
+            lat: { type: [number, 'null'] }
+            lng: { type: [number, 'null'] }
+            apartmentsCount: { type: [integer, 'null'] }
+        apartment: { type: [string, 'null'] }
+        entrance: { type: [string, 'null'], description: Номер подъезда по квартире, если у дома известны диапазоны квартир по подъездам }
+        residentType: { oneOf: [{ $ref: '#/components/schemas/ResidentType' }, { type: 'null' }] }
+        residentTypeLabel: { type: [string, 'null'] }
+        onboarded: { type: boolean, description: Указаны дом, квартира и статус }
+        createdAt: { type: string, format: date-time }
+    Entrance:
+      type: object
+      description: Подъезд и диапазон квартир в нём
+      properties:
+        number: { type: string }
+        from: { type: integer }
+        to: { type: integer }
+    House:
+      type: object
+      properties:
+        id: { type: integer }
+        address: { type: string }
+        lat: { type: [number, 'null'], description: Координаты центра здания для маркера на карте }
+        lng: { type: [number, 'null'] }
+        apartmentsCount: { type: [integer, 'null'], description: Число квартир (null — неизвестно, номер квартиры не проверяется) }
+        entrances: { type: array, items: { $ref: '#/components/schemas/Entrance' } }
+        votePercent: { type: integer }
+        dataSource: { type: [string, 'null'], description: 'osm — сведения из OpenStreetMap; null — введены вручную' }
+        chatBound: { type: boolean, description: К дому привязан чат в MAX }
+        residentsCount: { type: integer, description: Только в списке домов }
+    Building:
+      type: object
+      description: Здание по точке на карте (OpenStreetMap)
+      properties:
+        externalId: { type: string, examples: ['osm:way/61424311'] }
+        source: { type: string, enum: [osm] }
+        address: { type: string }
+        lat: { type: number }
+        lng: { type: number }
+        apartmentsCount: { type: [integer, 'null'] }
+        entrances: { type: array, items: { $ref: '#/components/schemas/Entrance' } }
+    Point:
+      type: object
+      required: [lat, lng]
+      properties:
+        lat: { type: number, minimum: -90, maximum: 90 }
+        lng: { type: number, minimum: -180, maximum: 180 }
+    Organization:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        email: { type: [string, 'null'] }
+        phone: { type: [string, 'null'] }
+        categories: { type: array, items: { $ref: '#/components/schemas/RequestCategory' } }
+    Request:
+      type: object
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        description: { type: string }
+        category: { $ref: '#/components/schemas/RequestCategory' }
+        categoryLabel: { type: string }
+        priority: { $ref: '#/components/schemas/RequestPriority' }
+        priorityLabel: { type: string }
+        status: { $ref: '#/components/schemas/RequestStatus' }
+        statusLabel: { type: string }
+        votesCount: { type: integer, description: Сколько подписей собрано }
+        votesRequired: { type: integer, description: 'Сколько нужно (20% жителей дома, минимум 1; 0 для аварийных)' }
+        deadline: { type: [string, 'null'], format: date-time, description: Срок сбора подписей }
+        submittedAt: { type: [string, 'null'], format: date-time }
+        resolvedAt: { type: [string, 'null'], format: date-time }
+        delegatedAt: { type: [string, 'null'], format: date-time }
+        delegatedTo:
+          type: [object, 'null']
+          properties:
+            id: { type: integer }
+            name: { type: string }
+            email: { type: [string, 'null'] }
+            phone: { type: [string, 'null'] }
+        house:
+          type: object
+          properties:
+            id: { type: integer }
+            address: { type: string }
+        author:
+          type: object
+          properties:
+            id: { type: integer }
+            name: { type: string }
+            apartment: { type: [string, 'null'] }
+        isMine: { type: boolean }
+        hasVoted: { type: boolean }
+        canVote: { type: boolean, description: Текущий пользователь может поддержать заявку }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    RequestDetailed:
+      allOf:
+        - $ref: '#/components/schemas/Request'
+        - type: object
+          properties:
+            votes:
+              type: array
+              items:
+                type: object
+                properties:
+                  id: { type: integer }
+                  createdAt: { type: string, format: date-time }
+                  user:
+                    type: object
+                    properties:
+                      id: { type: integer }
+                      name: { type: string }
+                      apartment: { type: [string, 'null'] }
+            statusHistory:
+              type: array
+              items:
+                type: object
+                properties:
+                  id: { type: integer }
+                  oldStatus: { oneOf: [{ $ref: '#/components/schemas/RequestStatus' }, { type: 'null' }] }
+                  oldStatusLabel: { type: [string, 'null'] }
+                  newStatus: { $ref: '#/components/schemas/RequestStatus' }
+                  newStatusLabel: { type: string }
+                  comment: { type: [string, 'null'] }
+                  changedAt: { type: string, format: date-time }
+                  changedBy:
+                    type: [object, 'null']
+                    properties:
+                      id: { type: integer }
+                      name: { type: string }
+                      role: { type: string }
+    CreateRequest:
+      type: object
+      required: [category, description]
+      properties:
+        category: { $ref: '#/components/schemas/RequestCategory' }
+        description: { type: string, minLength: 5, maxLength: 2000 }
+        title: { type: string, maxLength: 120, description: Если не задан — формируется из категории и описания }
+        priority: { $ref: '#/components/schemas/RequestPriority' }
+        deadline: { type: string, description: 'Срок сбора подписей: ISO 8601 или ДД.ММ.ГГГГ. По умолчанию +14 дней. Для аварийных игнорируется' }
+    ChangeStatus:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [IN_PROGRESS, DELEGATED, RESOLVED, REJECTED] }
+        comment: { type: string, maxLength: 1000 }
+        organizationId: { type: integer, description: Обязателен для DELEGATED }
+    Onboarding:
+      type: object
+      required: [houseId, apartment, residentType]
+      description: |
+        Номер квартиры проверяется по данным дома: он должен быть в пределах числа квартир и, если известны
+        подъезды, попадать в диапазон одного из них. Иначе 400 с code = apartment_not_found.
+      properties:
+        houseId: { type: integer, description: 'Дом, выбранный на карте (POST /api/houses) или из списка' }
+        apartment: { type: string, maxLength: 10, examples: ['27', '15а'] }
+        residentType: { $ref: '#/components/schemas/ResidentType' }
+  responses:
+    Unauthorized:
+      description: Нет или неверный initData
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    Forbidden:
+      description: Недостаточно прав
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    NotFound:
+      description: Не найдено
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    Conflict:
+      description: Действие недопустимо в текущем состоянии (уже подписано, сбор завершён, недопустимый переход статуса)
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    BadRequest:
+      description: Ошибка валидации или не пройдена регистрация (code = onboarding_required)
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+
+security:
+  - MaxInitData: []
+  - DevUser: []
+
+paths:
+  /health:
+    get:
+      tags: [system]
+      security: []
+      summary: Проверка живости
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  bot: { type: string, enum: [polling, webhook, disabled] }
+                  time: { type: string, format: date-time }
+
+  /api/dictionaries:
+    get:
+      tags: [catalogs]
+      security: []
+      summary: Справочники категорий, статусов, приоритетов и допустимых переходов
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  categories: { type: array, items: { type: object, properties: { value: { type: string }, label: { type: string } } } }
+                  statuses: { type: array, items: { type: object, properties: { value: { type: string }, label: { type: string } } } }
+                  priorities: { type: array, items: { type: object, properties: { value: { type: string }, label: { type: string } } } }
+                  residentTypes: { type: array, items: { type: object, properties: { value: { type: string }, label: { type: string } } } }
+                  transitions: { type: object, additionalProperties: { type: array, items: { $ref: '#/components/schemas/RequestStatus' } } }
+
+  /api/me:
+    get:
+      tags: [profile]
+      summary: Текущий пользователь
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/User' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    patch:
+      tags: [profile]
+      summary: Регистрация жителя (дом, квартира, владелец/арендатор)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/Onboarding' } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/User' } } } }
+        '400': { description: 'Ошибка валидации или квартиры нет в доме (code = apartment_not_found)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/houses:
+    get:
+      tags: [catalogs]
+      summary: Список домов с координатами (маркеры на карте)
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/House' } } } } }
+    post:
+      tags: [catalogs]
+      summary: Житель выбрал дом на карте — вернуть его из базы или создать
+      description: |
+        По точке нажатия сервер находит здание в OpenStreetMap (адрес, число квартир, подъезды).
+        Если такой дом уже есть в базе — возвращает его (200), иначе создаёт и привязывает к УК (201).
+        Полученный id передаётся в `PATCH /api/me`.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/Point' } } }
+      responses:
+        '200': { description: Дом уже был в базе, content: { application/json: { schema: { $ref: '#/components/schemas/House' } } } }
+        '201': { description: Дом создан, content: { application/json: { schema: { $ref: '#/components/schemas/House' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { description: В точке нет жилого дома с адресом (code = building_not_found), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /api/houses/lookup:
+    get:
+      tags: [catalogs]
+      summary: Здание по точке на карте (без сохранения) — для подтверждения адреса перед выбором
+      parameters:
+        - { name: lat, in: query, required: true, schema: { type: number } }
+        - { name: lng, in: query, required: true, schema: { type: number } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  building: { $ref: '#/components/schemas/Building' }
+                  house: { oneOf: [{ $ref: '#/components/schemas/House' }, { type: 'null' }], description: Дом из базы, если уже подключён }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { description: В точке нет жилого дома с адресом (code = building_not_found), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /api/company:
+    get:
+      tags: [catalogs]
+      summary: Контакты управляющей компании
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: [object, 'null']
+                properties:
+                  id: { type: integer }
+                  name: { type: string }
+                  phone: { type: string }
+                  email: { type: [string, 'null'] }
+                  address: { type: [string, 'null'] }
+                  workingHours: { type: [string, 'null'] }
+
+  /api/organizations:
+    get:
+      tags: [catalogs]
+      summary: Организации, в которые УК передаёт заявки
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Organization' } } } } }
+
+  /api/requests:
+    get:
+      tags: [requests]
+      summary: Список заявок (житель — своего дома, сотрудник УК — всех домов)
+      parameters:
+        - { name: filter, in: query, schema: { type: string, enum: [all, mine, supported], default: all } }
+        - { name: status, in: query, description: 'Статусы через запятую, например VOTING,SUBMITTED', schema: { type: string } }
+        - { name: houseId, in: query, description: Только для сотрудников УК, schema: { type: integer } }
+        - { name: limit, in: query, schema: { type: integer, default: 50, maximum: 200 } }
+        - { name: offset, in: query, schema: { type: integer, default: 0 } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Request' } } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+    post:
+      tags: [requests]
+      summary: Создать заявку
+      description: Аварийная заявка (priority = EMERGENCY) сразу получает статус SUBMITTED и уходит в УК без подписей.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateRequest' } } }
+      responses:
+        '201': { description: Создана, content: { application/json: { schema: { $ref: '#/components/schemas/Request' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/requests/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    get:
+      tags: [requests]
+      summary: Заявка с подписями и историей статусов
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/RequestDetailed' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [requests]
+      summary: Удалить свою заявку (только пока идёт сбор подписей)
+      responses:
+        '204': { description: Удалена }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/requests/{id}/vote:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    post:
+      tags: [requests]
+      summary: Поддержать заявку (подписать)
+      description: При достижении порога заявка автоматически переходит в SUBMITTED; в ответе поле submitted = true.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Request'
+                  - type: object
+                    properties:
+                      submitted: { type: boolean }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      tags: [requests]
+      summary: Отозвать подпись (пока идёт сбор)
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Request' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/requests/{id}/document:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    get:
+      tags: [requests]
+      summary: Сформированный документ по заявке (текст) — автору и сотрудникам УК
+      responses:
+        '200': { description: OK, content: { text/plain: { schema: { type: string } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/requests/{id}/status:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    patch:
+      tags: [uk]
+      summary: Сменить статус заявки (сотрудник УК)
+      description: |
+        Допустимые переходы см. в `/api/dictionaries` → `transitions`. Для DELEGATED обязателен organizationId;
+        в этом случае в организацию отправляется письмо с документом (без SMTP — имитация, отмечается в поле mail.simulated).
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ChangeStatus' } } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Request'
+                  - type: object
+                    properties:
+                      mail:
+                        type: object
+                        properties:
+                          simulated: { type: boolean }
+                          to: { type: [string, 'null'] }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/uk/requests:
+    get:
+      tags: [uk]
+      summary: Очередь УК (по умолчанию SUBMITTED, IN_PROGRESS, DELEGATED)
+      parameters:
+        - { name: status, in: query, schema: { type: string } }
+        - { name: houseId, in: query, schema: { type: integer } }
+        - { name: limit, in: query, schema: { type: integer, default: 50 } }
+        - { name: offset, in: query, schema: { type: integer, default: 0 } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Request' } } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
