@@ -10,7 +10,6 @@ server/.env
 server/src/generated/
 server/dist/
 server/_old/
+.agents/
+.windsurf/
 .DS_Store
-
-# настройки локальных инструментов
-.claude/
