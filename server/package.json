@@ -3,18 +3,22 @@
   "version": "0.1.0",
   "private": true,
   "description": "SmartCity: чат-бот MAX и API для заявок жителей многоквартирного дома",
-  "main": "src/server.js",
+  "main": "dist/server.js",
   "type": "module",
   "scripts": {
-    "dev": "NODE_EXTRA_CA_CERTS=certs/russian_trusted_ca.pem node --watch src/server.js",
-    "start": "NODE_EXTRA_CA_CERTS=certs/russian_trusted_ca.pem node src/server.js",
+    "dev": "npm run build:app && NODE_EXTRA_CA_CERTS=certs/russian_trusted_ca.pem tsx watch src/server.ts",
+    "dev:app": "esbuild public/app.ts --outfile=public/app.js --target=es2020 --watch",
+    "build": "tsc -p tsconfig.json && npm run build:app",
+    "build:app": "esbuild public/app.ts --outfile=public/app.js --target=es2020",
+    "start": "NODE_EXTRA_CA_CERTS=certs/russian_trusted_ca.pem node dist/server.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p public/tsconfig.json",
     "test": "vitest run",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
-    "prisma:seed": "node prisma/seed.js",
+    "prisma:seed": "tsx prisma/seed.ts",
     "prisma:studio": "prisma studio",
-    "bot:simulate": "node scripts/simulate-bot.js"
+    "bot:simulate": "tsx scripts/simulate-bot.ts"
   },
   "engines": {
     "node": ">=20.19.0"
@@ -32,7 +36,16 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/leaflet": "^1.9.20",
+    "@types/node": "^20.19.43",
+    "@types/nodemailer": "^8.0.2",
+    "@types/pg": "^8.23.1",
+    "esbuild": "^0.28.2",
     "prisma": "^7.10.0",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2",
     "vitest": "^4.1.11"
   }
 }

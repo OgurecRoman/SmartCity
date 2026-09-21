@@ -25,8 +25,9 @@
 
 ## Основной пользовательский сценарий
 
-1. Сотрудник УК создаёт групповой чат дома в MAX, добавляет жителей и бота, отправляет `/bind`
-   и выбирает дом. Чат привязан.
+1. Сотрудник УК создаёт групповой чат дома в MAX, добавляет жителей и бота — бот сразу предлагает
+   выбрать дом. Если бота добавил не сотрудник, сотрудник отправляет в чат `@имя_бота /bind`
+   (в групповом чате MAX бот видит только сообщения с его упоминанием, если он не администратор чата).
 2. Житель открывает бота, нажимает «Начать», выбирает дом, вводит квартиру и статус
    (владелец / арендатор). В мини-приложении дом выбирается нажатием на карте: сервер находит
    здание в OpenStreetMap, показывает адрес и число квартир, а введённый номер квартиры принимает
@@ -46,7 +47,7 @@
 MAX (клиенты жителей и УК)
    │  long polling (dev) / webhook (prod)          HTTPS + initData (HMAC-SHA256)
    ▼                                                ▼
-┌───────────────────────────── server (Node.js 20, JavaScript, ES-модули) ─────────────────────────┐
+┌───────────────────────────── server (Node.js 20, TypeScript, ES-модули) ────────────────────────┐
 │  bot/            — @maxhub/max-bot-api: команды, inline-кнопки, пошаговые сценарии, уведомления │
 │  routes/         — Express 5 REST API для мини-приложения (openapi.yaml)                        │
 │  public/         — мини-приложение: HTML + JS без сборки, карта Leaflet (OpenStreetMap), /app/  │
@@ -94,7 +95,8 @@ MAX id пользователя (работает при `DEV_AUTH_BYPASS=true`;
 > `server/certs/russian_trusted_ca.pem` через `NODE_EXTRA_CA_CERTS`. Если запускаете иначе — задайте эту
 > переменную сами, иначе бот упадёт с `fetch failed / UNABLE_TO_GET_ISSUER_CERT_LOCALLY`.
 
-Другие команды: `npm start` (прод, без пересборки — код на JavaScript), `npm test` (юнит-тесты),
+Другие команды: `npm run build` + `npm start` (прод: сборка `tsc` в `dist/` и мини-приложения в `public/app.js`),
+`npm run typecheck` (сервер и мини-приложение), `npm test` (юнит-тесты),
 `npm run bot:simulate` (офлайн-прогон всех сценариев бота с заглушкой MAX API — удобно проверять
 логику без токена), `npm run prisma:studio` (просмотр БД).
 
@@ -127,7 +129,7 @@ Node.js: `@maxhub/max-bot-api` (официальный SDK MAX), `express` 5, `@
 Жителю: `/panel` меню, `/create` создать заявку, `/my` мои заявки, `/supported` поддержанные,
 `/contacts` контакты УК, `/id` мой MAX id, `/cancel` отмена, `/help`.
 Сотруднику УК: `/requests` заявки в работе, `/add_owner`, `/remove_owner`, `/announce` объявление
-в чат дома, `/bind` (в групповом чате) привязать чат к дому, `/uk_login <код>`.
+в чат дома, `/bind` (в групповом чате, с упоминанием бота) привязать чат к дому, `/uk_login <код>`.
 
 ## API мини-приложения
 
@@ -154,7 +156,8 @@ Node.js: `@maxhub/max-bot-api` (официальный SDK MAX), `express` 5, `@
 
 ## Мини-приложение
 
-Страница `server/public/index.html` + `app.js`: без сборки и фреймворков, карта Leaflet на тайлах
+Страница `server/public/index.html` + `app.ts` (esbuild собирает его в `app.js`: `npm run build:app`, в режиме
+слежения — `npm run dev:app`; `npm run dev` и `npm run build` делают это сами): без фреймворков, карта Leaflet на тайлах
 OpenStreetMap, SDK MAX `https://st.max.ru/js/max-web-app.js` даёт `WebApp.initData`, который уходит
 в API заголовком `Authorization: MaxInitData …`. Экраны:
 

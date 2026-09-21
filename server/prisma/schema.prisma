@@ -1,6 +1,3 @@
-// SmartCity — схема данных для бота и API заявок жителей МКД.
-// Prisma 7: URL базы задаётся в prisma.config.js (переменная DATABASE_URL).
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -9,19 +6,16 @@ datasource db {
   provider = "postgresql"
 }
 
-/// Роль пользователя: житель или сотрудник управляющей компании
 enum UserRole {
   RESIDENT
   UK_EMPLOYEE
 }
 
-/// Статус жителя в квартире
 enum ResidentType {
   OWNER
   TENANT
 }
 
-/// Категория заявки
 enum RequestCategory {
   NOISE
   ELEVATOR
@@ -33,21 +27,19 @@ enum RequestCategory {
   OTHER
 }
 
-/// Приоритет: аварийные заявки минуют сбор подписей
 enum RequestPriority {
   NORMAL
   EMERGENCY
 }
 
-/// Жизненный цикл заявки
 enum RequestStatus {
-  VOTING      // на сборе подписей
-  SUBMITTED   // передана в УК
-  IN_PROGRESS // решается
-  DELEGATED   // передана в ответственную организацию
-  RESOLVED    // сделано
-  REJECTED    // отклонена
-  EXPIRED     // срок сбора подписей истёк
+  VOTING
+  SUBMITTED
+  IN_PROGRESS
+  DELEGATED
+  RESOLVED
+  REJECTED
+  EXPIRED
 }
 
 model ManagementCompany {
@@ -66,20 +58,13 @@ model ManagementCompany {
 model House {
   id          Int       @id @default(autoincrement())
   address     String
-  /// Координаты дома для карты в мини-приложении
   lat         Float?
   lng         Float?
-  /// Сколько квартир в доме (для проверки номера квартиры); null — неизвестно
   apartmentsCount Int?
-  /// Подъезды с диапазонами квартир: [{ "number": "1", "from": 1, "to": 20 }]
   entrances   Json?
-  /// Идентификатор здания во внешнем источнике, например osm:way/61424311
   externalId  String?   @unique
-  /// Откуда взяты сведения о доме: osm (OpenStreetMap) или manual
   dataSource  String?
-  /// Доля жителей дома (в процентах), чьи подписи нужны для передачи заявки в УК
   votePercent Int       @default(20)
-  /// Идентификатор группового чата дома в MAX, куда бот шлёт уведомления
   chatId      BigInt?   @unique
   chatTitle   String?
   companyId   Int
@@ -91,7 +76,6 @@ model House {
 
 model User {
   id            Int           @id @default(autoincrement())
-  /// Идентификатор пользователя в MAX
   maxUserId     BigInt        @unique
   role          UserRole      @default(RESIDENT)
   firstName     String
@@ -103,7 +87,6 @@ model User {
   residentType  ResidentType?
   companyId     Int?
   company       ManagementCompany? @relation(fields: [companyId], references: [id])
-  /// Момент завершения регистрации (дом + квартира + статус)
   onboardedAt   DateTime?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
@@ -123,18 +106,14 @@ model Request {
   category      RequestCategory
   priority      RequestPriority @default(NORMAL)
   status        RequestStatus   @default(VOTING)
-  /// Сколько подписей уже собрано
   votesCount    Int             @default(0)
-  /// Сколько подписей нужно (снимок на момент последнего пересчёта)
   votesRequired Int             @default(1)
-  /// Срок сбора подписей
   deadline      DateTime?
   submittedAt   DateTime?
   resolvedAt    DateTime?
   delegatedToId Int?
   delegatedTo   ResponsibleOrganization? @relation(fields: [delegatedToId], references: [id])
   delegatedAt   DateTime?
-  /// mid сообщения-уведомления в чате дома (для обновления счётчика)
   chatMessageId String?
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
@@ -170,7 +149,6 @@ model StatusHistory {
   @@index([requestId])
 }
 
-/// Организация, в которую УК передаёт заявку (лифтовая служба, водоканал и т.д.)
 model ResponsibleOrganization {
   id         Int               @id @default(autoincrement())
   companyId  Int
@@ -182,7 +160,6 @@ model ResponsibleOrganization {
   requests   Request[]
 }
 
-/// Сессии бота (пошаговые сценарии), чтобы переживать перезапуск
 model BotSession {
   key       String   @id
   value     Json
