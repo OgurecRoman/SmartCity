@@ -1,7 +1,7 @@
 import {Routes, Route, useLocation} from 'react-router';
 import {Panel} from "@maxhub/max-ui";
-import Form from "./components/Form";
-import UserProfile from "./components/Profile";
+import Form from "./pages/Form";
+import UserProfile from "./pages/Profile";
 
 export default function App() {
     const location = useLocation();
