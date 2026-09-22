@@ -49,8 +49,9 @@ MAX (клиенты жителей и УК)
    ▼                                                ▼
 ┌───────────────────────────── server (Node.js 20, TypeScript, ES-модули) ────────────────────────┐
 │  bot/            — @maxhub/max-bot-api: команды, inline-кнопки, пошаговые сценарии, уведомления │
-│  routes/         — Express 5 REST API для мини-приложения (openapi.yaml)                        │
-│  public/         — мини-приложение: HTML + JS без сборки, карта Leaflet (OpenStreetMap), /app/  │
+│  routes/         — Express 5: роутеры по темам (houses, requests, me…), собираются в routes/index │
+│  controllers/    — обработчики ручек: разбирают запрос, вызывают services, формируют ответ       │
+│  public/         — мини-приложение: HTML + TS (esbuild → JS), карта Leaflet (OpenStreetMap), /app/│
 │  auth/           — проверка подписи initData мини-приложения                                    │
 │  services/       — единая бизнес-логика: заявки, подписи, статусы, документы, почта             │
 │  services/geo.ts — дом по точке на карте: OpenStreetMap (Overpass API), квартиры и подъезды     │
