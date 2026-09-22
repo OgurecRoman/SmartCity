@@ -6,8 +6,8 @@
   "main": "src/server.js",
   "type": "module",
   "scripts": {
-    "dev": "NODE_EXTRA_CA_CERTS=certs/russian_trusted_ca.pem node --watch src/server.js",
-    "start": "NODE_EXTRA_CA_CERTS=certs/russian_trusted_ca.pem node src/server.js",
+    "dev": "cross-env NODE_EXTRA_CA_CERTS=certs/russian_trusted_ca.pem node --watch src/server.js",
+    "start": "cross-env NODE_EXTRA_CA_CERTS=certs/russian_trusted_ca.pem node src/server.js",
     "test": "vitest run",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
@@ -32,6 +32,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "cross-env": "^10.1.0",
     "prisma": "^7.10.0",
     "vitest": "^4.1.11"
   }

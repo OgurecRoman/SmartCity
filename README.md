@@ -81,6 +81,7 @@ MAX (клиенты жителей и УК)
 cd server
 cp .env.example .env            # заполнить DATABASE_URL и MAX_BOT_TOKEN
 npm install
+npm run prisma:generate
 npm run prisma:migrate          # создаёт таблицы (при первом запуске спросит имя миграции — можно принять)
 npm run prisma:seed             # тестовые данные: УК, 2 дома, организации, жители, заявки
 npm run dev                     # бот (long polling) + API + мини-приложение на http://localhost:3000

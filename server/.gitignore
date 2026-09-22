@@ -1,5 +1,6 @@
-node_modules
+node_modules/
 dist/
+.windsurf/
 .env
 /src/generated/
 *.log

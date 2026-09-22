@@ -3,7 +3,7 @@ import { prisma } from '../lib/db.js';
 import { errors } from '../lib/errors.js';
 import { events } from '../lib/events.js';
 import { CATEGORY_LABELS, STATUS_LABELS, addDays } from '../lib/labels.js';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../generated/prisma/client.js'
 
 import { AUTHOR_DELETABLE_STATUSES, canTransition, votesRequiredFor } from './rules.js';
 import { countResidents } from './users.js';

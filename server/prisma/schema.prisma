@@ -1,8 +1,6 @@
-// SmartCity — схема данных для бота и API заявок жителей МКД.
-// Prisma 7: URL базы задаётся в prisma.config.js (переменная DATABASE_URL).
-
 generator client {
   provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
 }
 
 datasource db {
