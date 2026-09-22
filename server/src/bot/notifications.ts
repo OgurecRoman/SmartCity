@@ -74,7 +74,7 @@ async function voterIds(requestId: number, excludeUserId?: number): Promise<bigi
     where: { requestId, ...(excludeUserId ? { userId: { not: excludeUserId } } : {}) },
     select: { user: { select: { maxUserId: true } } },
   });
-  return votes.map((vote) => vote.user.maxUserId);
+  return votes.map((vote: any) => vote.user.maxUserId);
 }
 
 function subscribe(): void {

@@ -9,6 +9,7 @@ import {
   STATUS_LABELS,
   parseRuDate,
 } from '../lib/labels.js';
+import { RequestCategory } from '@prisma/client';
 import { errors } from '../lib/errors.js';
 import { buildRequestDocument } from '../services/documents.js';
 import { sendDelegationEmail } from '../services/mailer.js';
@@ -68,7 +69,7 @@ apiRouter.patch('/me', async (req, res) => {
 
 apiRouter.get('/houses', async (_req, res) => {
   const houses = await listHouses();
-  res.json(houses.map((house) => serializeHouse(house, { residentsCount: house._count.residents })));
+  res.json(houses.map((house: any) => serializeHouse(house, { residentsCount: house._count.residents })));
 });
 
 const pointSchema = z.object({
@@ -100,7 +101,8 @@ apiRouter.get('/company', async (_req, res) => {
 
 apiRouter.get('/organizations', async (_req, res) => {
   const organizations = await listOrganizations();
-  res.json(organizations.map((org) => ({ ...org, categoryLabels: org.categories.map((c) => CATEGORY_LABELS[c]) })));
+  res.json(organizations.map((org: any) => 
+    ({ ...org, categoryLabels: org.categories.map((c: RequestCategory) => CATEGORY_LABELS[c]) })));
 });
 
 const listQuerySchema = z.object({

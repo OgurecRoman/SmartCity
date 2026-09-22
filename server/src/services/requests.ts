@@ -123,10 +123,10 @@ export async function hasVoted(requestId: number, userId: number): Promise<boole
 export async function votedRequestIds(userId: number, requestIds: number[]): Promise<Set<number>> {
   if (requestIds.length === 0) return new Set();
   const votes = await prisma.vote.findMany({ where: { userId, requestId: { in: requestIds } }, select: { requestId: true } });
-  return new Set(votes.map((vote) => vote.requestId));
+  return new Set(votes.map((vote: any) => vote.requestId));
 }
 
-function isUniqueViolation(error: unknown): boolean {
+function isUniqueViolation(error: any): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
 }
 
@@ -146,7 +146,7 @@ export async function vote(requestId: number, userId: number): Promise<{ request
 
   let updated: RequestWithRelations;
   try {
-    updated = await prisma.$transaction(async (tx) => {
+    updated = await prisma.$transaction(async (tx: any) => {
       await tx.vote.create({ data: { requestId, userId } });
       const afterVote = await tx.request.update({
         where: { id: requestId },

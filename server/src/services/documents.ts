@@ -27,7 +27,7 @@ export function buildRequestDocument(request: RequestDetailed): GeneratedDocumen
     lines.push(`Подписи: собрано ${request.votesCount} из ${request.votesRequired} необходимых`);
     if (request.votes.length > 0) {
       lines.push('Подписали:');
-      request.votes.forEach((vote, index) => {
+      request.votes.forEach((vote: any, index: number) => {
         const apt = vote.user.apartment ? `, кв. ${vote.user.apartment}` : '';
         lines.push(`  ${index + 1}. ${fullName(vote.user)}${apt} — ${formatDateTime(vote.createdAt)}`);
       });

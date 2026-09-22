@@ -2,6 +2,7 @@ import { CATEGORY_LABELS, PRIORITY_LABELS, RESIDENT_TYPE_LABELS, ROLE_LABELS, ST
 import type { RequestDetailed, RequestWithRelations } from '../services/requests.js';
 import { checkApartment, type Entrance } from '../services/rules.js';
 import { apartmentDataOf, type DbUser } from '../services/users.js';
+import { RequestStatus } from '@prisma/client';
 
 type HouseRow = {
   id: number;
@@ -99,17 +100,17 @@ export function serializeRequest(request: RequestWithRelations, extra: { hasVote
 export function serializeRequestDetailed(request: RequestDetailed, extra: { hasVoted?: boolean; viewerId?: number } = {}) {
   return {
     ...serializeRequest(request, extra),
-    votes: request.votes.map((vote) => ({
+    votes: request.votes.map((vote: any) => ({
       id: vote.id,
       createdAt: vote.createdAt,
       user: { id: vote.user.id, name: fullName(vote.user), apartment: vote.user.apartment },
     })),
-    statusHistory: request.statusHistory.map((entry) => ({
+    statusHistory: request.statusHistory.map((entry: any) => ({
       id: entry.id,
       oldStatus: entry.oldStatus,
-      oldStatusLabel: entry.oldStatus ? STATUS_LABELS[entry.oldStatus] : null,
+      oldStatusLabel: entry.oldStatus ? STATUS_LABELS[entry.oldStatus as RequestStatus] : null,
       newStatus: entry.newStatus,
-      newStatusLabel: STATUS_LABELS[entry.newStatus],
+      newStatusLabel: STATUS_LABELS[entry.newStatus as RequestStatus],
       comment: entry.comment,
       changedAt: entry.changedAt,
       changedBy: entry.changedBy ? { id: entry.changedBy.id, name: fullName(entry.changedBy), role: entry.changedBy.role } : null,

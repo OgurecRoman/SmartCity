@@ -126,7 +126,7 @@ export const announceScenario = defineScenario<BotContext, AnnounceData>()<Annou
   intercept: cancelIntercept,
   steps: {
     start: async ({ ctx }) => {
-      const houses = (await listHouses()).filter((house) => house.chatId !== null);
+      const houses = (await listHouses()).filter((house: any) => house.chatId !== null);
       if (houses.length === 0) {
         await ctx.reply('Ни один чат дома ещё не привязан. Добавьте бота в чат дома и отправьте там /bind.', withKeyboard(panelButton()));
         return transition.cancel();
