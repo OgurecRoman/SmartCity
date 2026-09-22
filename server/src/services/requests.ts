@@ -273,6 +273,7 @@ export interface ListFilter {
   authorId?: number;
   supportedByUserId?: number;
   statuses?: RequestStatus[];
+  categories?: RequestCategory[];
   limit?: number;
   offset?: number;
 }
@@ -283,6 +284,7 @@ export async function listRequests(filter: ListFilter): Promise<RequestWithRelat
   if (filter.authorId !== undefined) where.authorId = filter.authorId;
   if (filter.supportedByUserId !== undefined) where.votes = { some: { userId: filter.supportedByUserId } };
   if (filter.statuses && filter.statuses.length > 0) where.status = { in: filter.statuses };
+  if (filter.categories && filter.categories.length > 0) where.category = { in: filter.categories };
   return prisma.request.findMany({
     where,
     include: requestInclude,

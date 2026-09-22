@@ -269,9 +269,16 @@ type ApiError = Error & { code?: string };
 
     if (approved) {
       if (!categories.length) {
-        const dict = await api<{ categories: { value: string; label: string }[] }>('GET', '/dictionaries');
+        const dict = await api<{
+          categories: { value: string; label: string }[];
+          statuses: { value: string; label: string }[];
+        }>('GET', '/dictionaries');
         categories = dict.categories;
         $('category').innerHTML = categories.map((c) => `<option value="${c.value}">${c.label}</option>`).join('');
+        $('requests-filter-category').innerHTML = '<option value="">Все категории</option>' +
+          categories.map((c) => `<option value="${c.value}">${c.label}</option>`).join('');
+        $('requests-filter-status').innerHTML = '<option value="">Все статусы</option>' +
+          dict.statuses.map((s) => `<option value="${s.value}">${s.label}</option>`).join('');
       }
       loadRequests();
     }
@@ -302,8 +309,13 @@ type ApiError = Error & { code?: string };
 
   async function loadRequests(): Promise<void> {
     const box = $('requests');
+    const category = $<HTMLSelectElement>('requests-filter-category').value;
+    const status = $<HTMLSelectElement>('requests-filter-status').value;
+    const query = new URLSearchParams({ filter: 'all', limit: '50' });
+    if (category) query.set('category', category);
+    if (status) query.set('status', status);
     try {
-      const list = await api<RequestItem[]>('GET', '/requests?filter=all&limit=50');
+      const list = await api<RequestItem[]>('GET', '/requests?' + query.toString());
       box.className = '';
       box.innerHTML = list.length ? '' : '<div class="muted">Заявок пока нет</div>';
       list.forEach((r) => {
@@ -448,6 +460,8 @@ type ApiError = Error & { code?: string };
     $('change-house').onclick = showMap;
     $('req-send').onclick = sendRequest;
     $('news-send').onclick = sendNews;
+    $('requests-filter-category').onchange = loadRequests;
+    $('requests-filter-status').onchange = loadRequests;
     $('uk-house').onchange = loadUkResidents;
     if (sdkUser && (sdkUser.first_name || sdkUser.last_name)) {
       $('use-profile-name').style.display = '';

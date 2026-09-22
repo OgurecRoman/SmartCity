@@ -27,24 +27,26 @@ const REQUEST_CATEGORIES = Object.keys(CATEGORY_LABELS) as [string, ...string[]]
 const listQuerySchema = z.object({
   filter: z.enum(['all', 'mine', 'supported']).default('all'),
   status: z.string().optional(),
+  category: z.string().optional(),
   houseId: z.coerce.number().int().positive().optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0),
 });
 
-function parseStatuses(raw: string | undefined) {
+function parseListParam<T extends string>(raw: string | undefined, valid: readonly T[], label: string): T[] | undefined {
   if (!raw) return undefined;
   const values = raw.split(',').map((value) => value.trim()).filter(Boolean);
   for (const value of values) {
-    if (!REQUEST_STATUSES.includes(value)) throw errors.badRequest(`Неизвестный статус: ${value}`);
+    if (!valid.includes(value as T)) throw errors.badRequest(`Неизвестн${label === 'статус' ? 'ый статус' : 'ая категория'}: ${value}`);
   }
-  return values as (keyof typeof STATUS_LABELS)[];
+  return values as T[];
 }
 
 export async function list(req: Request, res: Response) {
   const user = req.user!;
   const query = parseQuery(listQuerySchema, req);
-  const statuses = parseStatuses(query.status);
+  const statuses = parseListParam(query.status, REQUEST_STATUSES, 'статус');
+  const categories = parseListParam(query.category, REQUEST_CATEGORIES, 'категория');
   const employee = isEmployee(user);
 
   let houseId: number | undefined;
@@ -60,7 +62,8 @@ export async function list(req: Request, res: Response) {
     houseId,
     authorId: query.filter === 'mine' ? user.id : undefined,
     supportedByUserId: query.filter === 'supported' ? user.id : undefined,
-    statuses,
+    statuses: statuses as (keyof typeof STATUS_LABELS)[] | undefined,
+    categories: categories as (keyof typeof CATEGORY_LABELS)[] | undefined,
     limit: query.limit,
     offset: query.offset,
   });
@@ -162,7 +165,10 @@ export async function updateStatus(req: Request, res: Response) {
 export async function listForUk(req: Request, res: Response) {
   const user = req.user!;
   const query = parseQuery(listQuerySchema, req);
-  const statuses = parseStatuses(query.status) ?? [...UK_ACTIVE_STATUSES];
-  const requests = await listRequests({ houseId: query.houseId, statuses, limit: query.limit, offset: query.offset });
+  const statuses = (parseListParam(query.status, REQUEST_STATUSES, 'статус') as (keyof typeof STATUS_LABELS)[] | undefined) ?? [
+    ...UK_ACTIVE_STATUSES,
+  ];
+  const categories = parseListParam(query.category, REQUEST_CATEGORIES, 'категория') as (keyof typeof CATEGORY_LABELS)[] | undefined;
+  const requests = await listRequests({ houseId: query.houseId, statuses, categories, limit: query.limit, offset: query.offset });
   res.json(requests.map((request) => serializeRequest(request, { viewerId: user.id })));
 }

@@ -494,6 +494,7 @@ paths:
       parameters:
         - { name: filter, in: query, schema: { type: string, enum: [all, mine, supported], default: all } }
         - { name: status, in: query, description: 'Статусы через запятую, например VOTING,SUBMITTED', schema: { type: string } }
+        - { name: category, in: query, description: 'Категории через запятую, например PLUMBING,ELEVATOR', schema: { type: string } }
         - { name: houseId, in: query, description: Только для сотрудников УК, schema: { type: integer } }
         - { name: limit, in: query, schema: { type: integer, default: 50, maximum: 200 } }
         - { name: offset, in: query, schema: { type: integer, default: 0 } }
@@ -607,6 +608,7 @@ paths:
       summary: Очередь УК (по умолчанию SUBMITTED, IN_PROGRESS, DELEGATED)
       parameters:
         - { name: status, in: query, schema: { type: string } }
+        - { name: category, in: query, description: 'Категории через запятую, например PLUMBING,ELEVATOR', schema: { type: string } }
         - { name: houseId, in: query, schema: { type: integer } }
         - { name: limit, in: query, schema: { type: integer, default: 50 } }
         - { name: offset, in: query, schema: { type: integer, default: 0 } }
