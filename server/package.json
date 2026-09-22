@@ -3,18 +3,20 @@
   "version": "0.1.0",
   "private": true,
   "description": "SmartCity: чат-бот MAX и API для заявок жителей многоквартирного дома",
-  "main": "src/server.js",
+  "main": "dist/server.js",
   "type": "module",
   "scripts": {
-    "dev": "cross-env NODE_EXTRA_CA_CERTS=certs/russian_trusted_ca.pem node --watch src/server.js",
-    "start": "cross-env NODE_EXTRA_CA_CERTS=certs/russian_trusted_ca.pem node src/server.js",
+    "dev": "cross-env NODE_EXTRA_CA_CERTS=certs/russian_trusted_ca.pem tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "cross-env NODE_EXTRA_CA_CERTS=certs/russian_trusted_ca.pem node dist/server.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p public/tsconfig.json",
     "test": "vitest run",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
-    "prisma:seed": "node prisma/seed.js",
+    "prisma:seed": "tsx prisma/seed.ts",
     "prisma:studio": "prisma studio",
-    "bot:simulate": "node scripts/simulate-bot.js"
+    "bot:simulate": "tsx scripts/simulate-bot.ts"
   },
   "engines": {
     "node": ">=20.19.0"
@@ -29,11 +31,24 @@
     "express": "^5.2.1",
     "nodemailer": "^10.0.10",
     "pg": "^8.23.0",
+    "swagger-jsdoc": "^6.3.0",
+    "swagger-ui-express": "^5.0.1",
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/leaflet": "^1.9.20",
+    "@types/node": "^20.19.43",
+    "@types/nodemailer": "^8.0.2",
+    "@types/pg": "^8.23.1",
+    "@types/swagger-jsdoc": "^6.0.4",
+    "@types/swagger-ui-express": "^4.1.8",
     "cross-env": "^10.1.0",
+    "esbuild": "^0.28.2",
     "prisma": "^7.10.0",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2",
     "vitest": "^4.1.11"
   }
 }

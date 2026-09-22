@@ -3,10 +3,21 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
+    "dev": "node scripts/build.js --watch",
+    "build": "node scripts/build.js",
+    "start": "serve public -l 8080",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": ""
+  "description": "",
+  "devDependencies": {
+    "@twa-dev/types": "^8.0.2",
+    "@types/leaflet": "^1.9.22",
+    "@types/node": "^26.6.2",
+    "dotenv": "^18.0.2",
+    "esbuild": "^0.28.2",
+    "serve": "^14.2.6"
+  }
 }

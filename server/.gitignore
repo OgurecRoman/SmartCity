@@ -1,8 +1,0 @@
-node_modules/
-dist/
-.windsurf/
-.env
-/src/generated/
-*.log
-.DS_Store
-_old/
