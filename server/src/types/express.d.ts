@@ -1,11 +1,8 @@
 import type { DbUser } from '../services/users.js';
+import 'express';
 
-declare global {
-  namespace Express {
-    interface Request {
-      user?: DbUser;
-    }
+declare module 'express-serve-static-core' {
+  interface Request {
+    user?: DbUser;
   }
 }
-
-export {};
