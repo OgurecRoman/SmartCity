@@ -47,6 +47,14 @@ interface SearchHit {
   lng: number;
 }
 
+interface AnnouncementItem {
+  id: number;
+  title: string;
+  description: string;
+  author: { name: string };
+  createdAt: string;
+}
+
 type ApiError = Error & { code?: string };
 
 (() => {
@@ -208,7 +216,29 @@ type ApiError = Error & { code?: string };
       categories = dict.categories;
       $('category').innerHTML = categories.map((c) => `<option value="${c.value}">${c.label}</option>`).join('');
     }
+    loadAnnouncements();
     loadRequests();
+  }
+
+  async function loadAnnouncements(): Promise<void> {
+    const wrap = $('announcements-card');
+    const box = $('announcements');
+    try {
+      const list = await api<AnnouncementItem[]>('GET', '/announcements?limit=20');
+      if (!list.length) { wrap.style.display = 'none'; return; }
+      wrap.style.display = '';
+      box.className = '';
+      box.innerHTML = '';
+      list.forEach((a) => {
+        const el = document.createElement('div');
+        el.className = 'request';
+        el.innerHTML = `<div style="font-weight:600">${a.title}</div><div>${a.description}</div>` +
+          `<div class="muted">${a.author.name} · ${new Date(a.createdAt).toLocaleDateString('ru-RU')}</div>`;
+        box.appendChild(el);
+      });
+    } catch {
+      wrap.style.display = 'none';
+    }
   }
 
   async function loadRequests(): Promise<void> {

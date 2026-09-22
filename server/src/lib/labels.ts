@@ -55,6 +55,7 @@ export const RESIDENT_TYPE_LABELS: Record<ResidentType, string> = {
 export const ROLE_LABELS: Record<UserRole, string> = {
   RESIDENT: 'Житель',
   UK_EMPLOYEE: 'Сотрудник УК',
+  CHAIRMAN: 'Председатель ТСЖ',
 };
 
 const pad = (n: number) => String(n).padStart(2, '0');

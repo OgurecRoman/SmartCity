@@ -18,6 +18,8 @@ tags:
   - name: profile
   - name: catalogs
   - name: requests
+  - name: announcements
+    description: Создавать, редактировать и удалять могут только УК (любой дом) и председатель ТСЖ (свой дом)
   - name: uk
     description: Только для сотрудников УК (role = UK_EMPLOYEE)
 
@@ -65,7 +67,7 @@ components:
       properties:
         id: { type: integer }
         maxUserId: { type: string, description: MAX id пользователя (строка, т.к. BigInt) }
-        role: { type: string, enum: [RESIDENT, UK_EMPLOYEE] }
+        role: { type: string, enum: [RESIDENT, UK_EMPLOYEE, CHAIRMAN], description: 'CHAIRMAN — председатель ТСЖ (назначается УК среди жителей дома)' }
         roleLabel: { type: string }
         firstName: { type: string }
         lastName: { type: [string, 'null'] }
@@ -131,6 +133,35 @@ components:
         email: { type: [string, 'null'] }
         phone: { type: [string, 'null'] }
         categories: { type: array, items: { $ref: '#/components/schemas/RequestCategory' } }
+    Announcement:
+      type: object
+      description: Объявление УК или председателя ТСЖ жителям дома (например — об отключении горячей воды)
+      properties:
+        id: { type: integer }
+        houseId: { type: integer }
+        houseAddress: { type: string }
+        title: { type: string }
+        description: { type: string }
+        author:
+          type: object
+          properties:
+            id: { type: integer }
+            name: { type: string }
+            role: { type: string, enum: [RESIDENT, UK_EMPLOYEE, CHAIRMAN] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    CreateAnnouncement:
+      type: object
+      required: [title, description]
+      properties:
+        houseId: { type: integer, description: Обязателен для УК; председатель может не указывать — берётся его дом }
+        title: { type: string, minLength: 3, maxLength: 120 }
+        description: { type: string, minLength: 5, maxLength: 2000 }
+    UpdateAnnouncement:
+      type: object
+      properties:
+        title: { type: string, minLength: 3, maxLength: 120 }
+        description: { type: string, minLength: 5, maxLength: 2000 }
     Request:
       type: object
       properties:
@@ -504,3 +535,50 @@ paths:
       responses:
         '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Request' } } } } }
         '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/announcements:
+    get:
+      tags: [announcements]
+      summary: Список объявлений (житель и председатель — своего дома, сотрудник УК — по houseId или все)
+      parameters:
+        - { name: houseId, in: query, description: Только для сотрудников УК, schema: { type: integer } }
+        - { name: limit, in: query, schema: { type: integer, default: 50, maximum: 200 } }
+        - { name: offset, in: query, schema: { type: integer, default: 0 } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Announcement' } } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+    post:
+      tags: [announcements]
+      summary: Опубликовать объявление
+      description: |
+        Сотрудник УК указывает houseId (любой дом). Председатель ТСЖ houseId может не указывать —
+        объявление публикуется в его доме; указать чужой дом ему запрещено. Житель без роли — 403.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateAnnouncement' } } }
+      responses:
+        '201': { description: Создано, content: { application/json: { schema: { $ref: '#/components/schemas/Announcement' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/announcements/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    patch:
+      tags: [announcements]
+      summary: Изменить объявление (УК или председатель ТСЖ своего дома)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/UpdateAnnouncement' } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Announcement' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [announcements]
+      summary: Удалить объявление (УК или председатель ТСЖ своего дома)
+      responses:
+        '204': { description: Удалено }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }

@@ -70,6 +70,16 @@ export function isEmployee(user: Pick<DbUser, 'role'>): boolean {
   return user.role === 'UK_EMPLOYEE';
 }
 
+export function isChairman(user: Pick<DbUser, 'role'>): boolean {
+  return user.role === 'CHAIRMAN';
+}
+
+/** УК может управлять объявлениями любого дома; председатель ТСЖ — только своего. */
+export function canManageAnnouncements(user: Pick<DbUser, 'role' | 'houseId'>, houseId: number): boolean {
+  if (user.role === 'UK_EMPLOYEE') return true;
+  return user.role === 'CHAIRMAN' && user.houseId === houseId;
+}
+
 export function isOnboarded(user: Pick<DbUser, 'houseId' | 'onboardedAt'>): boolean {
   return user.houseId !== null && user.onboardedAt !== null;
 }
@@ -129,8 +139,38 @@ export async function detachResident(maxUserId: bigint): Promise<DbUser> {
   });
 }
 
+/** Назначает председателя ТСЖ дома; если человек ещё не привязан к дому — привязывает как владельца. */
+export async function appointChairman(maxUserId: bigint, houseId: number): Promise<DbUser> {
+  const house = await prisma.house.findUnique({ where: { id: houseId } });
+  if (!house) throw errors.notFound('Дом не найден');
+  const existing = await prisma.user.findUnique({ where: { maxUserId } });
+  if (existing?.role === 'UK_EMPLOYEE') throw errors.badRequest('Этот пользователь — сотрудник УК, председателем его назначить нельзя');
+  if (existing) {
+    return prisma.user.update({
+      where: { id: existing.id },
+      data: {
+        role: 'CHAIRMAN',
+        houseId,
+        residentType: existing.residentType ?? 'OWNER',
+        onboardedAt: existing.onboardedAt ?? new Date(),
+      },
+      include: userInclude,
+    });
+  }
+  return prisma.user.create({
+    data: { maxUserId, firstName: 'Житель', role: 'CHAIRMAN', houseId, residentType: 'OWNER', onboardedAt: new Date() },
+    include: userInclude,
+  });
+}
+
+export async function dismissChairman(maxUserId: bigint): Promise<DbUser> {
+  const existing = await prisma.user.findUnique({ where: { maxUserId } });
+  if (!existing || existing.role !== 'CHAIRMAN') throw errors.notFound('Председатель ТСЖ с таким ID не найден');
+  return prisma.user.update({ where: { id: existing.id }, data: { role: 'RESIDENT' }, include: userInclude });
+}
+
 export async function countResidents(houseId: number): Promise<number> {
-  return prisma.user.count({ where: { houseId, role: 'RESIDENT', onboardedAt: { not: null } } });
+  return prisma.user.count({ where: { houseId, role: { in: ['RESIDENT', 'CHAIRMAN'] }, onboardedAt: { not: null } } });
 }
 
 export async function listEmployees(): Promise<DbUser[]> {

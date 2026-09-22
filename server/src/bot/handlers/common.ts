@@ -1,6 +1,6 @@
 import type { Bot } from '@maxhub/max-bot-api';
 import { config } from '../../config.js';
-import { isEmployee, isOnboarded, promoteToEmployee } from '../../services/users.js';
+import { isChairman, isEmployee, isOnboarded, promoteToEmployee } from '../../services/users.js';
 import type { BotContext } from '../context.js';
 import { ack, isDialog, parseIntStrict } from '../helpers.js';
 import { onboardingScenario } from '../scenarios/onboarding.js';
@@ -14,7 +14,10 @@ export async function showPanel(ctx: BotContext): Promise<void> {
     return;
   }
   if (isOnboarded(user)) {
-    await ctx.reply(`Дом: ${user.house?.address ?? '—'}, кв. ${user.apartment ?? '—'}. Что делаем?`, withKeyboard(residentMenu()));
+    await ctx.reply(
+      `Дом: ${user.house?.address ?? '—'}, кв. ${user.apartment ?? '—'}. Что делаем?`,
+      withKeyboard(residentMenu(isChairman(user))),
+    );
     return;
   }
   await ctx.reply(TEXTS.onboardingRequired);
@@ -43,7 +46,7 @@ export async function handleStart(ctx: BotContext, payload: string | null): Prom
     return;
   }
   if (isOnboarded(user)) {
-    await ctx.reply(TEXTS.welcomeBack(user.firstName), withKeyboard(residentMenu()));
+    await ctx.reply(TEXTS.welcomeBack(user.firstName), withKeyboard(residentMenu(isChairman(user))));
     return;
   }
   await ctx.reply(TEXTS.welcomeResident);
@@ -76,7 +79,8 @@ export function registerCommonHandlers(bot: Bot<BotContext>): void {
 
   bot.command('help', async (ctx) => {
     if (!isDialog(ctx)) return;
-    await ctx.reply(isEmployee(ctx.dbUser) ? TEXTS.helpAdmin : TEXTS.helpResident);
+    const text = isEmployee(ctx.dbUser) ? TEXTS.helpAdmin : isChairman(ctx.dbUser) ? TEXTS.helpChairman : TEXTS.helpResident;
+    await ctx.reply(text);
   });
 
   bot.command('id', async (ctx) => {

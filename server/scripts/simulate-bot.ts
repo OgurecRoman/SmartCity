@@ -130,6 +130,7 @@ async function main() {
 
   await prisma.botSession.deleteMany({});
   await prisma.request.deleteMany({ where: { author: { maxUserId: { in: [5000001n, 5000002n, 5000003n] } } } });
+  await prisma.announcement.deleteMany({ where: { author: { maxUserId: { in: [5000001n, 5000002n, 5000003n] } } } });
   await prisma.user.deleteMany({ where: { maxUserId: { in: [5000001n, 5000002n, 5000003n] } } });
   await prisma.house.updateMany({ where: { id: 1 }, data: { chatId: null } });
 
@@ -203,9 +204,10 @@ async function main() {
   await msg(anna, '/contacts');
   await cb(anna, 'uk:new');
 
-  section('УК: объявление и добавление владельца');
+  section('УК: объявление в дом и добавление владельца');
   await cb(admin, 'menu:announce');
   await cb(admin, 'ann:house:1');
+  await msg(admin, 'Отключение горячей воды');
   await msg(admin, 'Плановое отключение воды 25.09 с 10:00 до 14:00.');
   await cb(admin, 'ann:yes');
   await cb(admin, 'menu:add_owner');
@@ -215,6 +217,24 @@ async function main() {
   await cb(admin, 'menu:remove_owner');
   await msg(admin, '5000009');
   await cb(admin, 'own:yes');
+
+  section('УК назначает жителя председателем ТСЖ');
+  await cb(admin, 'menu:appoint_chairman');
+  await msg(admin, String(anna.user_id));
+  await cb(admin, 'chair:house:1');
+  await cb(admin, 'chair:yes');
+
+  section('Председатель ТСЖ публикует объявление жителям своего дома');
+  await started(anna);
+  await cb(anna, 'menu:announce');
+  await msg(anna, 'Собрание жильцов');
+  await msg(anna, 'Собрание состоится 30.09 в 19:00 у подъезда №1.');
+  await cb(anna, 'ann:yes');
+
+  section('УК снимает председателя ТСЖ');
+  await cb(admin, 'menu:dismiss_chairman');
+  await msg(admin, String(anna.user_id));
+  await cb(admin, 'chair:yes');
 
   out('\n✅ Прогон завершён без необработанных ошибок');
 }

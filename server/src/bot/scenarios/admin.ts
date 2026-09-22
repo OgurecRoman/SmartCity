@@ -2,10 +2,21 @@ import { defineScenario, transition } from '@maxhub/max-bot-api';
 import { prisma } from '../../lib/db.js';
 import { isAppError } from '../../lib/errors.js';
 import { fullName } from '../../lib/labels.js';
+import { createAnnouncement } from '../../services/announcements.js';
 import { buildRequestDocument } from '../../services/documents.js';
 import { sendDelegationEmail } from '../../services/mailer.js';
 import { changeStatus, getRequest, getRequestDetailed } from '../../services/requests.js';
-import { assignResidentToHouse, detachResident, getHouse, getUserByMaxId, listHouses, listOrganizations } from '../../services/users.js';
+import {
+  appointChairman,
+  assignResidentToHouse,
+  detachResident,
+  dismissChairman,
+  getHouse,
+  getUserByMaxId,
+  isChairman,
+  listHouses,
+  listOrganizations,
+} from '../../services/users.js';
 import type { BotContext } from '../context.js';
 import { ack, payloadOf, textOf } from '../helpers.js';
 import { btn, houseButtons, keyboard, panelButton, requestCard, ukRequestButtons, withKeyboard, yesNoButtons } from '../ui.js';
@@ -109,14 +120,117 @@ export const manageOwnerScenario = defineScenario<BotContext, ManageOwnerData>()
   },
 });
 
+export interface ManageChairmanData {
+  action: 'appoint' | 'dismiss';
+  maxUserId?: string;
+  targetName?: string;
+  houseId?: number;
+  houseAddress?: string;
+}
+
+type ChairmanStep = 'start' | 'user' | 'house' | 'confirm';
+
+export const manageChairmanScenario = defineScenario<BotContext, ManageChairmanData>()<ChairmanStep>({
+  id: 'manage-chairman',
+  initialStep: 'start',
+  idleTimeoutMs: SCENARIO_TIMEOUT_MS,
+  intercept: cancelIntercept,
+  steps: {
+    start: async ({ ctx, data }) => {
+      const verb = data.action === 'appoint' ? 'назначить председателем ТСЖ' : 'снять с должности председателя ТСЖ';
+      await ctx.reply(
+        `Введите MAX ID жителя, которого нужно ${verb} (число). Житель может узнать свой ID командой /id в этом боте.`,
+        withKeyboard([[btn.callback('Отмена', 'cancel')]]),
+      );
+      return transition.goto('user');
+    },
+
+    user: async ({ ctx, data }) => {
+      const text = textOf(ctx);
+      if (!text || !/^\d{1,18}$/.test(text)) {
+        await ctx.reply('ID должен быть числом. Попробуйте ещё раз:');
+        return transition.stay();
+      }
+      const existing = await getUserByMaxId(BigInt(text));
+      const targetName = existing ? fullName(existing) : `пользователь ${text}`;
+
+      if (data.action === 'dismiss') {
+        if (!existing || !isChairman(existing)) {
+          await ctx.reply('Этот пользователь не является председателем ТСЖ.', withKeyboard(panelButton()));
+          return transition.cancel();
+        }
+        await ctx.reply(
+          `Снять ${targetName} (${existing.house?.address ?? '—'}) с должности председателя ТСЖ?`,
+          withKeyboard(yesNoButtons('chair')),
+        );
+        return transition.goto('confirm', { maxUserId: text, targetName });
+      }
+
+      if (existing?.role === 'UK_EMPLOYEE') {
+        await ctx.reply('Этот пользователь — сотрудник УК, председателем его назначить нельзя.', withKeyboard(panelButton()));
+        return transition.cancel();
+      }
+
+      const houses = await listHouses();
+      if (houses.length === 0) {
+        await ctx.reply('Сначала добавьте дома (см. seed или БД).', withKeyboard(panelButton()));
+        return transition.cancel();
+      }
+      await ctx.reply('В каком доме назначить председателя?', withKeyboard(houseButtons(houses, 'chair:house')));
+      return transition.goto('house', { maxUserId: text, targetName });
+    },
+
+    house: async ({ ctx, data }) => {
+      const match = /^chair:house:(\d+)$/.exec(payloadOf(ctx) ?? '');
+      const house = match ? await getHouse(Number(match[1])) : null;
+      if (!house) {
+        await ctx.reply('Выберите дом кнопкой выше.');
+        return transition.stay();
+      }
+      await ack(ctx, { message: { text: `🏠 ${house.address}` } });
+      await ctx.reply(`Назначить ${data.targetName} председателем ТСЖ дома «${house.address}»?`, withKeyboard(yesNoButtons('chair')));
+      return transition.goto('confirm', { houseId: house.id, houseAddress: house.address });
+    },
+
+    confirm: async ({ ctx, data }) => {
+      const payload = payloadOf(ctx);
+      if (payload === 'chair:no') {
+        await ack(ctx, { message: { text: 'Отменено.' } });
+        await ctx.reply('Хорошо, ничего не меняем.', withKeyboard(panelButton()));
+        return transition.cancel();
+      }
+      if (payload !== 'chair:yes' || !data.maxUserId) {
+        await ctx.reply('Нажмите «Да» или «Нет».');
+        return transition.stay();
+      }
+      try {
+        if (data.action === 'appoint' && data.houseId) {
+          await appointChairman(BigInt(data.maxUserId), data.houseId);
+          await ack(ctx, { message: { text: 'Председатель назначен!' } });
+          await ctx.reply(`✅ ${data.targetName} назначен председателем ТСЖ дома «${data.houseAddress}».`, withKeyboard(panelButton()));
+        } else {
+          await dismissChairman(BigInt(data.maxUserId));
+          await ack(ctx, { message: { text: 'Председатель снят!' } });
+          await ctx.reply(`✅ ${data.targetName} больше не председатель ТСЖ.`, withKeyboard(panelButton()));
+        }
+      } catch (error) {
+        if (!isAppError(error)) throw error;
+        await ack(ctx, { notification: error.message });
+        await ctx.reply(`Не получилось: ${error.message}`, withKeyboard(panelButton()));
+      }
+      return transition.complete();
+    },
+  },
+});
+
 export interface AnnounceData {
   houseId?: number;
   houseAddress?: string;
-  chatId?: string;
-  text?: string;
+  title?: string;
+  description?: string;
 }
 
-type AnnounceStep = 'start' | 'house' | 'text' | 'confirm';
+type AnnounceStep = 'start' | 'house' | 'title' | 'description' | 'confirm';
 
 export const announceScenario = defineScenario<BotContext, AnnounceData>()<AnnounceStep>({
   id: 'announce',
@@ -126,9 +240,16 @@ export const announceScenario = defineScenario<BotContext, AnnounceData>()<Annou
   intercept: cancelIntercept,
   steps: {
     start: async ({ ctx }) => {
-      const houses = (await listHouses()).filter((house) => house.chatId !== null);
+      if (isChairman(ctx.dbUser) && ctx.dbUser.houseId && ctx.dbUser.house) {
+        await ctx.reply(
+          'Введите заголовок объявления (например: «Отключение горячей воды»):',
+          withKeyboard([[btn.callback('Отмена', 'cancel')]]),
+        );
+        return transition.goto('title', { houseId: ctx.dbUser.houseId, houseAddress: ctx.dbUser.house.address });
+      }
+      const houses = await listHouses();
       if (houses.length === 0) {
-        await ctx.reply('Ни один чат дома ещё не привязан. Добавьте бота в чат дома и отправьте там /bind.', withKeyboard(panelButton()));
+        await ctx.reply('Сначала добавьте дома (см. seed или БД).', withKeyboard(panelButton()));
         return transition.cancel();
       }
       await ctx.reply('В какой дом отправить объявление?', withKeyboard(houseButtons(houses, 'ann:house')));
@@ -138,33 +259,56 @@ export const announceScenario = defineScenario<BotContext, AnnounceData>()<Annou
     house: async ({ ctx }) => {
       const match = /^ann:house:(\d+)$/.exec(payloadOf(ctx) ?? '');
       const house = match ? await getHouse(Number(match[1])) : null;
-      if (!house || house.chatId === null) {
+      if (!house) {
         await ctx.reply('Выберите дом кнопкой выше.');
         return transition.stay();
       }
       await ack(ctx, { message: { text: `🏠 ${house.address}` } });
-      await ctx.reply('Введите текст объявления одним сообщением:', withKeyboard([[btn.callback('Отмена', 'cancel')]]));
-      return transition.goto('text', { houseId: house.id, houseAddress: house.address, chatId: house.chatId.toString() });
+      await ctx.reply(
+        'Введите заголовок объявления (например: «Отключение горячей воды»):',
+        withKeyboard([[btn.callback('Отмена', 'cancel')]]),
+      );
+      return transition.goto('title', { houseId: house.id, houseAddress: house.address });
     },
 
-    text: async ({ ctx }) => {
+    title: async ({ ctx }) => {
       const text = textOf(ctx);
-      if (!text) {
-        await ctx.reply('Отправьте текст объявления.');
+      if (!text || text.trim().length < 3) {
+        await ctx.reply('Заголовок должен быть от 3 символов. Попробуйте ещё раз:');
         return transition.stay();
       }
-      await ctx.reply(`Отправить в чат дома:\n\n📢 ${text}`, withKeyboard([[btn.callback('Отправить', 'ann:yes'), btn.callback('Отмена', 'cancel')]]));
-      return transition.goto('confirm', { text });
+      await ctx.reply('Теперь текст объявления одним сообщением:', withKeyboard([[btn.callback('Отмена', 'cancel')]]));
+      return transition.goto('description', { title: text.trim() });
+    },
+
+    description: async ({ ctx, data }) => {
+      const text = textOf(ctx);
+      if (!text || text.trim().length < 5) {
+        await ctx.reply('Опишите объявление подробнее (минимум 5 символов).');
+        return transition.stay();
+      }
+      const description = text.trim();
+      await ctx.reply(
+        `Опубликовать в доме «${data.houseAddress}»:\n\n📢 ${data.title}\n\n${description}`,
+        withKeyboard([[btn.callback('Опубликовать', 'ann:yes'), btn.callback('Отмена', 'cancel')]]),
+      );
+      return transition.goto('confirm', { description });
     },
 
     confirm: async ({ ctx, data }) => {
-      if (payloadOf(ctx) !== 'ann:yes' || !data.chatId || !data.text) {
-        await ctx.reply('Нажмите «Отправить» или «Отмена».');
+      if (payloadOf(ctx) !== 'ann:yes' || !data.houseId || !data.title || !data.description) {
+        await ctx.reply('Нажмите «Опубликовать» или «Отмена».');
         return transition.stay();
       }
-      await ctx.api.sendMessageToChat(Number(data.chatId), `📢 Объявление от управляющей компании\n\n${data.text}`);
-      await ack(ctx, { message: { text: 'Объявление отправлено.' } });
-      await ctx.reply(`✅ Объявление отправлено в чат дома «${data.houseAddress}».`, withKeyboard(panelButton()));
+      try {
+        await createAnnouncement({ houseId: data.houseId, authorId: ctx.dbUser.id, title: data.title, description: data.description });
+        await ack(ctx, { message: { text: 'Объявление опубликовано.' } });
+        await ctx.reply(`✅ Объявление опубликовано в доме «${data.houseAddress}».`, withKeyboard(panelButton()));
+      } catch (error) {
+        if (!isAppError(error)) throw error;
+        await ack(ctx, { notification: error.message });
+        await ctx.reply(`Не получилось: ${error.message}`, withKeyboard(panelButton()));
+      }
       return transition.complete();
     },
   },

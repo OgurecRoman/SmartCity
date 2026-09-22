@@ -2,10 +2,10 @@ import type { Bot } from '@maxhub/max-bot-api';
 import { isAppError } from '../../lib/errors.js';
 import { changeStatus, listRequests } from '../../services/requests.js';
 import { UK_ACTIVE_STATUSES } from '../../services/rules.js';
-import { isEmployee } from '../../services/users.js';
+import { isChairman, isEmployee } from '../../services/users.js';
 import type { BotContext } from '../context.js';
 import { ack, isDialog } from '../helpers.js';
-import { announceScenario, delegateScenario, manageOwnerScenario, rejectScenario } from '../scenarios/admin.js';
+import { announceScenario, delegateScenario, manageChairmanScenario, manageOwnerScenario, rejectScenario } from '../scenarios/admin.js';
 import { keyboard, panelButton, requestCard, ukRequestButtons, withKeyboard } from '../ui.js';
 import { sendRequestDocument, sendRequestList } from '../views.js';
 
@@ -14,6 +14,14 @@ async function guard(ctx: BotContext): Promise<boolean> {
   if (isEmployee(ctx.dbUser)) return true;
   if (ctx.has('message_callback')) await ack(ctx, { notification: 'Доступно только сотрудникам УК' });
   else await ctx.reply('Команда доступна только сотрудникам УК. Если вы сотрудник — отправьте /uk_login <код>.');
+  return false;
+}
+
+async function guardAnnounce(ctx: BotContext): Promise<boolean> {
+  if (!isDialog(ctx)) return false;
+  if (isEmployee(ctx.dbUser) || isChairman(ctx.dbUser)) return true;
+  if (ctx.has('message_callback')) await ack(ctx, { notification: 'Доступно сотрудникам УК и председателям ТСЖ' });
+  else await ctx.reply('Команда доступна сотрудникам УК и председателям ТСЖ.');
   return false;
 }
 
@@ -70,8 +78,18 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
   bot.command('remove_owner', startOwner('remove'));
   bot.action('menu:remove_owner', startOwner('remove'));
 
-  const startAnnounce = async (ctx: BotContext) => {
+  const startChairman = (action: 'appoint' | 'dismiss') => async (ctx: BotContext) => {
     if (!(await guard(ctx))) return;
+    await ack(ctx);
+    await ctx.scenario.start(manageChairmanScenario, { action });
+  };
+  bot.command('appoint_chairman', startChairman('appoint'));
+  bot.action('menu:appoint_chairman', startChairman('appoint'));
+  bot.command('dismiss_chairman', startChairman('dismiss'));
+  bot.action('menu:dismiss_chairman', startChairman('dismiss'));
+
+  const startAnnounce = async (ctx: BotContext) => {
+    if (!(await guardAnnounce(ctx))) return;
     await ack(ctx);
     await ctx.scenario.start(announceScenario, {});
   };

@@ -1,4 +1,5 @@
 import { CATEGORY_LABELS, PRIORITY_LABELS, RESIDENT_TYPE_LABELS, ROLE_LABELS, STATUS_LABELS, fullName } from '../lib/labels.js';
+import type { AnnouncementWithRelations } from '../services/announcements.js';
 import type { RequestDetailed, RequestWithRelations } from '../services/requests.js';
 import { checkApartment, type Entrance } from '../services/rules.js';
 import { apartmentDataOf, type DbUser } from '../services/users.js';
@@ -114,5 +115,18 @@ export function serializeRequestDetailed(request: RequestDetailed, extra: { hasV
       changedAt: entry.changedAt,
       changedBy: entry.changedBy ? { id: entry.changedBy.id, name: fullName(entry.changedBy), role: entry.changedBy.role } : null,
     })),
+  };
+}
+
+export function serializeAnnouncement(announcement: AnnouncementWithRelations) {
+  return {
+    id: announcement.id,
+    houseId: announcement.houseId,
+    houseAddress: announcement.house.address,
+    title: announcement.title,
+    description: announcement.description,
+    author: { id: announcement.author.id, name: fullName(announcement.author), role: announcement.author.role },
+    createdAt: announcement.createdAt,
+    updatedAt: announcement.updatedAt,
   };
 }

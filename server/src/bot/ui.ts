@@ -11,6 +11,7 @@ import {
   formatDateTime,
   fullName,
 } from '../lib/labels.js';
+import type { AnnouncementWithRelations } from '../services/announcements.js';
 import type { RequestWithRelations } from '../services/requests.js';
 import { AUTHOR_DELETABLE_STATUSES } from '../services/rules.js';
 import type { DbUser } from '../services/users.js';
@@ -47,12 +48,13 @@ export function openAppButton(text: string, payload?: string): Button | null {
   return btn.link(text, `https://max.ru/${botUsername}?startapp${payload ? `=${encodeURIComponent(payload)}` : ''}`);
 }
 
-export function residentMenu(): ButtonRows {
+export function residentMenu(isChairman = false): ButtonRows {
   const rows: ButtonRows = [
     [btn.callback('📝 Создать заявку', 'menu:create')],
     [btn.callback('📋 Мои заявки', 'menu:my'), btn.callback('🤝 Поддержанные', 'menu:supported')],
-    [btn.callback('📞 Контакты УК', 'menu:contacts')],
   ];
+  if (isChairman) rows.push([btn.callback('📢 Объявление жителям', 'menu:announce')]);
+  rows.push([btn.callback('📞 Контакты УК', 'menu:contacts')]);
   const app = openAppButton('📱 Открыть приложение');
   if (app) rows.push([app]);
   return rows;
@@ -62,7 +64,8 @@ export function adminMenu(): ButtonRows {
   return [
     [btn.callback('📨 Новые заявки', 'uk:new')],
     [btn.callback('➕ Добавить владельца', 'menu:add_owner'), btn.callback('➖ Удалить владельца', 'menu:remove_owner')],
-    [btn.callback('📢 Объявление в чат дома', 'menu:announce')],
+    [btn.callback('👤 Назначить председателя', 'menu:appoint_chairman'), btn.callback('🚫 Снять председателя', 'menu:dismiss_chairman')],
+    [btn.callback('📢 Объявление жителям', 'menu:announce')],
     [btn.callback('📞 Контакты УК', 'menu:contacts')],
   ];
 }
@@ -163,6 +166,19 @@ export function requestShortLine(request: RequestWithRelations): string {
   return `${STATUS_EMOJI[request.status]} №${request.id} · ${CATEGORY_LABELS[request.category]} · ${STATUS_LABELS[request.status]}`;
 }
 
+export function announcementCard(announcement: AnnouncementWithRelations): string {
+  const lines = [
+    `📢 ${announcement.title}`,
+    '',
+    announcement.description,
+    '',
+    `Дом: ${announcement.house.address}`,
+    `От: ${fullName(announcement.author)}`,
+    `Опубликовано: ${formatDateTime(announcement.createdAt)}`,
+  ];
+  return lines.join('\n');
+}
+
 export function contactsCard(company: {
   name: string;
   phone: string;
@@ -204,13 +220,25 @@ export const TEXTS = {
     '/contacts — контакты УК\n' +
     '/id — мой ID в MAX (нужен УК для добавления владельца)\n' +
     '/cancel — отменить текущее действие',
+  helpChairman:
+    'Команды:\n' +
+    '/panel — главное меню\n' +
+    '/create — создать заявку\n' +
+    '/my — мои заявки\n' +
+    '/supported — заявки, которые я поддержал\n' +
+    '/announce — объявление жителям дома (вы председатель ТСЖ)\n' +
+    '/contacts — контакты УК\n' +
+    '/id — мой ID в MAX\n' +
+    '/cancel — отменить текущее действие',
   helpAdmin:
     'Команды сотрудника УК:\n' +
     '/panel — панель управления\n' +
     '/requests — заявки в работе\n' +
     '/add_owner — добавить владельца в дом\n' +
     '/remove_owner — удалить владельца из дома\n' +
-    '/announce — объявление в чат дома\n' +
+    '/appoint_chairman — назначить председателя ТСЖ дома\n' +
+    '/dismiss_chairman — снять председателя ТСЖ\n' +
+    '/announce — объявление жителям дома\n' +
     '/bind — (в групповом чате, с упоминанием бота) привязать чат к дому\n' +
     '/cancel — отменить текущее действие',
   groupInstructions: (link: string | null) =>

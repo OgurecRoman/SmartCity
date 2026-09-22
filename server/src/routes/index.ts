@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authenticate } from '../auth/middleware.js';
+import announcementsRouter from './announcements.js';
 import catalogRouter from './catalog.js';
 import dictionariesRouter from './dictionaries.js';
 import housesRouter from './houses.js';
@@ -16,3 +17,4 @@ apiRouter.use(meRouter);
 apiRouter.use(housesRouter);
 apiRouter.use(catalogRouter);
 apiRouter.use(requestsRouter);
+apiRouter.use(announcementsRouter);

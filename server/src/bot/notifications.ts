@@ -4,9 +4,10 @@ import { prisma } from '../lib/db.js';
 import { events } from '../lib/events.js';
 import { CATEGORY_LABELS, STATUS_EMOJI, STATUS_LABELS, fullName } from '../lib/labels.js';
 import { log } from '../lib/logger.js';
+import { getAnnouncement } from '../services/announcements.js';
 import { getRequest, type RequestWithRelations } from '../services/requests.js';
 import { listEmployees } from '../services/users.js';
-import { chatDetailsButtons, keyboard, requestCard, ukRequestButtons, withKeyboard, type ButtonRows } from './ui.js';
+import { announcementCard, chatDetailsButtons, keyboard, requestCard, ukRequestButtons, withKeyboard, type ButtonRows } from './ui.js';
 
 let api: Api | null = null;
 let subscribed = false;
@@ -151,6 +152,24 @@ function subscribe(): void {
       `⌛ Срок сбора подписей по заявке №${request.id} истёк: собрано ${request.votesCount} из ${request.votesRequired}. ` +
         'Вы можете создать заявку заново.',
     );
+  });
+
+  events.on('announcement.created', async ({ announcementId }) => {
+    const announcement = await getAnnouncement(announcementId);
+    if (!announcement || !announcement.house.chatId) return;
+    const message = await sendToChat(announcement.house.chatId, announcementCard(announcement));
+    if (message) {
+      await prisma.announcement.update({ where: { id: announcement.id }, data: { chatMessageId: message.body.mid } });
+    }
+  });
+
+  events.on('announcement.updated', async ({ announcementId }) => {
+    const announcement = await getAnnouncement(announcementId);
+    if (announcement?.chatMessageId) await editMessage(announcement.chatMessageId, announcementCard(announcement), []);
+  });
+
+  events.on('announcement.deleted', async ({ chatMessageId, title }) => {
+    if (chatMessageId) await editMessage(chatMessageId, `🗑 Объявление «${title}» удалено.`, []);
   });
 }
 

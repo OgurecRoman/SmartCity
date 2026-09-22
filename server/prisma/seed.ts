@@ -95,6 +95,21 @@ async function main() {
   }
   const [ivan, maria, oleg, anna] = residents;
 
+  const chairman = await prisma.user.upsert({
+    where: { maxUserId: 900000007n },
+    update: { role: 'CHAIRMAN', houseId: house1.id },
+    create: {
+      maxUserId: 900000007n,
+      firstName: 'Светлана',
+      lastName: 'Председателева',
+      role: 'CHAIRMAN',
+      houseId: house1.id,
+      apartment: '3',
+      residentType: 'OWNER',
+      onboardedAt: new Date(),
+    },
+  });
+
   const requestsCount = await prisma.request.count();
   if (requestsCount === 0) {
     const residentsInHouse1 = await prisma.user.count({ where: { houseId: house1.id, role: 'RESIDENT', onboardedAt: { not: null } } });
@@ -184,7 +199,20 @@ async function main() {
     console.log(`Создано 4 демо-заявки (первая: №${painting.id}), порог подписей для «${house1.address}»: ${required}`);
   }
 
-  console.log('Seed выполнен: УК, дома, организации, жители готовы.');
+  const announcementsCount = await prisma.announcement.count({ where: { houseId: house1.id } });
+  if (announcementsCount === 0) {
+    await prisma.announcement.create({
+      data: {
+        houseId: house1.id,
+        authorId: chairman.id,
+        title: 'Отключение горячей воды',
+        description: 'С 25 по 26 сентября проводится плановое опрессование системы отопления, горячей воды не будет.',
+      },
+    });
+    console.log(`Создано демо-объявление от председателя ТСЖ для дома «${house1.address}».`);
+  }
+
+  console.log('Seed выполнен: УК, дома, организации, жители, председатель ТСЖ готовы.');
 }
 
 main()

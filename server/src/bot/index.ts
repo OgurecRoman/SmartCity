@@ -10,7 +10,7 @@ import { registerCommonHandlers } from './handlers/common.js';
 import { registerResidentHandlers } from './handlers/resident.js';
 import { ack, isDialog, maxUserOf } from './helpers.js';
 import { initNotifications } from './notifications.js';
-import { announceScenario, delegateScenario, manageOwnerScenario, rejectScenario } from './scenarios/admin.js';
+import { announceScenario, delegateScenario, manageChairmanScenario, manageOwnerScenario, rejectScenario } from './scenarios/admin.js';
 import { createRequestScenario } from './scenarios/createRequest.js';
 import { onboardingScenario } from './scenarios/onboarding.js';
 import { PrismaSessionStore } from './sessionStore.js';
@@ -67,6 +67,7 @@ export function createBot(): Bot<BotContext> {
     .register(onboardingScenario)
     .register(createRequestScenario)
     .register(manageOwnerScenario)
+    .register(manageChairmanScenario)
     .register(announceScenario)
     .register(delegateScenario)
     .register(rejectScenario);
