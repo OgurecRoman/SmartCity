@@ -4,7 +4,7 @@ import type { MembershipRequestWithRelations } from '../services/membership.js';
 import type { NewsWithRelations } from '../services/news.js';
 import type { RequestDetailed, RequestWithRelations } from '../services/requests.js';
 import { checkApartment, type Entrance } from '../services/rules.js';
-import { apartmentDataOf, type DbUser } from '../services/users.js';
+import { apartmentDataOf, type DbUser, type ResidentRow } from '../services/users.js';
 
 type HouseRow = {
   id: number;
@@ -162,5 +162,19 @@ export function serializeNews(news: NewsWithRelations, extra: { viewerId?: numbe
     isMine: extra.viewerId !== undefined ? news.authorId === extra.viewerId : undefined,
     createdAt: news.createdAt,
     updatedAt: news.updatedAt,
+  };
+}
+
+export function serializeResident(user: ResidentRow) {
+  return {
+    id: user.id,
+    maxUserId: user.maxUserId.toString(),
+    username: user.username,
+    apartment: user.apartment,
+    fullName: user.verifiedFullName ?? fullName(user),
+    verified: user.verifiedFullName !== null,
+    role: user.role,
+    residentType: user.residentType,
+    residentTypeLabel: user.residentType ? RESIDENT_TYPE_LABELS[user.residentType] : null,
   };
 }

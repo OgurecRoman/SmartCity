@@ -76,19 +76,19 @@ async function main() {
   }
 
   const residentSpecs = [
-    { maxUserId: 900000001n, firstName: 'Иван', lastName: 'Иванов', houseId: house1.id, apartment: '12', residentType: 'OWNER' },
-    { maxUserId: 900000002n, firstName: 'Мария', lastName: 'Петрова', houseId: house1.id, apartment: '27', residentType: 'OWNER' },
-    { maxUserId: 900000003n, firstName: 'Олег', lastName: 'Сидоров', houseId: house1.id, apartment: '41', residentType: 'TENANT' },
-    { maxUserId: 900000004n, firstName: 'Анна', lastName: 'Кузнецова', houseId: house1.id, apartment: '58', residentType: 'OWNER' },
-    { maxUserId: 900000005n, firstName: 'Дмитрий', lastName: 'Смирнов', houseId: house1.id, apartment: '63', residentType: 'OWNER' },
-    { maxUserId: 900000006n, firstName: 'Елена', lastName: 'Волкова', houseId: house2.id, apartment: '5', residentType: 'OWNER' },
+    { maxUserId: 900000001n, firstName: 'Иван', lastName: 'Иванов', username: 'ivan_ivanov', houseId: house1.id, apartment: '12', residentType: 'OWNER' },
+    { maxUserId: 900000002n, firstName: 'Мария', lastName: 'Петрова', username: null, houseId: house1.id, apartment: '27', residentType: 'OWNER' },
+    { maxUserId: 900000003n, firstName: 'Олег', lastName: 'Сидоров', username: null, houseId: house1.id, apartment: '41', residentType: 'TENANT' },
+    { maxUserId: 900000004n, firstName: 'Анна', lastName: 'Кузнецова', username: null, houseId: house1.id, apartment: '58', residentType: 'OWNER' },
+    { maxUserId: 900000005n, firstName: 'Дмитрий', lastName: 'Смирнов', username: null, houseId: house1.id, apartment: '63', residentType: 'OWNER' },
+    { maxUserId: 900000006n, firstName: 'Елена', lastName: 'Волкова', username: null, houseId: house2.id, apartment: '5', residentType: 'OWNER' },
   ] as const;
   const residents = [];
   for (const spec of residentSpecs) {
     residents.push(
       await prisma.user.upsert({
         where: { maxUserId: spec.maxUserId },
-        update: {},
+        update: { username: spec.username },
         create: { ...spec, onboardedAt: new Date() },
       }),
     );

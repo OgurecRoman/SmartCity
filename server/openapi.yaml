@@ -211,6 +211,19 @@ components:
         title: { type: string, minLength: 3, maxLength: 120 }
         description: { type: string, minLength: 5, maxLength: 2000 }
         contact: { type: string, minLength: 3, maxLength: 200 }
+    Resident:
+      type: object
+      description: Подтверждённый житель дома — только для сотрудников УК
+      properties:
+        id: { type: integer }
+        maxUserId: { type: string, description: MAX id пользователя (строка, т.к. BigInt) }
+        username: { type: [string, 'null'], description: Ник в MAX (без @) }
+        apartment: { type: [string, 'null'] }
+        fullName: { type: string, description: 'ФИО, подтверждённое при одобрении заявки на вступление, либо имя из профиля MAX' }
+        verified: { type: boolean, description: true — ФИО подтверждено через заявку на вступление; false — это только имя из профиля MAX }
+        role: { type: string, enum: [RESIDENT, CHAIRMAN] }
+        residentType: { oneOf: [{ $ref: '#/components/schemas/ResidentType' }, { type: 'null' }] }
+        residentTypeLabel: { type: [string, 'null'] }
     Request:
       type: object
       properties:
@@ -691,3 +704,14 @@ paths:
         '204': { description: Удалено }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/residents:
+    get:
+      tags: [uk]
+      summary: Подтверждённые жители дома (только для сотрудников УК)
+      parameters:
+        - { name: houseId, in: query, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Resident' } } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }

@@ -2,11 +2,11 @@ import type { Bot } from '@maxhub/max-bot-api';
 import { isAppError } from '../../lib/errors.js';
 import { changeStatus, listRequests } from '../../services/requests.js';
 import { UK_ACTIVE_STATUSES } from '../../services/rules.js';
-import { isChairman, isEmployee } from '../../services/users.js';
+import { getHouse, isChairman, isEmployee, listHouses, listResidentsOfHouse } from '../../services/users.js';
 import type { BotContext } from '../context.js';
 import { ack, isDialog } from '../helpers.js';
 import { announceScenario, delegateScenario, manageChairmanScenario, manageOwnerScenario, rejectScenario } from '../scenarios/admin.js';
-import { keyboard, panelButton, requestCard, ukRequestButtons, withKeyboard } from '../ui.js';
+import { houseButtons, keyboard, panelButton, requestCard, residentsCards, ukRequestButtons, withKeyboard } from '../ui.js';
 import { sendRequestDocument, sendRequestList } from '../views.js';
 
 async function guard(ctx: BotContext): Promise<boolean> {
@@ -95,4 +95,38 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
   };
   bot.command('announce', startAnnounce);
   bot.action('menu:announce', startAnnounce);
+
+  const startResidents = async (ctx: BotContext) => {
+    if (!(await guard(ctx))) return;
+    await ack(ctx);
+    const houses = await listHouses();
+    if (houses.length === 0) {
+      await ctx.reply('Пока нет домов.', withKeyboard(panelButton()));
+      return;
+    }
+    await ctx.reply('Жители какого дома нужны?', withKeyboard(houseButtons(houses, 'res:house')));
+  };
+  bot.command('residents', startResidents);
+  bot.action('menu:residents', startResidents);
+
+  bot.action(/^res:house:(\d+)$/, async (ctx) => {
+    if (!(await guard(ctx))) return;
+    const houseId = Number(ctx.match?.[1]);
+    const house = await getHouse(houseId);
+    if (!house) {
+      await ack(ctx, { notification: 'Дом не найден' });
+      return;
+    }
+    await ack(ctx, { message: { text: `🏠 ${house.address}` } });
+    const residents = await listResidentsOfHouse(houseId);
+    if (residents.length === 0) {
+      await ctx.reply(`В доме «${house.address}» пока нет подтверждённых жителей.`, withKeyboard(panelButton()));
+      return;
+    }
+    const cards = residentsCards(house, residents);
+    for (let i = 0; i < cards.length; i += 1) {
+      const isLast = i === cards.length - 1;
+      await ctx.reply(cards[i], isLast ? withKeyboard(panelButton()) : undefined);
+    }
+  });
 }

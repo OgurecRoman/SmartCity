@@ -7,6 +7,7 @@ import housesRouter from './houses.js';
 import meRouter from './me.js';
 import newsRouter from './news.js';
 import requestsRouter from './requests.js';
+import residentsRouter from './residents.js';
 
 export const apiRouter = Router();
 
@@ -20,3 +21,4 @@ apiRouter.use(catalogRouter);
 apiRouter.use(requestsRouter);
 apiRouter.use(announcementsRouter);
 apiRouter.use(newsRouter);
+apiRouter.use(residentsRouter);

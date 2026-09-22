@@ -72,6 +72,16 @@ interface NewsItem {
   createdAt: string;
 }
 
+interface Resident {
+  id: number;
+  maxUserId: string;
+  username: string | null;
+  apartment: string | null;
+  fullName: string;
+  verified: boolean;
+  residentTypeLabel: string | null;
+}
+
 type ApiError = Error & { code?: string };
 
 (() => {
@@ -369,6 +379,38 @@ type ApiError = Error & { code?: string };
     }
   }
 
+  async function showUk(): Promise<void> {
+    show('uk');
+    const select = $<HTMLSelectElement>('uk-house');
+    if (!select.options.length) {
+      const houses = await api<House[]>('GET', '/houses');
+      select.innerHTML = '<option value="">— выберите дом —</option>' + houses.map((h) => `<option value="${h.id}">${h.address}</option>`).join('');
+    }
+  }
+
+  async function loadUkResidents(): Promise<void> {
+    const box = $('uk-residents');
+    const houseId = $<HTMLSelectElement>('uk-house').value;
+    if (!houseId) { box.className = 'muted'; box.textContent = 'Выберите дом'; return; }
+    box.className = 'muted';
+    box.textContent = 'Загрузка…';
+    try {
+      const list = await api<Resident[]>('GET', `/residents?houseId=${houseId}`);
+      box.className = '';
+      box.innerHTML = list.length ? '' : '<div class="muted">В этом доме пока нет подтверждённых жителей</div>';
+      list.forEach((r) => {
+        const el = document.createElement('div');
+        el.className = 'request';
+        el.innerHTML = `<div style="font-weight:600">Кв. ${r.apartment ?? '—'} · ${r.fullName}${r.verified ? '' : ' <span class="muted">(ФИО не подтверждено)</span>'}</div>` +
+          `<div class="muted">${r.residentTypeLabel ?? ''} · ${r.username ? '@' + r.username : 'без ника'} · MAX ID ${r.maxUserId}</div>`;
+        box.appendChild(el);
+      });
+    } catch (e) {
+      box.className = 'error';
+      box.textContent = (e as Error).message;
+    }
+  }
+
   async function sendRequest(): Promise<void> {
     $('req-error').textContent = '';
     $('req-ok').textContent = '';
@@ -406,6 +448,7 @@ type ApiError = Error & { code?: string };
     $('change-house').onclick = showMap;
     $('req-send').onclick = sendRequest;
     $('news-send').onclick = sendNews;
+    $('uk-house').onchange = loadUkResidents;
     if (sdkUser && (sdkUser.first_name || sdkUser.last_name)) {
       $('use-profile-name').style.display = '';
       $('use-profile-name').onclick = () => {
@@ -414,7 +457,7 @@ type ApiError = Error & { code?: string };
     }
     try {
       await loadMe();
-      if (me!.role === 'UK_EMPLOYEE') { $('fatal').textContent = 'Панель сотрудника УК — в боте (команда /requests). Мини-приложение предназначено для жителей.'; show('error'); return; }
+      if (me!.role === 'UK_EMPLOYEE') { showUk(); return; }
       if (me!.onboarded || me!.membership) showHome(); else showMap();
     } catch (e) {
       $('fatal').textContent = (e as Error).message;

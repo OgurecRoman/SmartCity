@@ -5,6 +5,7 @@ import {
   CATEGORY_LABELS,
   CATEGORY_ORDER,
   PRIORITY_LABELS,
+  RESIDENT_TYPE_LABELS,
   STATUS_EMOJI,
   STATUS_LABELS,
   formatDate,
@@ -16,7 +17,7 @@ import type { MembershipRequestWithRelations } from '../services/membership.js';
 import type { NewsWithRelations } from '../services/news.js';
 import type { RequestWithRelations } from '../services/requests.js';
 import { AUTHOR_DELETABLE_STATUSES } from '../services/rules.js';
-import type { DbUser } from '../services/users.js';
+import type { DbUser, ResidentRow } from '../services/users.js';
 
 export type ButtonRows = Button[][];
 export const btn = Keyboard.button;
@@ -71,6 +72,7 @@ export function adminMenu(): ButtonRows {
   return [
     [btn.callback('📨 Новые заявки', 'uk:new')],
     [btn.callback('📋 Заявки на вступление', 'menu:membership_queue')],
+    [btn.callback('👥 Жители дома', 'menu:residents')],
     [btn.callback('➕ Добавить владельца', 'menu:add_owner'), btn.callback('➖ Удалить владельца', 'menu:remove_owner')],
     [btn.callback('👤 Назначить председателя', 'menu:appoint_chairman'), btn.callback('🚫 Снять председателя', 'menu:dismiss_chairman')],
     [btn.callback('📢 Объявление жителям', 'menu:announce')],
@@ -216,6 +218,25 @@ export function membershipReviewButtons(requestId: number): ButtonRows {
   return [[btn.callback('✅ Подтвердить', `mem:approve:${requestId}`), btn.callback('❌ Отклонить', `mem:reject:${requestId}`)]];
 }
 
+export function residentsCards(house: { address: string }, residents: ResidentRow[]): string[] {
+  const lines = residents.map((r) => {
+    const name = r.verifiedFullName ?? fullName(r);
+    const verified = r.verifiedFullName ? '' : ' (ФИО не подтверждено)';
+    const type = r.residentType ? ` · ${RESIDENT_TYPE_LABELS[r.residentType]}` : '';
+    const nick = r.username ? `@${r.username}` : 'без ника';
+    return `Кв. ${r.apartment ?? '—'} — ${name}${verified}${type}\n${nick} · MAX ID ${r.maxUserId}`;
+  });
+
+  const perMessage = 15;
+  const chunks: string[] = [];
+  for (let i = 0; i < lines.length; i += perMessage) {
+    chunks.push(lines.slice(i, i + perMessage).join('\n\n'));
+  }
+  if (chunks.length === 0) return chunks;
+  chunks[0] = `👥 Жители дома «${house.address}» (${residents.length})\n\n${chunks[0]}`;
+  return chunks;
+}
+
 export function contactsCard(company: {
   name: string;
   phone: string;
@@ -277,6 +298,7 @@ export const TEXTS = {
     '/panel — панель управления\n' +
     '/requests — заявки в работе\n' +
     '/membership_queue — заявки жителей на вступление в дом\n' +
+    '/residents — список жителей выбранного дома (квартира, ФИО, ник в MAX, MAX ID)\n' +
     '/add_owner — добавить владельца в дом\n' +
     '/remove_owner — удалить владельца из дома\n' +
     '/appoint_chairman — назначить председателя ТСЖ дома\n' +

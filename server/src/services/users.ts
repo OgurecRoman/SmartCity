@@ -195,6 +195,28 @@ export async function countResidents(houseId: number): Promise<number> {
   return prisma.user.count({ where: { houseId, role: { in: ['RESIDENT', 'CHAIRMAN'] }, onboardedAt: { not: null } } });
 }
 
+export const residentSelect = {
+  id: true,
+  maxUserId: true,
+  firstName: true,
+  lastName: true,
+  username: true,
+  apartment: true,
+  verifiedFullName: true,
+  role: true,
+  residentType: true,
+} satisfies Prisma.UserSelect;
+
+export type ResidentRow = Prisma.UserGetPayload<{ select: typeof residentSelect }>;
+
+export async function listResidentsOfHouse(houseId: number): Promise<ResidentRow[]> {
+  const residents = await prisma.user.findMany({
+    where: { houseId, role: { in: ['RESIDENT', 'CHAIRMAN'] }, onboardedAt: { not: null } },
+    select: residentSelect,
+  });
+  return residents.sort((a, b) => (parseInt(a.apartment ?? '', 10) || 0) - (parseInt(b.apartment ?? '', 10) || 0));
+}
+
 export async function listEmployees(): Promise<DbUser[]> {
   return prisma.user.findMany({ where: { role: 'UK_EMPLOYEE' }, include: userInclude, orderBy: { id: 'asc' } });
 }
