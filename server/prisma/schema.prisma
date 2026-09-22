@@ -43,6 +43,12 @@ enum RequestStatus {
   EXPIRED
 }
 
+enum MembershipStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model ManagementCompany {
   id            Int                       @id @default(autoincrement())
   name          String
@@ -74,6 +80,7 @@ model House {
   requests    Request[]
   announcements Announcement[]
   news        News[]
+  membershipRequests MembershipRequest[]
   createdAt   DateTime  @default(now())
 }
 
@@ -88,6 +95,7 @@ model User {
   house         House?        @relation(fields: [houseId], references: [id])
   apartment     String?
   residentType  ResidentType?
+  verifiedFullName String?
   companyId     Int?
   company       ManagementCompany? @relation(fields: [companyId], references: [id])
   onboardedAt   DateTime?
@@ -98,6 +106,8 @@ model User {
   statusChanges StatusHistory[]
   announcements Announcement[]
   news          News[]
+  membershipRequests MembershipRequest[] @relation("MembershipApplicant")
+  reviewedMemberships MembershipRequest[] @relation("MembershipReviewer")
 }
 
 model Request {
@@ -194,6 +204,25 @@ model News {
   updatedAt     DateTime @updatedAt
 
   @@index([houseId])
+}
+
+model MembershipRequest {
+  id           Int              @id @default(autoincrement())
+  applicantId  Int
+  applicant    User             @relation("MembershipApplicant", fields: [applicantId], references: [id])
+  houseId      Int
+  house        House            @relation(fields: [houseId], references: [id])
+  apartment    String
+  fullName     String
+  status       MembershipStatus @default(PENDING)
+  reviewedById Int?
+  reviewedBy   User?            @relation("MembershipReviewer", fields: [reviewedById], references: [id])
+  rejectReason String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@index([houseId, status])
+  @@index([applicantId])
 }
 
 model BotSession {

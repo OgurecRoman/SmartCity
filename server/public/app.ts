@@ -20,13 +20,20 @@ interface House extends Building {
   lng: number | null;
 }
 
+interface Membership {
+  status: 'PENDING' | 'REJECTED';
+  rejectReason: string | null;
+}
+
 interface Me {
   role: string;
   onboarded: boolean;
   apartment: string | null;
   entrance: string | null;
-  residentTypeLabel: string;
+  residentTypeLabel: string | null;
+  verifiedFullName: string | null;
   house: House | null;
+  membership: Membership | null;
 }
 
 interface RequestItem {
@@ -80,7 +87,6 @@ type ApiError = Error & { code?: string };
   let map: L.Map | null = null;
   let marker: L.Marker | null = null;
   let selected: { lat: number; lng: number; building: Building; house: House | null } | null = null;
-  let residentType = 'OWNER';
   let categories: { value: string; label: string }[] = [];
 
   function authHeaders(): Record<string, string> {
@@ -170,6 +176,7 @@ type ApiError = Error & { code?: string };
       $('apt-info').textContent = describeBuilding(house);
       $('apt-error').textContent = '';
       $<HTMLInputElement>('apartment').value = (me && me.apartment) || '';
+      $<HTMLInputElement>('full-name').value = (me && me.verifiedFullName) || '';
       show('apartment');
     } catch (e) {
       $('house-card').className = 'card error';
@@ -199,35 +206,66 @@ type ApiError = Error & { code?: string };
     }
   }
 
-  function setType(type: string): void {
-    residentType = type;
-    $('type-owner').className = type === 'OWNER' ? '' : 'secondary';
-    $('type-tenant').className = type === 'TENANT' ? '' : 'secondary';
+  async function loadMe(): Promise<void> {
+    me = await api<Me>('GET', '/me');
   }
 
-  async function saveApartment(): Promise<void> {
+  async function submitMembership(): Promise<void> {
     const apartment = $<HTMLInputElement>('apartment').value.trim();
+    const fullName = $<HTMLInputElement>('full-name').value.trim();
     $('apt-error').textContent = '';
     if (!apartment) { $('apt-error').textContent = 'Укажите номер квартиры'; return; }
+    if (!fullName) { $('apt-error').textContent = 'Укажите ФИО'; return; }
+    const btn = $<HTMLButtonElement>('apt-save');
+    btn.disabled = true;
     try {
-      me = await api<Me>('PATCH', '/me', { houseId: selected!.house!.id, apartment, residentType });
+      await api('PATCH', '/me', { houseId: selected!.house!.id, apartment, fullName });
+      await loadMe();
       showHome();
     } catch (e) {
       $('apt-error').textContent = (e as Error).message;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  function renderStatus(): void {
+    const card = $('status-card');
+    const text = $('status-text');
+    if (!me!.membership) { card.style.display = 'none'; return; }
+    card.style.display = '';
+    if (me!.membership.status === 'PENDING') {
+      card.className = 'card muted';
+      text.textContent = 'Заявка на вступление отправлена и ждёт подтверждения председателя ТСЖ или УК. Вы уже можете читать объявления и новости дома.';
+    } else {
+      card.className = 'card error';
+      text.textContent = `Заявка на вступление отклонена. Причина: ${me!.membership.rejectReason}`;
     }
   }
 
   async function showHome(): Promise<void> {
     show('home');
-    $('home-address').textContent = me!.house!.address;
-    $('home-apartment').textContent = `кв. ${me!.apartment}` + (me!.entrance ? `, подъезд ${me!.entrance}` : '') + ` · ${me!.residentTypeLabel.toLowerCase()}`;
-    if (!categories.length) {
-      const dict = await api<{ categories: { value: string; label: string }[] }>('GET', '/dictionaries');
-      categories = dict.categories;
-      $('category').innerHTML = categories.map((c) => `<option value="${c.value}">${c.label}</option>`).join('');
+    renderStatus();
+    $('home-address').textContent = me!.house ? me!.house.address : 'Дом ещё не выбран';
+    $('home-apartment').textContent = me!.apartment
+      ? `кв. ${me!.apartment}` + (me!.entrance ? `, подъезд ${me!.entrance}` : '') + (me!.residentTypeLabel ? ` · ${me!.residentTypeLabel.toLowerCase()}` : '')
+      : '';
+    $('change-house').textContent = me!.onboarded ? 'Сменить дом' : 'Подать заявку заново';
+
+    const approved = me!.onboarded;
+    $('request-form-card').style.display = approved ? '' : 'none';
+    $('requests-list-card').style.display = approved ? '' : 'none';
+    $('news-form-card').style.display = approved ? '' : 'none';
+
+    if (approved) {
+      if (!categories.length) {
+        const dict = await api<{ categories: { value: string; label: string }[] }>('GET', '/dictionaries');
+        categories = dict.categories;
+        $('category').innerHTML = categories.map((c) => `<option value="${c.value}">${c.label}</option>`).join('');
+      }
+      loadRequests();
     }
     loadAnnouncements();
-    loadRequests();
     loadNews();
   }
 
@@ -363,18 +401,21 @@ type ApiError = Error & { code?: string };
     $('search-btn').onclick = searchAddress;
     $('search').addEventListener('keydown', (e) => { if (e.key === 'Enter') searchAddress(); });
     $('locate-btn').onclick = () => map!.locate({ setView: true, maxZoom: 17 });
-    $('type-owner').onclick = () => setType('OWNER');
-    $('type-tenant').onclick = () => setType('TENANT');
     $('apt-back').onclick = showMap;
-    $('apt-save').onclick = saveApartment;
+    $('apt-save').onclick = submitMembership;
     $('change-house').onclick = showMap;
     $('req-send').onclick = sendRequest;
     $('news-send').onclick = sendNews;
-    setType('OWNER');
+    if (sdkUser && (sdkUser.first_name || sdkUser.last_name)) {
+      $('use-profile-name').style.display = '';
+      $('use-profile-name').onclick = () => {
+        $<HTMLInputElement>('full-name').value = [sdkUser.first_name, sdkUser.last_name].filter(Boolean).join(' ').trim();
+      };
+    }
     try {
-      me = await api<Me>('GET', '/me');
-      if (me.role === 'UK_EMPLOYEE') { $('fatal').textContent = 'Панель сотрудника УК — в боте (команда /requests). Мини-приложение предназначено для жителей.'; show('error'); return; }
-      if (me.onboarded) showHome(); else showMap();
+      await loadMe();
+      if (me!.role === 'UK_EMPLOYEE') { $('fatal').textContent = 'Панель сотрудника УК — в боте (команда /requests). Мини-приложение предназначено для жителей.'; show('error'); return; }
+      if (me!.onboarded || me!.membership) showHome(); else showMap();
     } catch (e) {
       $('fatal').textContent = (e as Error).message;
       show('error');

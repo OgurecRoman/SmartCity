@@ -226,6 +226,33 @@ async function main() {
     console.log(`Создана демо-новость от жителя для дома «${house1.address}».`);
   }
 
+  const applicant = await prisma.user.upsert({
+    where: { maxUserId: 900000008n },
+    update: {},
+    create: {
+      maxUserId: 900000008n,
+      firstName: 'Николай',
+      lastName: 'Новосёлов',
+      houseId: house1.id,
+      apartment: '9',
+      residentType: 'OWNER',
+    },
+  });
+
+  const pendingCount = await prisma.membershipRequest.count({ where: { houseId: house1.id, status: 'PENDING' } });
+  if (pendingCount === 0) {
+    await prisma.membershipRequest.create({
+      data: {
+        applicantId: applicant.id,
+        houseId: house1.id,
+        apartment: '9',
+        fullName: 'Новосёлов Николай Николаевич',
+        status: 'PENDING',
+      },
+    });
+    console.log(`Создана демо-заявка на вступление для дома «${house1.address}» — ждёт подтверждения председателя ТСЖ.`);
+  }
+
   console.log('Seed выполнен: УК, дома, организации, жители, председатель ТСЖ готовы.');
 }
 

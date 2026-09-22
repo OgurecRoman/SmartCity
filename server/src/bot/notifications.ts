@@ -5,15 +5,19 @@ import { events } from '../lib/events.js';
 import { CATEGORY_LABELS, STATUS_EMOJI, STATUS_LABELS, fullName } from '../lib/labels.js';
 import { log } from '../lib/logger.js';
 import { getAnnouncement } from '../services/announcements.js';
+import { getMembershipRequest } from '../services/membership.js';
 import { getNews } from '../services/news.js';
 import { getRequest, type RequestWithRelations } from '../services/requests.js';
-import { listEmployees } from '../services/users.js';
+import { getChairmanOf, getUserById, listEmployees } from '../services/users.js';
 import {
   announcementCard,
   chatDetailsButtons,
   keyboard,
+  membershipCard,
+  membershipReviewButtons,
   newsCard,
   requestCard,
+  residentMenu,
   ukRequestButtons,
   withKeyboard,
   type ButtonRows,
@@ -198,6 +202,60 @@ function subscribe(): void {
 
   events.on('news.deleted', async ({ chatMessageId, title }) => {
     if (chatMessageId) await editMessage(chatMessageId, `🗑 Новость «${title}» удалена.`, []);
+  });
+
+  events.on('membership.requested', async ({ requestId }) => {
+    const request = await getMembershipRequest(requestId);
+    if (!request) return;
+    const chairman = await getChairmanOf(request.houseId);
+    const reviewers = chairman ? [chairman] : await listEmployees();
+    if (reviewers.length === 0) {
+      log.warn(`Заявку на вступление №${request.id} некому рассмотреть — нет ни председателя, ни сотрудников УК`);
+      return;
+    }
+    await Promise.all(
+      reviewers.map((reviewer) => sendDm(reviewer.maxUserId, membershipCard(request), withKeyboard(membershipReviewButtons(request.id)))),
+    );
+  });
+
+  events.on('membership.approved', async ({ requestId }) => {
+    const request = await getMembershipRequest(requestId);
+    if (!request) return;
+    let chatLine = '';
+    if (api) {
+      const house = await prisma.house.findUnique({ where: { id: request.houseId } });
+      if (house?.chatId) {
+        try {
+          const chat = await api.getChat(Number(house.chatId));
+          if (chat.link) chatLine = `\n\nЧат дома: ${chat.link}`;
+        } catch (error) {
+          log.warn(`Не удалось получить ссылку на чат дома ${house.chatId}`, error);
+        }
+      }
+    }
+    await sendDm(
+      request.applicant.maxUserId,
+      `✅ Заявка на вступление в дом «${request.house.address}» подтверждена. Теперь доступны все функции бота и приложения.${chatLine}`,
+      withKeyboard(residentMenu(false, true)),
+    );
+  });
+
+  events.on('membership.rejected', async ({ requestId }) => {
+    const request = await getMembershipRequest(requestId);
+    if (!request) return;
+    await sendDm(
+      request.applicant.maxUserId,
+      `❌ Заявка на вступление в дом «${request.house.address}» отклонена.\nПричина: ${request.rejectReason}\n\n` +
+        'Можете подать заявку заново — отправьте боту /start.',
+    );
+  });
+
+  events.on('tenant.added', async ({ houseId, ownerId, tenantId, apartment }) => {
+    const chairman = await getChairmanOf(houseId);
+    if (!chairman) return;
+    const [owner, tenant] = await Promise.all([getUserById(ownerId), getUserById(tenantId)]);
+    if (!owner || !tenant) return;
+    await sendDm(chairman.maxUserId, `ℹ️ ${fullName(owner)} добавил(а) съёмщика ${fullName(tenant)} в квартиру ${apartment}.`);
   });
 }
 

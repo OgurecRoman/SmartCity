@@ -46,7 +46,7 @@ components:
           type: object
           required: [code, message]
           properties:
-            code: { type: string, examples: [unauthorized, forbidden, not_found, conflict, validation_error, onboarding_required, apartment_not_found, building_not_found] }
+            code: { type: string, examples: [unauthorized, forbidden, not_found, conflict, validation_error, onboarding_required, apartment_not_found, building_not_found, membership_pending] }
             message: { type: string }
     RequestCategory:
       type: string
@@ -88,8 +88,23 @@ components:
         entrance: { type: [string, 'null'], description: Номер подъезда по квартире, если у дома известны диапазоны квартир по подъездам }
         residentType: { oneOf: [{ $ref: '#/components/schemas/ResidentType' }, { type: 'null' }] }
         residentTypeLabel: { type: [string, 'null'] }
-        onboarded: { type: boolean, description: Указаны дом, квартира и статус }
+        verifiedFullName: { type: [string, 'null'], description: ФИО, подтверждённое председателем ТСЖ или УК при одобрении заявки на вступление }
+        onboarded: { type: boolean, description: Заявка на вступление подтверждена — доступны все функции бота и приложения }
         createdAt: { type: string, format: date-time }
+        membership:
+          description: Незавершённая заявка на вступление (пока onboarded = false); null, если ещё не подавалась или уже одобрена
+          oneOf:
+            - { type: 'null' }
+            - type: object
+              properties:
+                id: { type: integer }
+                houseId: { type: integer }
+                houseAddress: { type: string }
+                apartment: { type: string }
+                fullName: { type: string }
+                status: { type: string, enum: [PENDING, REJECTED] }
+                rejectReason: { type: [string, 'null'] }
+                createdAt: { type: string, format: date-time }
     Entrance:
       type: object
       description: Подъезд и диапазон квартир в нём
@@ -289,16 +304,19 @@ components:
         status: { type: string, enum: [IN_PROGRESS, DELEGATED, RESOLVED, REJECTED] }
         comment: { type: string, maxLength: 1000 }
         organizationId: { type: integer, description: Обязателен для DELEGATED }
-    Onboarding:
+    SubmitMembership:
       type: object
-      required: [houseId, apartment, residentType]
+      required: [houseId, apartment, fullName]
       description: |
-        Номер квартиры проверяется по данным дома: он должен быть в пределах числа квартир и, если известны
-        подъезды, попадать в диапазон одного из них. Иначе 400 с code = apartment_not_found.
+        Заявка на вступление (только для собственника — координатора-жителя добавляет собственник командой
+        /add_tenant в боте, не через этот эндпоинт). Номер квартиры проверяется по данным дома: он должен быть
+        в пределах числа квартир и, если известны подъезды, попадать в диапазон одного из них — иначе 400
+        с code = apartment_not_found. Дом переходит в статус ожидания подтверждения председателем ТСЖ (если он
+        назначен для этого дома) или сотрудником УК; полный доступ появляется только после подтверждения.
       properties:
         houseId: { type: integer, description: 'Дом, выбранный на карте (POST /api/houses) или из списка' }
         apartment: { type: string, maxLength: 10, examples: ['27', '15а'] }
-        residentType: { $ref: '#/components/schemas/ResidentType' }
+        fullName: { type: string, minLength: 3, maxLength: 150, description: ФИО заявителя — увидит проверяющий }
   responses:
     Unauthorized:
       description: Нет или неверный initData
@@ -313,7 +331,7 @@ components:
       description: Действие недопустимо в текущем состоянии (уже подписано, сбор завершён, недопустимый переход статуса)
       content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
     BadRequest:
-      description: Ошибка валидации или не пройдена регистрация (code = onboarding_required)
+      description: 'Ошибка валидации или заявка на вступление ещё не подтверждена (code = onboarding_required)'
       content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
 
 security:
@@ -366,14 +384,27 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
     patch:
       tags: [profile]
-      summary: Регистрация жителя (дом, квартира, владелец/арендатор)
+      summary: Подать заявку на вступление (дом, квартира, ФИО)
+      description: |
+        Не даёт доступ сразу — создаёт заявку со статусом PENDING (см. User.membership) и отправляет её на
+        подтверждение. 409 с code = membership_pending, если у заявителя уже есть заявка на рассмотрении.
       requestBody:
         required: true
-        content: { application/json: { schema: { $ref: '#/components/schemas/Onboarding' } } }
+        content: { application/json: { schema: { $ref: '#/components/schemas/SubmitMembership' } } }
       responses:
-        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/User' } } } }
+        '202':
+          description: Заявка принята и ждёт подтверждения
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  membership:
+                    type: object
+                    description: То же, что User.membership, но без oneOf-обёртки с null
         '400': { description: 'Ошибка валидации или квартиры нет в доме (code = apartment_not_found)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: 'Уже есть заявка на рассмотрении (code = membership_pending)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /api/houses:
     get:

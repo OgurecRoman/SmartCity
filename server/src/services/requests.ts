@@ -60,7 +60,7 @@ export interface CreateRequestInput {
 export async function createRequest(input: CreateRequestInput): Promise<RequestWithRelations> {
   const author = await prisma.user.findUnique({ where: { id: input.authorId } });
   if (!author) throw errors.notFound('Пользователь не найден');
-  if (!author.houseId) throw errors.badRequest('Сначала укажите дом и квартиру', 'onboarding_required');
+  if (!author.houseId || !author.onboardedAt) throw errors.badRequest('Сначала дождитесь подтверждения от председателя ТСЖ или УК', 'onboarding_required');
 
   const description = input.description.trim();
   if (description.length < 5) throw errors.badRequest('Опишите проблему подробнее (минимум 5 символов)');

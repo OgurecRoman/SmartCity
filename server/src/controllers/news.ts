@@ -35,7 +35,9 @@ const createSchema = z.object({
 
 export async function create(req: Request, res: Response) {
   const user = req.user!;
-  if (!user.houseId) throw errors.badRequest('Сначала укажите дом и квартиру', 'onboarding_required');
+  if (!user.houseId || !user.onboardedAt) {
+    throw errors.badRequest('Сначала дождитесь подтверждения от председателя ТСЖ или УК', 'onboarding_required');
+  }
   const input = parseBody(createSchema, req);
   const news = await createNews({
     houseId: user.houseId,

@@ -57,21 +57,21 @@
       <div class="card">
         <div id="apt-house" style="font-weight:600"></div>
         <div id="apt-info" class="muted"></div>
+        <div class="muted">Заявку проверит председатель ТСЖ или управляющая компания — это подтверждает, что квартира действительно ваша.</div>
         <label for="apartment">Номер квартиры</label>
         <input id="apartment" inputmode="numeric" placeholder="например, 27">
-        <label>Вы владелец или арендатор?</label>
-        <div class="row">
-          <button id="type-owner" class="secondary">Владелец</button>
-          <button id="type-tenant" class="secondary">Арендатор</button>
-        </div>
+        <label for="full-name">ФИО</label>
+        <input id="full-name" placeholder="Фамилия Имя Отчество">
+        <a id="use-profile-name" class="link" style="display:none">Подставить имя из профиля MAX</a>
         <div id="apt-error" class="error"></div>
         <div class="row" style="margin-top:12px">
           <button id="apt-back" class="secondary">← Карта</button>
-          <button id="apt-save">Сохранить</button>
+          <button id="apt-save">Отправить на проверку</button>
         </div>
       </div>
     </div>
   </section>
+
 
   <section id="screen-home" class="screen">
     <div class="panel">
@@ -80,11 +80,14 @@
         <div id="home-apartment" class="muted"></div>
         <a id="change-house" class="link">Сменить дом</a>
       </div>
+      <div id="status-card" class="card" style="display:none">
+        <div id="status-text"></div>
+      </div>
       <div id="announcements-card" class="card" style="display:none">
         <div style="font-weight:600">Объявления дома</div>
         <div id="announcements" class="muted">Загрузка…</div>
       </div>
-      <div class="card">
+      <div id="request-form-card" class="card">
         <div style="font-weight:600">Новая заявка</div>
         <label for="category">Категория</label>
         <select id="category"></select>
@@ -95,11 +98,11 @@
         <div id="req-ok" class="ok"></div>
         <button id="req-send" style="margin-top:10px;width:100%">Отправить заявку</button>
       </div>
-      <div class="card">
+      <div id="requests-list-card" class="card">
         <div style="font-weight:600">Заявки дома</div>
         <div id="requests" class="muted">Загрузка…</div>
       </div>
-      <div class="card">
+      <div id="news-form-card" class="card">
         <div style="font-weight:600">Новость соседям</div>
         <div class="muted">Например, позвать в гости или поделиться новостью — не для проблем дома</div>
         <label for="news-title">Заголовок</label>

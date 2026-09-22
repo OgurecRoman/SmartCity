@@ -21,6 +21,10 @@ export interface AppEvents {
   'news.created': { newsId: number };
   'news.updated': { newsId: number };
   'news.deleted': { newsId: number; houseId: number; chatMessageId: string | null; title: string };
+  'membership.requested': { requestId: number };
+  'membership.approved': { requestId: number };
+  'membership.rejected': { requestId: number };
+  'tenant.added': { houseId: number; ownerId: number; tenantId: number; apartment: string };
 }
 
 type Handler<K extends keyof AppEvents> = (payload: AppEvents[K]) => Promise<void> | void;

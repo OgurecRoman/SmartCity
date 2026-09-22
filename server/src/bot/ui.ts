@@ -12,6 +12,7 @@ import {
   fullName,
 } from '../lib/labels.js';
 import type { AnnouncementWithRelations } from '../services/announcements.js';
+import type { MembershipRequestWithRelations } from '../services/membership.js';
 import type { NewsWithRelations } from '../services/news.js';
 import type { RequestWithRelations } from '../services/requests.js';
 import { AUTHOR_DELETABLE_STATUSES } from '../services/rules.js';
@@ -49,13 +50,17 @@ export function openAppButton(text: string, payload?: string): Button | null {
   return btn.link(text, `https://max.ru/${botUsername}?startapp${payload ? `=${encodeURIComponent(payload)}` : ''}`);
 }
 
-export function residentMenu(isChairman = false): ButtonRows {
+export function residentMenu(isChairman = false, isOwner = false): ButtonRows {
   const rows: ButtonRows = [
     [btn.callback('📝 Создать заявку', 'menu:create')],
     [btn.callback('📋 Мои заявки', 'menu:my'), btn.callback('🤝 Поддержанные', 'menu:supported')],
     [btn.callback('🎉 Новость соседям', 'menu:news_new')],
   ];
-  if (isChairman) rows.push([btn.callback('📢 Объявление жителям', 'menu:announce')]);
+  if (isOwner) rows.push([btn.callback('➕ Добавить съёмщика', 'menu:add_tenant')]);
+  if (isChairman) {
+    rows.push([btn.callback('📢 Объявление жителям', 'menu:announce')]);
+    rows.push([btn.callback('📋 Заявки на вступление', 'menu:membership_queue')]);
+  }
   rows.push([btn.callback('📞 Контакты УК', 'menu:contacts')]);
   const app = openAppButton('📱 Открыть приложение');
   if (app) rows.push([app]);
@@ -65,6 +70,7 @@ export function residentMenu(isChairman = false): ButtonRows {
 export function adminMenu(): ButtonRows {
   return [
     [btn.callback('📨 Новые заявки', 'uk:new')],
+    [btn.callback('📋 Заявки на вступление', 'menu:membership_queue')],
     [btn.callback('➕ Добавить владельца', 'menu:add_owner'), btn.callback('➖ Удалить владельца', 'menu:remove_owner')],
     [btn.callback('👤 Назначить председателя', 'menu:appoint_chairman'), btn.callback('🚫 Снять председателя', 'menu:dismiss_chairman')],
     [btn.callback('📢 Объявление жителям', 'menu:announce')],
@@ -194,6 +200,22 @@ export function newsCard(news: NewsWithRelations): string {
   return lines.join('\n');
 }
 
+export function membershipCard(request: MembershipRequestWithRelations): string {
+  const lines = [
+    `🆕 Заявка на вступление №${request.id}`,
+    `ФИО: ${request.fullName}`,
+    `Дом: ${request.house.address}`,
+    `Квартира: ${request.apartment}`,
+    `MAX ID заявителя: ${request.applicant.maxUserId}`,
+    `Подана: ${formatDateTime(request.createdAt)}`,
+  ];
+  return lines.join('\n');
+}
+
+export function membershipReviewButtons(requestId: number): ButtonRows {
+  return [[btn.callback('✅ Подтвердить', `mem:approve:${requestId}`), btn.callback('❌ Отклонить', `mem:reject:${requestId}`)]];
+}
+
 export function contactsCard(company: {
   name: string;
   phone: string;
@@ -214,7 +236,7 @@ export const TEXTS = {
     'Привет! Я бот «Умный дом» — помогаю жителям решать проблемы дома вместе с управляющей компанией.\n\n' +
     'Здесь можно создать заявку (шумные соседи, сломанный лифт, ремонт подъезда, авария), поддержать заявки соседей ' +
     'и следить за статусом: от сбора подписей до выполнения.\n\n' +
-    'Для начала расскажите, где вы живёте.',
+    'Для начала расскажите, где вы живёте — заявку проверит председатель ТСЖ или УК.',
   welcomeBack: (name: string) => `С возвращением, ${name}! Что делаем?`,
   welcomeAdmin:
     'Вы сотрудник управляющей компании. Что умеет бот:\n' +
@@ -233,6 +255,7 @@ export const TEXTS = {
     '/my — мои заявки\n' +
     '/supported — заявки, которые я поддержал\n' +
     '/news_new — новость соседям (например, позвать в гости)\n' +
+    '/add_tenant — добавить своего съёмщика (только для собственника)\n' +
     '/contacts — контакты УК\n' +
     '/id — мой ID в MAX (нужен УК для добавления владельца)\n' +
     '/cancel — отменить текущее действие',
@@ -243,7 +266,9 @@ export const TEXTS = {
     '/my — мои заявки\n' +
     '/supported — заявки, которые я поддержал\n' +
     '/news_new — новость соседям (например, позвать в гости)\n' +
+    '/add_tenant — добавить своего съёмщика (только для собственника)\n' +
     '/announce — объявление жителям дома (вы председатель ТСЖ)\n' +
+    '/membership_queue — заявки жителей на вступление в дом\n' +
     '/contacts — контакты УК\n' +
     '/id — мой ID в MAX\n' +
     '/cancel — отменить текущее действие',
@@ -251,6 +276,7 @@ export const TEXTS = {
     'Команды сотрудника УК:\n' +
     '/panel — панель управления\n' +
     '/requests — заявки в работе\n' +
+    '/membership_queue — заявки жителей на вступление в дом\n' +
     '/add_owner — добавить владельца в дом\n' +
     '/remove_owner — удалить владельца из дома\n' +
     '/appoint_chairman — назначить председателя ТСЖ дома\n' +

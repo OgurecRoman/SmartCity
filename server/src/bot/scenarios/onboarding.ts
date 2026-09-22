@@ -1,22 +1,23 @@
 import { defineScenario, transition } from '@maxhub/max-bot-api';
-import { RESIDENT_TYPE_LABELS } from '../../lib/labels.js';
 import { checkApartment } from '../../services/rules.js';
-import { apartmentDataOf, completeOnboarding, getHouse, listHouses } from '../../services/users.js';
+import { submitMembershipRequest } from '../../services/membership.js';
+import { apartmentDataOf, getHouse, listHouses } from '../../services/users.js';
+import { isAppError } from '../../lib/errors.js';
 import type { BotContext } from '../context.js';
 import { ack, payloadOf, textOf } from '../helpers.js';
-import { btn, houseButtons, residentMenu, withKeyboard } from '../ui.js';
-import { showRequestToResident } from '../views.js';
+import { btn, houseButtons, panelButton, withKeyboard } from '../ui.js';
 import { SCENARIO_TIMEOUT_MS, cancelIntercept } from './common.js';
 
 export interface OnboardingData {
   houseId?: number;
   houseAddress?: string;
   apartment?: string;
+  fullName?: string;
 
   next?: string | null;
 }
 
-type Step = 'start' | 'house' | 'apartment' | 'type';
+type Step = 'start' | 'house' | 'apartment' | 'fullName' | 'confirm';
 
 const APARTMENT_RE = /^\d{1,4}\s?[а-яa-z]?$/i;
 
@@ -62,32 +63,62 @@ export const onboardingScenario = defineScenario<BotContext, OnboardingData>()<S
         await ctx.reply(`${check.message}. Проверьте номер и введите ещё раз:`);
         return transition.stay();
       }
+
+      const profileName = [ctx.dbUser.firstName, ctx.dbUser.lastName].filter(Boolean).join(' ').trim();
+      const rows = profileName
+        ? [[btn.callback(`Использовать «${profileName}»`, 'onb:name:profile')], [btn.callback('Отмена', 'cancel')]]
+        : [[btn.callback('Отмена', 'cancel')]];
       await ctx.reply(
-        'Вы владелец квартиры или арендатор?',
-        withKeyboard([[btn.callback('Владелец', 'onb:type:OWNER'), btn.callback('Арендатор', 'onb:type:TENANT')]]),
+        'Как вас зовут? Укажите ФИО полностью — его увидит председатель ТСЖ или УК при проверке.',
+        withKeyboard(rows),
       );
-      return transition.goto('type', { apartment: text.replace(/\s+/g, '') });
+      return transition.goto('fullName', { apartment: text.replace(/\s+/g, '') });
     },
 
-    type: async ({ ctx, data }) => {
-      const match = /^onb:type:(OWNER|TENANT)$/.exec(payloadOf(ctx) ?? '');
-      if (!match || !data.houseId || !data.apartment) {
-        await ctx.reply('Выберите вариант кнопкой выше: владелец или арендатор.');
+    fullName: async ({ ctx, data }) => {
+      let fullNameValue: string | null = null;
+      if (payloadOf(ctx) === 'onb:name:profile') {
+        fullNameValue = [ctx.dbUser.firstName, ctx.dbUser.lastName].filter(Boolean).join(' ').trim() || null;
+        await ack(ctx, { message: { text: `👤 ${fullNameValue}` } });
+      } else {
+        const text = textOf(ctx);
+        if (text && text.trim().length >= 3) fullNameValue = text.trim();
+      }
+      if (!fullNameValue || fullNameValue.length < 3) {
+        await ctx.reply('Введите ФИО текстом (от 3 символов) или нажмите кнопку выше.');
         return transition.stay();
       }
-      const residentType = match[1] as 'OWNER' | 'TENANT';
-      ctx.dbUser = await completeOnboarding(ctx.dbUser.id, { houseId: data.houseId, apartment: data.apartment, residentType });
-      await ack(ctx, { message: { text: `👤 ${RESIDENT_TYPE_LABELS[residentType]}` } });
+      await ctx.reply(
+        `Дом: ${data.houseAddress}\nКвартира: ${data.apartment}\nФИО: ${fullNameValue}\n\n` +
+          'Отправить на подтверждение председателю ТСЖ или в УК?',
+        withKeyboard([[btn.callback('Отправить', 'onb:send'), btn.callback('Отмена', 'cancel')]]),
+      );
+      return transition.goto('confirm', { fullName: fullNameValue });
+    },
 
-      const summary = `Готово! Вы зарегистрированы: ${data.houseAddress}, кв. ${data.apartment} (${RESIDENT_TYPE_LABELS[residentType].toLowerCase()}).`;
-      const requestMatch = /^req_(\d+)$/.exec(data.next ?? '');
-      if (requestMatch) {
-        await ctx.reply(summary);
-        await showRequestToResident(ctx, Number(requestMatch[1]));
-      } else if (data.next === 'create') {
-        await ctx.reply(`${summary}\n\nТеперь можно создать заявку.`, withKeyboard([[btn.callback('📝 Создать заявку', 'menu:create')]]));
-      } else {
-        await ctx.reply(`${summary}\n\nЧто делаем?`, withKeyboard(residentMenu()));
+    confirm: async ({ ctx, data }) => {
+      if (payloadOf(ctx) !== 'onb:send' || !data.houseId || !data.apartment || !data.fullName) {
+        await ctx.reply('Нажмите «Отправить» или «Отмена».');
+        return transition.stay();
+      }
+      try {
+        await submitMembershipRequest({
+          applicantId: ctx.dbUser.id,
+          houseId: data.houseId,
+          apartment: data.apartment,
+          fullName: data.fullName,
+        });
+        await ack(ctx, { message: { text: 'Заявка отправлена.' } });
+        const requestMatch = /^req_(\d+)$/.exec(data.next ?? '');
+        const extra = requestMatch ? ` После подтверждения сможете посмотреть заявку №${requestMatch[1]}.` : '';
+        await ctx.reply(
+          'Заявка отправлена на проверку председателю ТСЖ или в УК. Как только её подтвердят, пришлю сообщение ' +
+            `и ссылку на чат дома.${extra}`,
+        );
+      } catch (error) {
+        if (!isAppError(error)) throw error;
+        await ack(ctx, { notification: error.message });
+        await ctx.reply(`Не получилось: ${error.message}`, withKeyboard(panelButton()));
       }
       return transition.complete();
     },

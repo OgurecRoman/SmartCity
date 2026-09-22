@@ -1,5 +1,6 @@
 import { CATEGORY_LABELS, PRIORITY_LABELS, RESIDENT_TYPE_LABELS, ROLE_LABELS, STATUS_LABELS, fullName } from '../lib/labels.js';
 import type { AnnouncementWithRelations } from '../services/announcements.js';
+import type { MembershipRequestWithRelations } from '../services/membership.js';
 import type { NewsWithRelations } from '../services/news.js';
 import type { RequestDetailed, RequestWithRelations } from '../services/requests.js';
 import { checkApartment, type Entrance } from '../services/rules.js';
@@ -56,8 +57,25 @@ export function serializeUser(user: DbUser) {
     entrance: entranceOf(user),
     residentType: user.residentType,
     residentTypeLabel: user.residentType ? RESIDENT_TYPE_LABELS[user.residentType] : null,
+    verifiedFullName: user.verifiedFullName,
     onboarded: user.houseId !== null && user.onboardedAt !== null,
     createdAt: user.createdAt,
+  };
+}
+
+export function serializeMembershipRequest(request: MembershipRequestWithRelations) {
+  return {
+    id: request.id,
+    houseId: request.houseId,
+    houseAddress: request.house.address,
+    apartment: request.apartment,
+    fullName: request.fullName,
+    status: request.status,
+    rejectReason: request.rejectReason,
+    applicant: { id: request.applicant.id, maxUserId: request.applicant.maxUserId.toString(), name: fullName(request.applicant) },
+    reviewedBy: request.reviewedBy ? { id: request.reviewedBy.id, name: fullName(request.reviewedBy) } : null,
+    createdAt: request.createdAt,
+    updatedAt: request.updatedAt,
   };
 }
 

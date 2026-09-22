@@ -6,14 +6,17 @@ import { getCompany, isEmployee, isOnboarded } from '../../services/users.js';
 import type { BotContext } from '../context.js';
 import { ack, isDialog, stripButtons } from '../helpers.js';
 import { createRequestScenario } from '../scenarios/createRequest.js';
+import { addTenantScenario } from '../scenarios/membership.js';
 import { createNewsScenario } from '../scenarios/news.js';
 import { onboardingScenario } from '../scenarios/onboarding.js';
 import { TEXTS, btn, contactsCard, keyboard, panelButton, requestCard, residentRequestButtons, withKeyboard } from '../ui.js';
 import { sendRequestList } from '../views.js';
+import { reportMembershipStatus } from './common.js';
 
 async function ensureOnboarded(ctx: BotContext, next: string | null): Promise<boolean> {
   if (isOnboarded(ctx.dbUser)) return true;
   await ack(ctx);
+  if (await reportMembershipStatus(ctx)) return false;
   await ctx.reply(TEXTS.onboardingRequired);
   await ctx.scenario.start(onboardingScenario, { next });
   return false;
@@ -60,6 +63,18 @@ async function startNews(ctx: BotContext): Promise<void> {
   await ctx.scenario.start(createNewsScenario, {});
 }
 
+async function startAddTenant(ctx: BotContext): Promise<void> {
+  if (!isDialog(ctx)) return;
+  if (!(await ensureOnboarded(ctx, null))) return;
+  if (ctx.dbUser.residentType !== 'OWNER') {
+    await ack(ctx, { notification: 'Добавлять съёмщиков может только собственник квартиры' });
+    await ctx.reply('Добавлять съёмщиков может только собственник квартиры.', withKeyboard(panelButton()));
+    return;
+  }
+  await ack(ctx);
+  await ctx.scenario.start(addTenantScenario, {});
+}
+
 export function registerResidentHandlers(bot: Bot<BotContext>): void {
   bot.command(['create', 'new'], startCreate);
   bot.action('menu:create', startCreate);
@@ -76,6 +91,9 @@ export function registerResidentHandlers(bot: Bot<BotContext>): void {
   bot.command('news_new', startNews);
   bot.action('menu:news_new', startNews);
 
+  bot.command('add_tenant', startAddTenant);
+  bot.action('menu:add_tenant', startAddTenant);
+
   bot.action(/^req:vote:(\d+)$/, async (ctx) => {
     const requestId = Number(ctx.match?.[1]);
     try {
@@ -88,8 +106,10 @@ export function registerResidentHandlers(bot: Bot<BotContext>): void {
       if (!isAppError(error)) throw error;
       await ack(ctx, { notification: error.message });
       if (error.code === 'onboarding_required') {
-        await ctx.reply(TEXTS.onboardingRequired);
-        await ctx.scenario.start(onboardingScenario, { next: `req_${requestId}` });
+        if (!(await reportMembershipStatus(ctx))) {
+          await ctx.reply(TEXTS.onboardingRequired);
+          await ctx.scenario.start(onboardingScenario, { next: `req_${requestId}` });
+        }
       } else {
         await ctx.reply(error.message, withKeyboard(panelButton()));
       }

@@ -50,7 +50,9 @@ export async function list(req: Request, res: Response) {
   let houseId: number | undefined;
   if (employee) houseId = query.houseId;
   else {
-    if (!user.houseId) throw errors.badRequest('Сначала укажите дом и квартиру', 'onboarding_required');
+    if (!user.houseId || !user.onboardedAt) {
+      throw errors.badRequest('Сначала дождитесь подтверждения от председателя ТСЖ или УК', 'onboarding_required');
+    }
     houseId = user.houseId;
   }
 
