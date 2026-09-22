@@ -212,6 +212,20 @@ async function main() {
     console.log(`Создано демо-объявление от председателя ТСЖ для дома «${house1.address}».`);
   }
 
+  const newsCount = await prisma.news.count({ where: { houseId: house1.id } });
+  if (newsCount === 0) {
+    await prisma.news.create({
+      data: {
+        houseId: house1.id,
+        authorId: ivan.id,
+        title: 'Зову на чай в честь новоселья',
+        description: 'В субботу в 18:00 жду соседей на чай, кв. 12. Заходите познакомиться!',
+        contact: 'кв. 12 или напишите в боте /id 900000001',
+      },
+    });
+    console.log(`Создана демо-новость от жителя для дома «${house1.address}».`);
+  }
+
   console.log('Seed выполнен: УК, дома, организации, жители, председатель ТСЖ готовы.');
 }
 

@@ -18,6 +18,9 @@ export interface AppEvents {
   'announcement.created': { announcementId: number };
   'announcement.updated': { announcementId: number };
   'announcement.deleted': { announcementId: number; houseId: number; chatMessageId: string | null; title: string };
+  'news.created': { newsId: number };
+  'news.updated': { newsId: number };
+  'news.deleted': { newsId: number; houseId: number; chatMessageId: string | null; title: string };
 }
 
 type Handler<K extends keyof AppEvents> = (payload: AppEvents[K]) => Promise<void> | void;

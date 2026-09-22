@@ -55,6 +55,16 @@ interface AnnouncementItem {
   createdAt: string;
 }
 
+interface NewsItem {
+  id: number;
+  title: string;
+  description: string;
+  contact: string;
+  author: { name: string };
+  isMine: boolean;
+  createdAt: string;
+}
+
 type ApiError = Error & { code?: string };
 
 (() => {
@@ -218,6 +228,7 @@ type ApiError = Error & { code?: string };
     }
     loadAnnouncements();
     loadRequests();
+    loadNews();
   }
 
   async function loadAnnouncements(): Promise<void> {
@@ -269,6 +280,57 @@ type ApiError = Error & { code?: string };
     }
   }
 
+  async function loadNews(): Promise<void> {
+    const box = $('news-list');
+    try {
+      const list = await api<NewsItem[]>('GET', '/news?limit=20');
+      box.className = '';
+      box.innerHTML = list.length ? '' : '<div class="muted">Новостей пока нет</div>';
+      list.forEach((n) => {
+        const el = document.createElement('div');
+        el.className = 'request';
+        el.innerHTML = `<div style="font-weight:600">${n.title}${n.isMine ? ' <span class="muted">(моя)</span>' : ''}</div><div>${n.description}</div>` +
+          `<div class="muted">${n.author.name} · ${new Date(n.createdAt).toLocaleDateString('ru-RU')}</div>` +
+          `<div class="muted">Связаться: ${n.contact}</div>`;
+        if (n.isMine) {
+          const b = document.createElement('button');
+          b.textContent = 'Удалить';
+          b.className = 'secondary';
+          b.style.marginTop = '6px';
+          b.onclick = async () => { if (!confirm('Удалить новость?')) return; try { await api('DELETE', `/news/${n.id}`); loadNews(); } catch (e) { alert((e as Error).message); } };
+          el.appendChild(b);
+        }
+        box.appendChild(el);
+      });
+    } catch (e) {
+      box.className = 'error';
+      box.textContent = (e as Error).message;
+    }
+  }
+
+  async function sendNews(): Promise<void> {
+    $('news-error').textContent = '';
+    $('news-ok').textContent = '';
+    const btn = $<HTMLButtonElement>('news-send');
+    btn.disabled = true;
+    try {
+      await api<NewsItem>('POST', '/news', {
+        title: $<HTMLInputElement>('news-title').value.trim(),
+        description: $<HTMLTextAreaElement>('news-description').value.trim(),
+        contact: $<HTMLInputElement>('news-contact').value.trim(),
+      });
+      $<HTMLInputElement>('news-title').value = '';
+      $<HTMLTextAreaElement>('news-description').value = '';
+      $<HTMLInputElement>('news-contact').value = '';
+      $('news-ok').textContent = 'Новость опубликована.';
+      loadNews();
+    } catch (e) {
+      $('news-error').textContent = (e as Error).message;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
   async function sendRequest(): Promise<void> {
     $('req-error').textContent = '';
     $('req-ok').textContent = '';
@@ -307,6 +369,7 @@ type ApiError = Error & { code?: string };
     $('apt-save').onclick = saveApartment;
     $('change-house').onclick = showMap;
     $('req-send').onclick = sendRequest;
+    $('news-send').onclick = sendNews;
     setType('OWNER');
     try {
       me = await api<Me>('GET', '/me');

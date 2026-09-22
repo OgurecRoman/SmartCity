@@ -6,6 +6,7 @@ import { getCompany, isEmployee, isOnboarded } from '../../services/users.js';
 import type { BotContext } from '../context.js';
 import { ack, isDialog, stripButtons } from '../helpers.js';
 import { createRequestScenario } from '../scenarios/createRequest.js';
+import { createNewsScenario } from '../scenarios/news.js';
 import { onboardingScenario } from '../scenarios/onboarding.js';
 import { TEXTS, btn, contactsCard, keyboard, panelButton, requestCard, residentRequestButtons, withKeyboard } from '../ui.js';
 import { sendRequestList } from '../views.js';
@@ -52,6 +53,13 @@ async function showContacts(ctx: BotContext): Promise<void> {
   await ctx.reply(contactsCard(await getCompany()), withKeyboard(panelButton()));
 }
 
+async function startNews(ctx: BotContext): Promise<void> {
+  if (!isDialog(ctx)) return;
+  if (!(await ensureOnboarded(ctx, 'news_new'))) return;
+  await ack(ctx);
+  await ctx.scenario.start(createNewsScenario, {});
+}
+
 export function registerResidentHandlers(bot: Bot<BotContext>): void {
   bot.command(['create', 'new'], startCreate);
   bot.action('menu:create', startCreate);
@@ -64,6 +72,9 @@ export function registerResidentHandlers(bot: Bot<BotContext>): void {
 
   bot.command('contacts', showContacts);
   bot.action('menu:contacts', showContacts);
+
+  bot.command('news_new', startNews);
+  bot.action('menu:news_new', startNews);
 
   bot.action(/^req:vote:(\d+)$/, async (ctx) => {
     const requestId = Number(ctx.match?.[1]);

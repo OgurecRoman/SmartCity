@@ -73,6 +73,7 @@ model House {
   residents   User[]
   requests    Request[]
   announcements Announcement[]
+  news        News[]
   createdAt   DateTime  @default(now())
 }
 
@@ -96,6 +97,7 @@ model User {
   votes         Vote[]
   statusChanges StatusHistory[]
   announcements Announcement[]
+  news          News[]
 }
 
 model Request {
@@ -171,6 +173,22 @@ model Announcement {
   author        User     @relation(fields: [authorId], references: [id])
   title         String
   description   String
+  chatMessageId String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([houseId])
+}
+
+model News {
+  id            Int      @id @default(autoincrement())
+  houseId       Int
+  house         House    @relation(fields: [houseId], references: [id])
+  authorId      Int
+  author        User     @relation(fields: [authorId], references: [id])
+  title         String
+  description   String
+  contact       String
   chatMessageId String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt

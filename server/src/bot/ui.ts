@@ -12,6 +12,7 @@ import {
   fullName,
 } from '../lib/labels.js';
 import type { AnnouncementWithRelations } from '../services/announcements.js';
+import type { NewsWithRelations } from '../services/news.js';
 import type { RequestWithRelations } from '../services/requests.js';
 import { AUTHOR_DELETABLE_STATUSES } from '../services/rules.js';
 import type { DbUser } from '../services/users.js';
@@ -52,6 +53,7 @@ export function residentMenu(isChairman = false): ButtonRows {
   const rows: ButtonRows = [
     [btn.callback('📝 Создать заявку', 'menu:create')],
     [btn.callback('📋 Мои заявки', 'menu:my'), btn.callback('🤝 Поддержанные', 'menu:supported')],
+    [btn.callback('🎉 Новость соседям', 'menu:news_new')],
   ];
   if (isChairman) rows.push([btn.callback('📢 Объявление жителям', 'menu:announce')]);
   rows.push([btn.callback('📞 Контакты УК', 'menu:contacts')]);
@@ -179,6 +181,19 @@ export function announcementCard(announcement: AnnouncementWithRelations): strin
   return lines.join('\n');
 }
 
+export function newsCard(news: NewsWithRelations): string {
+  const lines = [
+    `🎉 ${news.title}`,
+    '',
+    news.description,
+    '',
+    `Дом: ${news.house.address}`,
+    `От: ${fullName(news.author)}`,
+    `Связаться: ${news.contact}`,
+  ];
+  return lines.join('\n');
+}
+
 export function contactsCard(company: {
   name: string;
   phone: string;
@@ -217,6 +232,7 @@ export const TEXTS = {
     '/create — создать заявку\n' +
     '/my — мои заявки\n' +
     '/supported — заявки, которые я поддержал\n' +
+    '/news_new — новость соседям (например, позвать в гости)\n' +
     '/contacts — контакты УК\n' +
     '/id — мой ID в MAX (нужен УК для добавления владельца)\n' +
     '/cancel — отменить текущее действие',
@@ -226,6 +242,7 @@ export const TEXTS = {
     '/create — создать заявку\n' +
     '/my — мои заявки\n' +
     '/supported — заявки, которые я поддержал\n' +
+    '/news_new — новость соседям (например, позвать в гости)\n' +
     '/announce — объявление жителям дома (вы председатель ТСЖ)\n' +
     '/contacts — контакты УК\n' +
     '/id — мой ID в MAX\n' +

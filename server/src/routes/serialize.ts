@@ -1,5 +1,6 @@
 import { CATEGORY_LABELS, PRIORITY_LABELS, RESIDENT_TYPE_LABELS, ROLE_LABELS, STATUS_LABELS, fullName } from '../lib/labels.js';
 import type { AnnouncementWithRelations } from '../services/announcements.js';
+import type { NewsWithRelations } from '../services/news.js';
 import type { RequestDetailed, RequestWithRelations } from '../services/requests.js';
 import { checkApartment, type Entrance } from '../services/rules.js';
 import { apartmentDataOf, type DbUser } from '../services/users.js';
@@ -128,5 +129,20 @@ export function serializeAnnouncement(announcement: AnnouncementWithRelations) {
     author: { id: announcement.author.id, name: fullName(announcement.author), role: announcement.author.role },
     createdAt: announcement.createdAt,
     updatedAt: announcement.updatedAt,
+  };
+}
+
+export function serializeNews(news: NewsWithRelations, extra: { viewerId?: number } = {}) {
+  return {
+    id: news.id,
+    houseId: news.houseId,
+    houseAddress: news.house.address,
+    title: news.title,
+    description: news.description,
+    contact: news.contact,
+    author: { id: news.author.id, name: fullName(news.author), role: news.author.role },
+    isMine: extra.viewerId !== undefined ? news.authorId === extra.viewerId : undefined,
+    createdAt: news.createdAt,
+    updatedAt: news.updatedAt,
   };
 }

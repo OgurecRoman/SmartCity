@@ -99,6 +99,23 @@
         <div style="font-weight:600">Заявки дома</div>
         <div id="requests" class="muted">Загрузка…</div>
       </div>
+      <div class="card">
+        <div style="font-weight:600">Новость соседям</div>
+        <div class="muted">Например, позвать в гости или поделиться новостью — не для проблем дома</div>
+        <label for="news-title">Заголовок</label>
+        <input id="news-title" placeholder="Например: Зову на Новый год">
+        <label for="news-description">Текст</label>
+        <textarea id="news-description" placeholder="О чём хотите рассказать соседям"></textarea>
+        <label for="news-contact">Как с вами связаться</label>
+        <input id="news-contact" placeholder="Телефон, ссылка на профиль…">
+        <div id="news-error" class="error"></div>
+        <div id="news-ok" class="ok"></div>
+        <button id="news-send" style="margin-top:10px;width:100%">Опубликовать</button>
+      </div>
+      <div class="card">
+        <div style="font-weight:600">Новости соседей</div>
+        <div id="news-list" class="muted">Загрузка…</div>
+      </div>
     </div>
   </section>
 

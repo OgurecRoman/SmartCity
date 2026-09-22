@@ -20,6 +20,8 @@ tags:
   - name: requests
   - name: announcements
     description: Создавать, редактировать и удалять могут только УК (любой дом) и председатель ТСЖ (свой дом)
+  - name: news
+    description: Создать может любой житель своего дома; изменить или удалить — автор или УК
   - name: uk
     description: Только для сотрудников УК (role = UK_EMPLOYEE)
 
@@ -162,6 +164,38 @@ components:
       properties:
         title: { type: string, minLength: 3, maxLength: 120 }
         description: { type: string, minLength: 5, maxLength: 2000 }
+    News:
+      type: object
+      description: Новость от жителя дома (не от УК) — например, приглашение в гости; обязателен контакт автора
+      properties:
+        id: { type: integer }
+        houseId: { type: integer }
+        houseAddress: { type: string }
+        title: { type: string }
+        description: { type: string }
+        contact: { type: string, description: Как связаться с автором — телефон, ссылка на профиль и т.п. }
+        author:
+          type: object
+          properties:
+            id: { type: integer }
+            name: { type: string }
+            role: { type: string, enum: [RESIDENT, UK_EMPLOYEE, CHAIRMAN] }
+        isMine: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    CreateNews:
+      type: object
+      required: [title, description, contact]
+      properties:
+        title: { type: string, minLength: 3, maxLength: 120 }
+        description: { type: string, minLength: 5, maxLength: 2000 }
+        contact: { type: string, minLength: 3, maxLength: 200 }
+    UpdateNews:
+      type: object
+      properties:
+        title: { type: string, minLength: 3, maxLength: 120 }
+        description: { type: string, minLength: 5, maxLength: 2000 }
+        contact: { type: string, minLength: 3, maxLength: 200 }
     Request:
       type: object
       properties:
@@ -578,6 +612,50 @@ paths:
     delete:
       tags: [announcements]
       summary: Удалить объявление (УК или председатель ТСЖ своего дома)
+      responses:
+        '204': { description: Удалено }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/news:
+    get:
+      tags: [news]
+      summary: Список новостей дома (житель — своего дома, сотрудник УК — по houseId или все)
+      parameters:
+        - { name: houseId, in: query, description: Только для сотрудников УК, schema: { type: integer } }
+        - { name: limit, in: query, schema: { type: integer, default: 50, maximum: 200 } }
+        - { name: offset, in: query, schema: { type: integer, default: 0 } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/News' } } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+    post:
+      tags: [news]
+      summary: Опубликовать новость в своём доме
+      description: Может любой прописанный к дому житель. houseId брать не нужно — берётся дом автора.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateNews' } } }
+      responses:
+        '201': { description: Создано, content: { application/json: { schema: { $ref: '#/components/schemas/News' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /api/news/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    patch:
+      tags: [news]
+      summary: Изменить новость (автор или сотрудник УК)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/UpdateNews' } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/News' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [news]
+      summary: Удалить новость (автор или сотрудник УК)
       responses:
         '204': { description: Удалено }
         '403': { $ref: '#/components/responses/Forbidden' }

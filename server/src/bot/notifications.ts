@@ -5,9 +5,19 @@ import { events } from '../lib/events.js';
 import { CATEGORY_LABELS, STATUS_EMOJI, STATUS_LABELS, fullName } from '../lib/labels.js';
 import { log } from '../lib/logger.js';
 import { getAnnouncement } from '../services/announcements.js';
+import { getNews } from '../services/news.js';
 import { getRequest, type RequestWithRelations } from '../services/requests.js';
 import { listEmployees } from '../services/users.js';
-import { announcementCard, chatDetailsButtons, keyboard, requestCard, ukRequestButtons, withKeyboard, type ButtonRows } from './ui.js';
+import {
+  announcementCard,
+  chatDetailsButtons,
+  keyboard,
+  newsCard,
+  requestCard,
+  ukRequestButtons,
+  withKeyboard,
+  type ButtonRows,
+} from './ui.js';
 
 let api: Api | null = null;
 let subscribed = false;
@@ -170,6 +180,24 @@ function subscribe(): void {
 
   events.on('announcement.deleted', async ({ chatMessageId, title }) => {
     if (chatMessageId) await editMessage(chatMessageId, `🗑 Объявление «${title}» удалено.`, []);
+  });
+
+  events.on('news.created', async ({ newsId }) => {
+    const news = await getNews(newsId);
+    if (!news || !news.house.chatId) return;
+    const message = await sendToChat(news.house.chatId, newsCard(news));
+    if (message) {
+      await prisma.news.update({ where: { id: news.id }, data: { chatMessageId: message.body.mid } });
+    }
+  });
+
+  events.on('news.updated', async ({ newsId }) => {
+    const news = await getNews(newsId);
+    if (news?.chatMessageId) await editMessage(news.chatMessageId, newsCard(news), []);
+  });
+
+  events.on('news.deleted', async ({ chatMessageId, title }) => {
+    if (chatMessageId) await editMessage(chatMessageId, `🗑 Новость «${title}» удалена.`, []);
   });
 }
 

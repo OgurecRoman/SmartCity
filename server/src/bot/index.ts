@@ -12,6 +12,7 @@ import { ack, isDialog, maxUserOf } from './helpers.js';
 import { initNotifications } from './notifications.js';
 import { announceScenario, delegateScenario, manageChairmanScenario, manageOwnerScenario, rejectScenario } from './scenarios/admin.js';
 import { createRequestScenario } from './scenarios/createRequest.js';
+import { createNewsScenario } from './scenarios/news.js';
 import { onboardingScenario } from './scenarios/onboarding.js';
 import { PrismaSessionStore } from './sessionStore.js';
 import { panelButton, setBotIdentity, withKeyboard } from './ui.js';
@@ -66,6 +67,7 @@ export function createBot(): Bot<BotContext> {
   scenarios
     .register(onboardingScenario)
     .register(createRequestScenario)
+    .register(createNewsScenario)
     .register(manageOwnerScenario)
     .register(manageChairmanScenario)
     .register(announceScenario)
