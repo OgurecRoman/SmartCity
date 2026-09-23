@@ -22,6 +22,8 @@ tags:
     description: Создавать, редактировать и удалять могут только УК (любой дом) и председатель ТСЖ (свой дом)
   - name: news
     description: Создать может любой житель своего дома; изменить или удалить — автор или УК
+  - name: cameras
+    description: Только подтверждённым жителям своего дома; сотрудник УК — по houseId для любого дома
   - name: uk
     description: Только для сотрудников УК (role = UK_EMPLOYEE)
 
@@ -224,6 +226,17 @@ components:
         role: { type: string, enum: [RESIDENT, CHAIRMAN] }
         residentType: { oneOf: [{ $ref: '#/components/schemas/ResidentType' }, { type: 'null' }] }
         residentTypeLabel: { type: [string, 'null'] }
+    Camera:
+      type: object
+      description: |
+        Камера дома (двор/подъезд) — раздел-заготовка под масштабирование. Реальных трансляций пока нет:
+        streamUrl всегда null, пока в БД не проставят ссылку на конкретную камеру этого дома.
+      properties:
+        id: { type: integer }
+        houseId: { type: integer }
+        houseAddress: { type: string }
+        label: { type: string, examples: ['Двор', 'Подъезд'] }
+        streamUrl: { type: [string, 'null'], description: Ссылка на трансляцию; null — трансляция ещё не подключена }
     Request:
       type: object
       properties:
@@ -717,3 +730,16 @@ paths:
         '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Resident' } } } } }
         '400': { $ref: '#/components/responses/BadRequest' }
         '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/cameras:
+    get:
+      tags: [cameras]
+      summary: Камеры дома (двор, подъезд) — заготовка под будущие трансляции
+      description: |
+        Житель/председатель — только свой дом (без houseId, доступно после подтверждения заявки на
+        вступление). Сотрудник УК — обязательный houseId, любой дом.
+      parameters:
+        - { name: houseId, in: query, description: Обязателен для сотрудников УК, schema: { type: integer } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Camera' } } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }

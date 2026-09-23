@@ -253,6 +253,17 @@ async function main() {
     console.log(`Создана демо-заявка на вступление для дома «${house1.address}» — ждёт подтверждения председателя ТСЖ.`);
   }
 
+  const camerasCount = await prisma.camera.count({ where: { houseId: house1.id } });
+  if (camerasCount === 0) {
+    await prisma.camera.createMany({
+      data: [
+        { houseId: house1.id, label: 'Двор' },
+        { houseId: house1.id, label: 'Подъезд' },
+      ],
+    });
+    console.log(`Созданы демо-камеры (пока без трансляции) для дома «${house1.address}».`);
+  }
+
   console.log('Seed выполнен: УК, дома, организации, жители, председатель ТСЖ готовы.');
 }
 

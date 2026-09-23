@@ -81,6 +81,7 @@ model House {
   announcements Announcement[]
   news        News[]
   membershipRequests MembershipRequest[]
+  cameras     Camera[]
   createdAt   DateTime  @default(now())
 }
 
@@ -223,6 +224,18 @@ model MembershipRequest {
 
   @@index([houseId, status])
   @@index([applicantId])
+}
+
+model Camera {
+  id        Int      @id @default(autoincrement())
+  houseId   Int
+  house     House    @relation(fields: [houseId], references: [id])
+  label     String
+  streamUrl String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([houseId])
 }
 
 model BotSession {

@@ -1,5 +1,6 @@
 import { CATEGORY_LABELS, PRIORITY_LABELS, RESIDENT_TYPE_LABELS, ROLE_LABELS, STATUS_LABELS, fullName } from '../lib/labels.js';
 import type { AnnouncementWithRelations } from '../services/announcements.js';
+import type { CameraWithHouse } from '../services/cameras.js';
 import type { MembershipRequestWithRelations } from '../services/membership.js';
 import type { NewsWithRelations } from '../services/news.js';
 import type { RequestDetailed, RequestWithRelations } from '../services/requests.js';
@@ -176,5 +177,15 @@ export function serializeResident(user: ResidentRow) {
     role: user.role,
     residentType: user.residentType,
     residentTypeLabel: user.residentType ? RESIDENT_TYPE_LABELS[user.residentType] : null,
+  };
+}
+
+export function serializeCamera(camera: CameraWithHouse) {
+  return {
+    id: camera.id,
+    houseId: camera.houseId,
+    houseAddress: camera.house.address,
+    label: camera.label,
+    streamUrl: camera.streamUrl,
   };
 }

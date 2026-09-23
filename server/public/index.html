@@ -32,6 +32,7 @@
     .request:first-child { border-top: 0; }
     .status { display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 999px; background: #eef2ff; color: #3730a3; margin-left: 6px; }
     a.link { color: var(--accent); cursor: pointer; font-size: 14px; }
+    .camera-box { background: #e5e7eb; border-radius: 10px; height: 140px; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 14px; text-align: center; margin-top: 8px; }
   </style>
 </head>
 <body>
@@ -87,6 +88,11 @@
         <div style="font-weight:600">Объявления дома</div>
         <div id="announcements" class="muted">Загрузка…</div>
       </div>
+      <div id="cameras-card" class="card" style="display:none">
+        <div style="font-weight:600">Камеры</div>
+        <div class="muted">Двор и подъезд дома</div>
+        <button id="cameras-open" class="secondary" style="margin-top:10px;width:100%">📹 Открыть камеры</button>
+      </div>
       <div id="request-form-card" class="card">
         <div style="font-weight:600">Новая заявка</div>
         <label for="category">Категория</label>
@@ -126,6 +132,16 @@
     </div>
   </section>
 
+  <section id="screen-cameras" class="screen">
+    <div class="panel">
+      <div class="card">
+        <div id="cameras-house" style="font-weight:600"></div>
+        <a id="cameras-back" class="link">← Назад</a>
+      </div>
+      <div id="cameras-list" class="card muted">Загрузка…</div>
+    </div>
+  </section>
+
   <section id="screen-uk" class="screen">
     <div class="panel">
       <div class="card">
@@ -135,6 +151,10 @@
       </div>
       <div class="card">
         <div id="uk-residents" class="muted">Выберите дом</div>
+      </div>
+      <div class="card">
+        <div style="font-weight:600">Камеры</div>
+        <div id="uk-cameras" class="muted">Выберите дом</div>
       </div>
     </div>
   </section>

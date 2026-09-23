@@ -82,6 +82,14 @@ interface Resident {
   residentTypeLabel: string | null;
 }
 
+interface Camera {
+  id: number;
+  houseId: number;
+  houseAddress: string;
+  label: string;
+  streamUrl: string | null;
+}
+
 type ApiError = Error & { code?: string };
 
 (() => {
@@ -263,6 +271,7 @@ type ApiError = Error & { code?: string };
     $('change-house').textContent = me!.onboarded ? 'Сменить дом' : 'Подать заявку заново';
 
     const approved = me!.onboarded;
+    $('cameras-card').style.display = approved ? '' : 'none';
     $('request-form-card').style.display = approved ? '' : 'none';
     $('requests-list-card').style.display = approved ? '' : 'none';
     $('news-form-card').style.display = approved ? '' : 'none';
@@ -391,6 +400,48 @@ type ApiError = Error & { code?: string };
     }
   }
 
+  function renderCameras(box: HTMLElement, cameras: Camera[]): void {
+    box.className = '';
+    box.innerHTML = cameras.length ? '' : '<div class="muted">В этом доме пока нет камер</div>';
+    cameras.forEach((c) => {
+      const el = document.createElement('div');
+      el.className = 'request';
+      el.innerHTML = `<div style="font-weight:600">${c.label}</div>` +
+        `<div class="camera-box">${c.streamUrl ? `<a href="${c.streamUrl}" target="_blank">Открыть трансляцию</a>` : 'Здесь будет трансляция'}</div>`;
+      box.appendChild(el);
+    });
+  }
+
+  async function showCameras(): Promise<void> {
+    show('cameras');
+    $('cameras-house').textContent = me!.house ? me!.house.address : '';
+    const box = $('cameras-list');
+    box.className = 'muted';
+    box.textContent = 'Загрузка…';
+    try {
+      const cameras = await api<Camera[]>('GET', '/cameras');
+      renderCameras(box, cameras);
+    } catch (e) {
+      box.className = 'error';
+      box.textContent = (e as Error).message;
+    }
+  }
+
+  async function loadUkCameras(): Promise<void> {
+    const box = $('uk-cameras');
+    const houseId = $<HTMLSelectElement>('uk-house').value;
+    if (!houseId) { box.className = 'muted'; box.textContent = 'Выберите дом'; return; }
+    box.className = 'muted';
+    box.textContent = 'Загрузка…';
+    try {
+      const cameras = await api<Camera[]>('GET', `/cameras?houseId=${houseId}`);
+      renderCameras(box, cameras);
+    } catch (e) {
+      box.className = 'error';
+      box.textContent = (e as Error).message;
+    }
+  }
+
   async function showUk(): Promise<void> {
     show('uk');
     const select = $<HTMLSelectElement>('uk-house');
@@ -421,6 +472,11 @@ type ApiError = Error & { code?: string };
       box.className = 'error';
       box.textContent = (e as Error).message;
     }
+  }
+
+  function loadUkHouse(): void {
+    loadUkResidents();
+    loadUkCameras();
   }
 
   async function sendRequest(): Promise<void> {
@@ -462,7 +518,9 @@ type ApiError = Error & { code?: string };
     $('news-send').onclick = sendNews;
     $('requests-filter-category').onchange = loadRequests;
     $('requests-filter-status').onchange = loadRequests;
-    $('uk-house').onchange = loadUkResidents;
+    $('cameras-open').onclick = showCameras;
+    $('cameras-back').onclick = showHome;
+    $('uk-house').onchange = loadUkHouse;
     if (sdkUser && (sdkUser.first_name || sdkUser.last_name)) {
       $('use-profile-name').style.display = '';
       $('use-profile-name').onclick = () => {
