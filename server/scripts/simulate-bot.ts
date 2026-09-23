@@ -2,6 +2,7 @@ import '../src/lib/bigint.js';
 import type { Update, User as MaxUser } from '@maxhub/max-bot-api/types';
 import { createBot } from '../src/bot/index.js';
 import { initNotifications } from '../src/bot/notifications.js';
+import { drainOutboxOnce } from '../src/bot/outboxConsumer.js';
 import { setBotIdentity } from '../src/bot/ui.js';
 import { prisma } from '../src/lib/db.js';
 
@@ -67,7 +68,12 @@ setBotIdentity('smartcity_demo_bot');
 initNotifications(bot.api);
 
 const handle = (bot as unknown as { handleUpdate: (update: Update) => Promise<void> }).handleUpdate;
-const settle = () => new Promise((resolve) => setTimeout(resolve, 150));
+const settle = async () => {
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  // В реальном запуске события уходят в NotificationOutbox и их забирает отдельный процесс бота
+  // (src/bot-worker.ts). Здесь всё в одном процессе, поэтому вычитываем очередь вручную после каждого шага.
+  await drainOutboxOnce();
+};
 
 function user(id: number, firstName: string, lastName: string): MaxUser {
   return { user_id: id, first_name: firstName, last_name: lastName, name: `${firstName} ${lastName}`, username: null, is_bot: false, last_activity_time: 0 };
@@ -136,6 +142,7 @@ async function main() {
   const kirill = user(5000003, 'Кирилл', 'Подписов');
 
   await prisma.botSession.deleteMany({});
+  await prisma.notificationOutbox.deleteMany({});
   await prisma.request.deleteMany({ where: { author: { maxUserId: { in: [5000001n, 5000002n, 5000003n] } } } });
   await prisma.announcement.deleteMany({ where: { author: { maxUserId: { in: [5000001n, 5000002n, 5000003n] } } } });
   await prisma.news.deleteMany({ where: { author: { maxUserId: { in: [5000001n, 5000002n, 5000003n] } } } });

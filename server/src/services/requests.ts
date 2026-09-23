@@ -147,7 +147,8 @@ export async function vote(requestId: number, userId: number): Promise<{ request
 
   let updated: RequestWithRelations;
   try {
-    updated = await prisma.$transaction(async (tx) => await tx.vote.create({ data: { requestId, userId } });
+    updated = await prisma.$transaction(async (tx) => {
+      await tx.vote.create({ data: { requestId, userId } });
       const afterVote = await tx.request.update({
         where: { id: requestId },
         data: { votesCount: { increment: 1 }, votesRequired },

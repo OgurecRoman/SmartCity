@@ -1,4 +1,3 @@
-import type { IncomingMessage, ServerResponse } from 'node:http';
 import path from 'node:path';
 import cors from 'cors';
 import express, { type NextFunction, type Request, type Response } from 'express';
@@ -8,23 +7,9 @@ import { log } from './lib/logger.js';
 import { apiRouter } from './routes/index.js';
 import './lib/bigint.js';
 
-export type WebhookHandler = (req: IncomingMessage, res: ServerResponse) => void;
-
-export function createApp(options: { webhookHandler?: WebhookHandler } = {}) {
+export function createApp() {
   const app = express();
   app.disable('x-powered-by');
-
-  if (options.webhookHandler) {
-    const handler = options.webhookHandler;
-    app.use((req, res, next) => {
-      if (req.method === 'POST' && req.path === config.bot.webhookPath) {
-        req.url = config.bot.webhookPath;
-        handler(req, res);
-        return;
-      }
-      next();
-    });
-  }
 
   app.use(cors({ origin: config.corsOrigin === '*' ? true : config.corsOrigin.split(',').map((item) => item.trim()) }));
   app.use(express.json({ limit: '1mb' }));

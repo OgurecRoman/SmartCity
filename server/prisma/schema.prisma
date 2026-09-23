@@ -238,6 +238,13 @@ model Camera {
   @@index([houseId])
 }
 
+model NotificationOutbox {
+  id        Int      @id @default(autoincrement())
+  event     String
+  payload   Json
+  createdAt DateTime @default(now())
+}
+
 model BotSession {
   key       String   @id
   value     Json
