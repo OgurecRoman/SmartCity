@@ -54,16 +54,24 @@ export interface ListNewsFilter {
   offset?: number;
 }
 
-export async function listNews(filter: ListNewsFilter): Promise<NewsWithRelations[]> {
+function buildNewsWhere(filter: Pick<ListNewsFilter, 'houseId'>): Prisma.NewsWhereInput {
   const where: Prisma.NewsWhereInput = {};
   if (filter.houseId !== undefined) where.houseId = filter.houseId;
+  return where;
+}
+
+export async function listNews(filter: ListNewsFilter): Promise<NewsWithRelations[]> {
   return prisma.news.findMany({
-    where,
+    where: buildNewsWhere(filter),
     include: newsInclude,
     orderBy: [{ createdAt: 'desc' }],
     take: Math.min(Math.max(filter.limit ?? 50, 1), 200),
     skip: Math.max(filter.offset ?? 0, 0),
   });
+}
+
+export async function countNews(filter: Pick<ListNewsFilter, 'houseId'>): Promise<number> {
+  return prisma.news.count({ where: buildNewsWhere(filter) });
 }
 
 export interface UpdateNewsInput {

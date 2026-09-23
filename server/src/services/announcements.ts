@@ -47,16 +47,24 @@ export interface ListAnnouncementsFilter {
   offset?: number;
 }
 
-export async function listAnnouncements(filter: ListAnnouncementsFilter): Promise<AnnouncementWithRelations[]> {
+function buildAnnouncementWhere(filter: Pick<ListAnnouncementsFilter, 'houseId'>): Prisma.AnnouncementWhereInput {
   const where: Prisma.AnnouncementWhereInput = {};
   if (filter.houseId !== undefined) where.houseId = filter.houseId;
+  return where;
+}
+
+export async function listAnnouncements(filter: ListAnnouncementsFilter): Promise<AnnouncementWithRelations[]> {
   return prisma.announcement.findMany({
-    where,
+    where: buildAnnouncementWhere(filter),
     include: announcementInclude,
     orderBy: [{ createdAt: 'desc' }],
     take: Math.min(Math.max(filter.limit ?? 50, 1), 200),
     skip: Math.max(filter.offset ?? 0, 0),
   });
+}
+
+export async function countAnnouncements(filter: Pick<ListAnnouncementsFilter, 'houseId'>): Promise<number> {
+  return prisma.announcement.count({ where: buildAnnouncementWhere(filter) });
 }
 
 export interface UpdateAnnouncementInput {

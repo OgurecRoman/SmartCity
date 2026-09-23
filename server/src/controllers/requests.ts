@@ -7,6 +7,7 @@ import { buildRequestDocument } from '../services/documents.js';
 import { sendDelegationEmail } from '../services/mailer.js';
 import {
   changeStatus,
+  countRequests,
   createRequest,
   deleteRequest,
   getRequestDetailed,
@@ -29,7 +30,7 @@ const listQuerySchema = z.object({
   status: z.string().optional(),
   category: z.string().optional(),
   houseId: z.coerce.number().int().positive().optional(),
-  limit: z.coerce.number().int().min(1).max(200).default(50),
+  limit: z.coerce.number().int().min(1).max(200).default(5),
   offset: z.coerce.number().int().min(0).default(0),
 });
 
@@ -58,17 +59,22 @@ export async function list(req: Request, res: Response) {
     houseId = user.houseId;
   }
 
-  const requests = await listRequests({
+  const filter = {
     houseId,
     authorId: query.filter === 'mine' ? user.id : undefined,
     supportedByUserId: query.filter === 'supported' ? user.id : undefined,
     statuses: statuses as (keyof typeof STATUS_LABELS)[] | undefined,
     categories: categories as (keyof typeof CATEGORY_LABELS)[] | undefined,
-    limit: query.limit,
-    offset: query.offset,
-  });
+  };
+  const [requests, total] = await Promise.all([
+    listRequests({ ...filter, limit: query.limit, offset: query.offset }),
+    countRequests(filter),
+  ]);
   const voted = await votedRequestIds(user.id, requests.map((request) => request.id));
-  res.json(requests.map((request) => serializeRequest(request, { hasVoted: voted.has(request.id), viewerId: user.id })));
+  res.json({
+    items: requests.map((request) => serializeRequest(request, { hasVoted: voted.has(request.id), viewerId: user.id })),
+    total,
+  });
 }
 
 const createSchema = z.object({
@@ -169,6 +175,10 @@ export async function listForUk(req: Request, res: Response) {
     ...UK_ACTIVE_STATUSES,
   ];
   const categories = parseListParam(query.category, REQUEST_CATEGORIES, 'категория') as (keyof typeof CATEGORY_LABELS)[] | undefined;
-  const requests = await listRequests({ houseId: query.houseId, statuses, categories, limit: query.limit, offset: query.offset });
-  res.json(requests.map((request) => serializeRequest(request, { viewerId: user.id })));
+  const filter = { houseId: query.houseId, statuses, categories };
+  const [requests, total] = await Promise.all([
+    listRequests({ ...filter, limit: query.limit, offset: query.offset }),
+    countRequests(filter),
+  ]);
+  res.json({ items: requests.map((request) => serializeRequest(request, { viewerId: user.id })), total });
 }

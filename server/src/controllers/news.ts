@@ -1,14 +1,14 @@
 import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { errors } from '../lib/errors.js';
-import { createNews, deleteNews, listNews, updateNews } from '../services/news.js';
+import { countNews, createNews, deleteNews, listNews, updateNews } from '../services/news.js';
 import { isEmployee } from '../services/users.js';
 import { serializeNews } from '../routes/serialize.js';
 import { idParam, parseBody, parseQuery } from '../routes/validation.js';
 
 const listQuerySchema = z.object({
   houseId: z.coerce.number().int().positive().optional(),
-  limit: z.coerce.number().int().min(1).max(200).default(50),
+  limit: z.coerce.number().int().min(1).max(200).default(5),
   offset: z.coerce.number().int().min(0).default(0),
 });
 
@@ -23,8 +23,11 @@ export async function list(req: Request, res: Response) {
     houseId = user.houseId;
   }
 
-  const news = await listNews({ houseId, limit: query.limit, offset: query.offset });
-  res.json(news.map((item) => serializeNews(item, { viewerId: user.id })));
+  const [news, total] = await Promise.all([
+    listNews({ houseId, limit: query.limit, offset: query.offset }),
+    countNews({ houseId }),
+  ]);
+  res.json({ items: news.map((item) => serializeNews(item, { viewerId: user.id })), total });
 }
 
 const createSchema = z.object({

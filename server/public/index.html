@@ -87,11 +87,18 @@
       <div id="announcements-card" class="card" style="display:none">
         <div style="font-weight:600">Объявления дома</div>
         <div id="announcements" class="muted">Загрузка…</div>
+        <div id="announcements-pager-info" class="muted" style="margin-top:8px"></div>
+        <button id="announcements-more" class="secondary" style="margin-top:6px;width:100%;display:none">Показать ещё</button>
       </div>
       <div id="cameras-card" class="card" style="display:none">
         <div style="font-weight:600">Камеры</div>
         <div class="muted">Двор и подъезд дома</div>
         <button id="cameras-open" class="secondary" style="margin-top:10px;width:100%">📹 Открыть камеры</button>
+      </div>
+      <div id="membership-card" class="card" style="display:none">
+        <div style="font-weight:600">Заявки на вступление</div>
+        <div class="muted">Жители, ожидающие подтверждения</div>
+        <button id="membership-open" class="secondary" style="margin-top:10px;width:100%">📋 Заявки на вступление</button>
       </div>
       <div id="request-form-card" class="card">
         <div style="font-weight:600">Новая заявка</div>
@@ -111,6 +118,8 @@
           <select id="requests-filter-status"></select>
         </div>
         <div id="requests" class="muted">Загрузка…</div>
+        <div id="requests-pager-info" class="muted" style="margin-top:8px"></div>
+        <button id="requests-more" class="secondary" style="margin-top:6px;width:100%;display:none">Показать ещё</button>
       </div>
       <div id="news-form-card" class="card">
         <div style="font-weight:600">Новость соседям</div>
@@ -128,6 +137,8 @@
       <div class="card">
         <div style="font-weight:600">Новости соседей</div>
         <div id="news-list" class="muted">Загрузка…</div>
+        <div id="news-pager-info" class="muted" style="margin-top:8px"></div>
+        <button id="news-more" class="secondary" style="margin-top:6px;width:100%;display:none">Показать ещё</button>
       </div>
     </div>
   </section>
@@ -155,6 +166,24 @@
       <div class="card">
         <div style="font-weight:600">Камеры</div>
         <div id="uk-cameras" class="muted">Выберите дом</div>
+      </div>
+      <div class="card">
+        <div style="font-weight:600">Заявки на вступление</div>
+        <button id="membership-open-uk" class="secondary" style="margin-top:10px;width:100%">📋 Заявки на вступление</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="screen-membership" class="screen">
+    <div class="panel">
+      <div class="card">
+        <div style="font-weight:600">Заявки на вступление</div>
+        <a id="membership-back" class="link">← Назад</a>
+      </div>
+      <div class="card">
+        <div id="membership-list" class="muted">Загрузка…</div>
+        <div id="membership-pager-info" class="muted" style="margin-top:8px"></div>
+        <button id="membership-more" class="secondary" style="margin-top:6px;width:100%;display:none">Показать ещё</button>
       </div>
     </div>
   </section>

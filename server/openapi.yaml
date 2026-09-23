@@ -24,6 +24,8 @@ tags:
     description: Создать может любой житель своего дома; изменить или удалить — автор или УК
   - name: cameras
     description: Только подтверждённым жителям своего дома; сотрудник УК — по houseId для любого дома
+  - name: membership
+    description: Рассмотрение заявок на вступление — сотрудник УК (любой дом) или председатель ТСЖ (свой дом)
   - name: uk
     description: Только для сотрудников УК (role = UK_EMPLOYEE)
 
@@ -343,6 +345,34 @@ components:
         houseId: { type: integer, description: 'Дом, выбранный на карте (POST /api/houses) или из списка' }
         apartment: { type: string, maxLength: 10, examples: ['27', '15а'] }
         fullName: { type: string, minLength: 3, maxLength: 150, description: ФИО заявителя — увидит проверяющий }
+    MembershipRequest:
+      type: object
+      properties:
+        id: { type: integer }
+        houseId: { type: integer }
+        houseAddress: { type: string }
+        apartment: { type: string }
+        fullName: { type: string }
+        status: { type: string, enum: [PENDING, APPROVED, REJECTED] }
+        rejectReason: { type: [string, 'null'] }
+        applicant:
+          type: object
+          properties:
+            id: { type: integer }
+            maxUserId: { type: string }
+            name: { type: string }
+        reviewedBy:
+          oneOf:
+            - type: object
+              properties: { id: { type: integer }, name: { type: string } }
+            - type: 'null'
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    RejectMembership:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 3, maxLength: 500 }
   responses:
     Unauthorized:
       description: Нет или неверный initData
@@ -509,10 +539,18 @@ paths:
         - { name: status, in: query, description: 'Статусы через запятую, например VOTING,SUBMITTED', schema: { type: string } }
         - { name: category, in: query, description: 'Категории через запятую, например PLUMBING,ELEVATOR', schema: { type: string } }
         - { name: houseId, in: query, description: Только для сотрудников УК, schema: { type: integer } }
-        - { name: limit, in: query, schema: { type: integer, default: 50, maximum: 200 } }
+        - { name: limit, in: query, description: 'По умолчанию 5 — для постраничной подгрузки «Показать ещё»', schema: { type: integer, default: 5, maximum: 200 } }
         - { name: offset, in: query, schema: { type: integer, default: 0 } }
       responses:
-        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Request' } } } } }
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/Request' } }
+                  total: { type: integer, description: Всего заявок по фильтру (для «Показано X из Y») }
         '400': { $ref: '#/components/responses/BadRequest' }
     post:
       tags: [requests]
@@ -623,10 +661,18 @@ paths:
         - { name: status, in: query, schema: { type: string } }
         - { name: category, in: query, description: 'Категории через запятую, например PLUMBING,ELEVATOR', schema: { type: string } }
         - { name: houseId, in: query, schema: { type: integer } }
-        - { name: limit, in: query, schema: { type: integer, default: 50 } }
+        - { name: limit, in: query, description: 'По умолчанию 5 — для постраничной подгрузки «Показать ещё»', schema: { type: integer, default: 5, maximum: 200 } }
         - { name: offset, in: query, schema: { type: integer, default: 0 } }
       responses:
-        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Request' } } } } }
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/Request' } }
+                  total: { type: integer }
         '403': { $ref: '#/components/responses/Forbidden' }
 
   /api/announcements:
@@ -635,10 +681,18 @@ paths:
       summary: Список объявлений (житель и председатель — своего дома, сотрудник УК — по houseId или все)
       parameters:
         - { name: houseId, in: query, description: Только для сотрудников УК, schema: { type: integer } }
-        - { name: limit, in: query, schema: { type: integer, default: 50, maximum: 200 } }
+        - { name: limit, in: query, description: 'По умолчанию 5 — для постраничной подгрузки «Показать ещё»', schema: { type: integer, default: 5, maximum: 200 } }
         - { name: offset, in: query, schema: { type: integer, default: 0 } }
       responses:
-        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Announcement' } } } } }
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/Announcement' } }
+                  total: { type: integer }
         '400': { $ref: '#/components/responses/BadRequest' }
     post:
       tags: [announcements]
@@ -682,10 +736,18 @@ paths:
       summary: Список новостей дома (житель — своего дома, сотрудник УК — по houseId или все)
       parameters:
         - { name: houseId, in: query, description: Только для сотрудников УК, schema: { type: integer } }
-        - { name: limit, in: query, schema: { type: integer, default: 50, maximum: 200 } }
+        - { name: limit, in: query, description: 'По умолчанию 5 — для постраничной подгрузки «Показать ещё»', schema: { type: integer, default: 5, maximum: 200 } }
         - { name: offset, in: query, schema: { type: integer, default: 0 } }
       responses:
-        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/News' } } } } }
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/News' } }
+                  total: { type: integer }
         '400': { $ref: '#/components/responses/BadRequest' }
     post:
       tags: [news]
@@ -743,3 +805,52 @@ paths:
       responses:
         '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Camera' } } } } }
         '400': { $ref: '#/components/responses/BadRequest' }
+
+  /api/membership/requests:
+    get:
+      tags: [membership]
+      summary: Очередь заявок на вступление (сотрудник УК — все дома, председатель ТСЖ — свой дом)
+      description: То же, что команда бота /membership_queue, но с постраничной подгрузкой для мини-приложения.
+      parameters:
+        - { name: limit, in: query, description: 'По умолчанию 5 — для постраничной подгрузки «Показать ещё»', schema: { type: integer, default: 5, maximum: 200 } }
+        - { name: offset, in: query, schema: { type: integer, default: 0 } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/MembershipRequest' } }
+                  total: { type: integer }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/membership/requests/{id}/approve:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    post:
+      tags: [membership]
+      summary: Подтвердить заявку на вступление
+      description: Заявителю открывается полный доступ и отправляется приглашение в чат дома (в боте).
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/MembershipRequest' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/membership/requests/{id}/reject:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    post:
+      tags: [membership]
+      summary: Отклонить заявку на вступление
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/RejectMembership' } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/MembershipRequest' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }

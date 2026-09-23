@@ -147,8 +147,7 @@ export async function vote(requestId: number, userId: number): Promise<{ request
 
   let updated: RequestWithRelations;
   try {
-    updated = await prisma.$transaction(async (tx) => {
-      await tx.vote.create({ data: { requestId, userId } });
+    updated = await prisma.$transaction(async (tx) => await tx.vote.create({ data: { requestId, userId } });
       const afterVote = await tx.request.update({
         where: { id: requestId },
         data: { votesCount: { increment: 1 }, votesRequired },
@@ -278,20 +277,30 @@ export interface ListFilter {
   offset?: number;
 }
 
-export async function listRequests(filter: ListFilter): Promise<RequestWithRelations[]> {
+type RequestFilterFields = Pick<ListFilter, 'houseId' | 'authorId' | 'supportedByUserId' | 'statuses' | 'categories'>;
+
+function buildRequestWhere(filter: RequestFilterFields): Prisma.RequestWhereInput {
   const where: Prisma.RequestWhereInput = {};
   if (filter.houseId !== undefined) where.houseId = filter.houseId;
   if (filter.authorId !== undefined) where.authorId = filter.authorId;
   if (filter.supportedByUserId !== undefined) where.votes = { some: { userId: filter.supportedByUserId } };
   if (filter.statuses && filter.statuses.length > 0) where.status = { in: filter.statuses };
   if (filter.categories && filter.categories.length > 0) where.category = { in: filter.categories };
+  return where;
+}
+
+export async function listRequests(filter: ListFilter): Promise<RequestWithRelations[]> {
   return prisma.request.findMany({
-    where,
+    where: buildRequestWhere(filter),
     include: requestInclude,
     orderBy: [{ createdAt: 'desc' }],
     take: Math.min(Math.max(filter.limit ?? 50, 1), 200),
     skip: Math.max(filter.offset ?? 0, 0),
   });
+}
+
+export async function countRequests(filter: RequestFilterFields): Promise<number> {
+  return prisma.request.count({ where: buildRequestWhere(filter) });
 }
 
 export async function expireOverdue(now = new Date()): Promise<number[]> {

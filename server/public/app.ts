@@ -90,6 +90,20 @@ interface Camera {
   streamUrl: string | null;
 }
 
+interface MembershipRequestItem {
+  id: number;
+  houseAddress: string;
+  apartment: string;
+  fullName: string;
+  applicant: { name: string };
+  createdAt: string;
+}
+
+interface Page<T> {
+  items: T[];
+  total: number;
+}
+
 type ApiError = Error & { code?: string };
 
 (() => {
@@ -106,6 +120,17 @@ type ApiError = Error & { code?: string };
   let marker: L.Marker | null = null;
   let selected: { lat: number; lng: number; building: Building; house: House | null } | null = null;
   let categories: { value: string; label: string }[] = [];
+
+  const PAGE_SIZE = 5;
+  let requestsOffset = 0;
+  let announcementsOffset = 0;
+  let newsOffset = 0;
+  let membershipOffset = 0;
+
+  function updatePager(infoId: string, buttonId: string, shown: number, total: number): void {
+    $(infoId).textContent = total > 0 ? `Показано ${shown} из ${total}` : '';
+    $<HTMLButtonElement>(buttonId).style.display = shown < total ? '' : 'none';
+  }
 
   function authHeaders(): Record<string, string> {
     const headers: Record<string, string> = {};
@@ -275,6 +300,7 @@ type ApiError = Error & { code?: string };
     $('request-form-card').style.display = approved ? '' : 'none';
     $('requests-list-card').style.display = approved ? '' : 'none';
     $('news-form-card').style.display = approved ? '' : 'none';
+    $('membership-card').style.display = approved && me!.role === 'CHAIRMAN' ? '' : 'none';
 
     if (approved) {
       if (!categories.length) {
@@ -295,85 +321,108 @@ type ApiError = Error & { code?: string };
     loadNews();
   }
 
-  async function loadAnnouncements(): Promise<void> {
+  function renderAnnouncementItem(a: AnnouncementItem): HTMLElement {
+    const el = document.createElement('div');
+    el.className = 'request';
+    el.innerHTML = `<div style="font-weight:600">${a.title}</div><div>${a.description}</div>` +
+      `<div class="muted">${a.author.name} · ${new Date(a.createdAt).toLocaleDateString('ru-RU')}</div>`;
+    return el;
+  }
+
+  async function loadAnnouncements(reset = true): Promise<void> {
     const wrap = $('announcements-card');
     const box = $('announcements');
+    if (reset) announcementsOffset = 0;
     try {
-      const list = await api<AnnouncementItem[]>('GET', '/announcements?limit=20');
-      if (!list.length) { wrap.style.display = 'none'; return; }
-      wrap.style.display = '';
-      box.className = '';
-      box.innerHTML = '';
-      list.forEach((a) => {
-        const el = document.createElement('div');
-        el.className = 'request';
-        el.innerHTML = `<div style="font-weight:600">${a.title}</div><div>${a.description}</div>` +
-          `<div class="muted">${a.author.name} · ${new Date(a.createdAt).toLocaleDateString('ru-RU')}</div>`;
-        box.appendChild(el);
-      });
+      const { items, total } = await api<Page<AnnouncementItem>>('GET', `/announcements?limit=${PAGE_SIZE}&offset=${announcementsOffset}`);
+      if (reset) {
+        if (!total) { wrap.style.display = 'none'; return; }
+        wrap.style.display = '';
+        box.className = '';
+        box.innerHTML = '';
+      }
+      items.forEach((a) => box.appendChild(renderAnnouncementItem(a)));
+      announcementsOffset += items.length;
+      updatePager('announcements-pager-info', 'announcements-more', announcementsOffset, total);
     } catch {
       wrap.style.display = 'none';
     }
   }
 
-  async function loadRequests(): Promise<void> {
+  function renderRequestItem(r: RequestItem): HTMLElement {
+    const el = document.createElement('div');
+    el.className = 'request';
+    const votes = r.status === 'VOTING' ? `<div class="muted">Подписей: ${r.votesCount} из ${r.votesRequired}</div>` : '';
+    el.innerHTML = `<div>${r.title}${r.isMine ? ' <span class="muted">(моя)</span>' : ''}<span class="status">${r.statusLabel}</span></div>` +
+      `<div class="muted">${r.author.name}, кв. ${r.author.apartment || '—'}</div>${votes}`;
+    if (r.canVote) {
+      const b = document.createElement('button');
+      b.textContent = 'Поддержать';
+      b.className = 'secondary';
+      b.style.marginTop = '6px';
+      b.onclick = async () => { b.disabled = true; try { await api('POST', `/requests/${r.id}/vote`); loadRequests(true); } catch (e) { alert((e as Error).message); b.disabled = false; } };
+      el.appendChild(b);
+    }
+    return el;
+  }
+
+  async function loadRequests(reset = true): Promise<void> {
     const box = $('requests');
+    if (reset) requestsOffset = 0;
     const category = $<HTMLSelectElement>('requests-filter-category').value;
     const status = $<HTMLSelectElement>('requests-filter-status').value;
-    const query = new URLSearchParams({ filter: 'all', limit: '50' });
+    const query = new URLSearchParams({ filter: 'all', limit: String(PAGE_SIZE), offset: String(requestsOffset) });
     if (category) query.set('category', category);
     if (status) query.set('status', status);
     try {
-      const list = await api<RequestItem[]>('GET', '/requests?' + query.toString());
-      box.className = '';
-      box.innerHTML = list.length ? '' : '<div class="muted">Заявок пока нет</div>';
-      list.forEach((r) => {
-        const el = document.createElement('div');
-        el.className = 'request';
-        const votes = r.status === 'VOTING' ? `<div class="muted">Подписей: ${r.votesCount} из ${r.votesRequired}</div>` : '';
-        el.innerHTML = `<div>${r.title}${r.isMine ? ' <span class="muted">(моя)</span>' : ''}<span class="status">${r.statusLabel}</span></div>` +
-          `<div class="muted">${r.author.name}, кв. ${r.author.apartment || '—'}</div>${votes}`;
-        if (r.canVote) {
-          const b = document.createElement('button');
-          b.textContent = 'Поддержать';
-          b.className = 'secondary';
-          b.style.marginTop = '6px';
-          b.onclick = async () => { b.disabled = true; try { await api('POST', `/requests/${r.id}/vote`); loadRequests(); } catch (e) { alert((e as Error).message); b.disabled = false; } };
-          el.appendChild(b);
-        }
-        box.appendChild(el);
-      });
+      const { items, total } = await api<Page<RequestItem>>('GET', '/requests?' + query.toString());
+      if (reset) {
+        box.className = '';
+        box.innerHTML = total ? '' : '<div class="muted">Заявок пока нет</div>';
+      }
+      items.forEach((r) => box.appendChild(renderRequestItem(r)));
+      requestsOffset += items.length;
+      updatePager('requests-pager-info', 'requests-more', requestsOffset, total);
     } catch (e) {
       box.className = 'error';
       box.textContent = (e as Error).message;
+      updatePager('requests-pager-info', 'requests-more', 0, 0);
     }
   }
 
-  async function loadNews(): Promise<void> {
+  function renderNewsItem(n: NewsItem): HTMLElement {
+    const el = document.createElement('div');
+    el.className = 'request';
+    el.innerHTML = `<div style="font-weight:600">${n.title}${n.isMine ? ' <span class="muted">(моя)</span>' : ''}</div><div>${n.description}</div>` +
+      `<div class="muted">${n.author.name} · ${new Date(n.createdAt).toLocaleDateString('ru-RU')}</div>` +
+      `<div class="muted">Связаться: ${n.contact}</div>`;
+    if (n.isMine) {
+      const b = document.createElement('button');
+      b.textContent = 'Удалить';
+      b.className = 'secondary';
+      b.style.marginTop = '6px';
+      b.onclick = async () => { if (!confirm('Удалить новость?')) return; try { await api('DELETE', `/news/${n.id}`); loadNews(true); } catch (e) { alert((e as Error).message); } };
+      el.appendChild(b);
+    }
+    return el;
+  }
+
+  async function loadNews(reset = true): Promise<void> {
     const box = $('news-list');
+    if (reset) newsOffset = 0;
     try {
-      const list = await api<NewsItem[]>('GET', '/news?limit=20');
-      box.className = '';
-      box.innerHTML = list.length ? '' : '<div class="muted">Новостей пока нет</div>';
-      list.forEach((n) => {
-        const el = document.createElement('div');
-        el.className = 'request';
-        el.innerHTML = `<div style="font-weight:600">${n.title}${n.isMine ? ' <span class="muted">(моя)</span>' : ''}</div><div>${n.description}</div>` +
-          `<div class="muted">${n.author.name} · ${new Date(n.createdAt).toLocaleDateString('ru-RU')}</div>` +
-          `<div class="muted">Связаться: ${n.contact}</div>`;
-        if (n.isMine) {
-          const b = document.createElement('button');
-          b.textContent = 'Удалить';
-          b.className = 'secondary';
-          b.style.marginTop = '6px';
-          b.onclick = async () => { if (!confirm('Удалить новость?')) return; try { await api('DELETE', `/news/${n.id}`); loadNews(); } catch (e) { alert((e as Error).message); } };
-          el.appendChild(b);
-        }
-        box.appendChild(el);
-      });
+      const { items, total } = await api<Page<NewsItem>>('GET', `/news?limit=${PAGE_SIZE}&offset=${newsOffset}`);
+      if (reset) {
+        box.className = '';
+        box.innerHTML = total ? '' : '<div class="muted">Новостей пока нет</div>';
+      }
+      items.forEach((n) => box.appendChild(renderNewsItem(n)));
+      newsOffset += items.length;
+      updatePager('news-pager-info', 'news-more', newsOffset, total);
     } catch (e) {
       box.className = 'error';
       box.textContent = (e as Error).message;
+      updatePager('news-pager-info', 'news-more', 0, 0);
     }
   }
 
@@ -479,6 +528,68 @@ type ApiError = Error & { code?: string };
     loadUkCameras();
   }
 
+  function renderMembershipItem(m: MembershipRequestItem): HTMLElement {
+    const el = document.createElement('div');
+    el.className = 'request';
+    el.innerHTML = `<div style="font-weight:600">Кв. ${m.apartment} · ${m.fullName}</div>` +
+      `<div class="muted">${m.houseAddress} · заявитель: ${m.applicant.name} · ${new Date(m.createdAt).toLocaleDateString('ru-RU')}</div>`;
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.style.marginTop = '6px';
+    const approveBtn = document.createElement('button');
+    approveBtn.textContent = 'Подтвердить';
+    approveBtn.onclick = async () => {
+      approveBtn.disabled = true;
+      try { await api('POST', `/membership/requests/${m.id}/approve`); loadMembership(true); }
+      catch (e) { alert((e as Error).message); approveBtn.disabled = false; }
+    };
+    const rejectBtn = document.createElement('button');
+    rejectBtn.textContent = 'Отклонить';
+    rejectBtn.className = 'secondary';
+    rejectBtn.onclick = async () => {
+      const reason = prompt('Причина отказа:');
+      if (!reason || !reason.trim()) return;
+      rejectBtn.disabled = true;
+      try { await api('POST', `/membership/requests/${m.id}/reject`, { reason: reason.trim() }); loadMembership(true); }
+      catch (e) { alert((e as Error).message); rejectBtn.disabled = false; }
+    };
+    row.appendChild(approveBtn);
+    row.appendChild(rejectBtn);
+    el.appendChild(row);
+    return el;
+  }
+
+  let membershipReturnTo: 'home' | 'uk' = 'home';
+
+  async function showMembership(returnTo: 'home' | 'uk'): Promise<void> {
+    membershipReturnTo = returnTo;
+    show('membership');
+    await loadMembership(true);
+  }
+
+  async function loadMembership(reset = true): Promise<void> {
+    const box = $('membership-list');
+    if (reset) {
+      membershipOffset = 0;
+      box.className = 'muted';
+      box.textContent = 'Загрузка…';
+    }
+    try {
+      const { items, total } = await api<Page<MembershipRequestItem>>('GET', `/membership/requests?limit=${PAGE_SIZE}&offset=${membershipOffset}`);
+      if (reset) {
+        box.className = '';
+        box.innerHTML = total ? '' : '<div class="muted">Заявок на вступление нет</div>';
+      }
+      items.forEach((m) => box.appendChild(renderMembershipItem(m)));
+      membershipOffset += items.length;
+      updatePager('membership-pager-info', 'membership-more', membershipOffset, total);
+    } catch (e) {
+      box.className = 'error';
+      box.textContent = (e as Error).message;
+      updatePager('membership-pager-info', 'membership-more', 0, 0);
+    }
+  }
+
   async function sendRequest(): Promise<void> {
     $('req-error').textContent = '';
     $('req-ok').textContent = '';
@@ -516,11 +627,18 @@ type ApiError = Error & { code?: string };
     $('change-house').onclick = showMap;
     $('req-send').onclick = sendRequest;
     $('news-send').onclick = sendNews;
-    $('requests-filter-category').onchange = loadRequests;
-    $('requests-filter-status').onchange = loadRequests;
+    $('requests-filter-category').onchange = () => loadRequests(true);
+    $('requests-filter-status').onchange = () => loadRequests(true);
+    $('requests-more').onclick = () => loadRequests(false);
+    $('announcements-more').onclick = () => loadAnnouncements(false);
+    $('news-more').onclick = () => loadNews(false);
     $('cameras-open').onclick = showCameras;
     $('cameras-back').onclick = showHome;
     $('uk-house').onchange = loadUkHouse;
+    $('membership-open').onclick = () => showMembership('home');
+    $('membership-open-uk').onclick = () => showMembership('uk');
+    $('membership-more').onclick = () => loadMembership(false);
+    $('membership-back').onclick = () => (membershipReturnTo === 'uk' ? showUk() : showHome());
     if (sdkUser && (sdkUser.first_name || sdkUser.last_name)) {
       $('use-profile-name').style.display = '';
       $('use-profile-name').onclick = () => {
