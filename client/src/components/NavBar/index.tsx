@@ -1,28 +1,38 @@
-import { NavLink } from "react-router";
-import { HomeIcon, UserIcon, NewspaperIcon } from 'lucide-react';
+import { NavLink } from 'react-router';
+import { HomeIcon, UserIcon, Mail } from 'lucide-react';
+import { useAuth } from '../../auth/AuthProvider';
+import type { UserRole } from '../../types/user';
 import s from './NavBar.module.scss';
 
-const items = [
-  { id: 1, path: '/', name: 'Home', icon: <HomeIcon /> },
-  { id: 2, path: '/profile', name: 'Profile', icon: <UserIcon /> },
-  { id: 3, path: '/news', name: 'News', icon: <NewspaperIcon /> },
-];
+const navByRole: Record<UserRole, { id: number; path: string; name: string; icon: typeof HomeIcon }[]> = {
+  RESIDENT: [
+    { id: 1, path: '/', name: 'Дом', icon: HomeIcon },
+    { id: 2, path: '/requests', name: 'Заявки', icon: Mail },
+    { id: 3, path: '/profile', name: 'Профиль', icon: UserIcon },
+  ],
+  UK_EMPLOYEE: [
+    { id: 1, path: '/', name: 'Дом', icon: HomeIcon },
+    { id: 2, path: '/requests', name: 'Очередь', icon: Mail },
+    { id: 3, path: '/profile', name: 'Профиль', icon: UserIcon },
+  ],
+};
 
 export default function NavBar() {
+  const { user } = useAuth();
+  const items = navByRole[user.role];
+
   return (
-    <nav className={s.nav}>
+    <nav className={s.nav} aria-label="Основная навигация">
       <ul className={s.list}>
-        {items.map((item) => (
-          <li className={s.item} key={item.id}>
+        {items.map(({ id, path, name, icon: Icon }) => (
+          <li className={s.item} key={id}>
             <NavLink
-              to={item.path}
-              end={item.path === '/'}
-              className={({ isActive }) =>
-                isActive ? `${s.link} ${s.active}` : s.link
-              }
+              to={path}
+              end={path === '/'}
+              className={({ isActive }) => (isActive ? `${s.link} ${s.active}` : s.link)}
             >
-              {item.icon}
-              <span className={s.name}>{item.name}</span>
+              <Icon aria-hidden />
+              <span>{name}</span>
             </NavLink>
           </li>
         ))}
