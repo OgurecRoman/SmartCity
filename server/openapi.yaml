@@ -517,6 +517,24 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '404': { description: В точке нет жилого дома с адресом (code = building_not_found), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
+  /api/houses/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    patch:
+      tags: [uk]
+      summary: Изменить порог подписей дома (сотрудник УК)
+      description: |
+        Применяется сразу: у заявок, которые уже собирают подписи (VOTING), нужное число подписей
+        пересчитывается на лету при следующем голосе — задним числом ничего не фиксируется.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [votePercent], properties: { votePercent: { type: integer, minimum: 0, maximum: 100 } } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/House' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /api/houses/lookup:
     get:
       tags: [catalogs]

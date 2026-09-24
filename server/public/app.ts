@@ -18,6 +18,7 @@ interface House extends Building {
   id: number;
   lat: number | null;
   lng: number | null;
+  votePercent: number;
 }
 
 interface Membership {
@@ -149,6 +150,7 @@ type ApiError = Error & { code?: string };
   let organizations: Organization[] = [];
   let resolvingRequestId: number | null = null;
   let reopeningRequestId: number | null = null;
+  let ukHouses: House[] = [];
 
   function canReopen(r: RequestItem): boolean {
     return r.isMine && r.status === 'RESOLVED' && !r.reopenedAt && !!r.resolvedAt &&
@@ -569,8 +571,8 @@ type ApiError = Error & { code?: string };
     show('uk');
     const select = $<HTMLSelectElement>('uk-house');
     if (!select.options.length) {
-      const houses = await api<House[]>('GET', '/houses');
-      select.innerHTML = '<option value="">— выберите дом —</option>' + houses.map((h) => `<option value="${h.id}">${h.address}</option>`).join('');
+      ukHouses = await api<House[]>('GET', '/houses');
+      select.innerHTML = '<option value="">— выберите дом —</option>' + ukHouses.map((h) => `<option value="${h.id}">${h.address}</option>`).join('');
     }
   }
 
@@ -597,7 +599,49 @@ type ApiError = Error & { code?: string };
     }
   }
 
+  function loadUkVotePercent(): void {
+    const houseId = $<HTMLSelectElement>('uk-house').value;
+    const input = $<HTMLInputElement>('uk-vote-percent');
+    $('uk-vote-percent-ok').textContent = '';
+    $('uk-vote-percent-error').textContent = '';
+    const house = ukHouses.find((h) => String(h.id) === houseId);
+    if (!house) {
+      input.value = '';
+      input.disabled = true;
+      input.placeholder = 'Выберите дом';
+      return;
+    }
+    input.disabled = false;
+    input.value = String(house.votePercent);
+  }
+
+  async function saveUkVotePercent(): Promise<void> {
+    $('uk-vote-percent-ok').textContent = '';
+    $('uk-vote-percent-error').textContent = '';
+    const houseId = $<HTMLSelectElement>('uk-house').value;
+    if (!houseId) { $('uk-vote-percent-error').textContent = 'Сначала выберите дом.'; return; }
+    const input = $<HTMLInputElement>('uk-vote-percent');
+    const percent = Number(input.value);
+    if (!Number.isInteger(percent) || percent < 0 || percent > 100) {
+      $('uk-vote-percent-error').textContent = 'Введите целое число от 0 до 100.';
+      return;
+    }
+    const btn = $<HTMLButtonElement>('uk-vote-percent-save');
+    btn.disabled = true;
+    try {
+      const updated = await api<House>('PATCH', `/houses/${houseId}`, { votePercent: percent });
+      const house = ukHouses.find((h) => h.id === updated.id);
+      if (house) house.votePercent = updated.votePercent;
+      $('uk-vote-percent-ok').textContent = 'Сохранено.';
+    } catch (e) {
+      $('uk-vote-percent-error').textContent = (e as Error).message;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
   function loadUkHouse(): void {
+    loadUkVotePercent();
     loadUkResidents();
     loadUkCameras();
   }
@@ -898,6 +942,7 @@ type ApiError = Error & { code?: string };
     $('cameras-open').onclick = showCameras;
     $('cameras-back').onclick = showHome;
     $('uk-house').onchange = loadUkHouse;
+    $('uk-vote-percent-save').onclick = saveUkVotePercent;
     $('membership-open').onclick = () => showMembership('home');
     $('membership-open-uk').onclick = () => showMembership('uk');
     $('membership-more').onclick = () => loadMembership(false);

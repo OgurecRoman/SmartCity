@@ -171,6 +171,16 @@
         <select id="uk-house"></select>
       </div>
       <div class="card">
+        <div style="font-weight:600">Порог подписей</div>
+        <div class="muted">Доля жителей дома, чьи подписи нужны, чтобы заявка ушла в УК</div>
+        <div class="row" style="margin-top:8px">
+          <input type="number" id="uk-vote-percent" min="0" max="100" placeholder="Выберите дом" disabled>
+          <button id="uk-vote-percent-save" class="secondary">Сохранить</button>
+        </div>
+        <div id="uk-vote-percent-ok" class="ok"></div>
+        <div id="uk-vote-percent-error" class="error"></div>
+      </div>
+      <div class="card">
         <div id="uk-residents" class="muted">Выберите дом</div>
       </div>
       <div class="card">
