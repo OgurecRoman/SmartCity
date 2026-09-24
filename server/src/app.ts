@@ -43,9 +43,6 @@ export function createApp(options: { webhookHandler?: WebhookHandler } = {}) {
 
   app.use('/api', apiRouter);
 
-  app.use('/app', express.static(path.resolve(import.meta.dirname, '..', 'public')));
-  app.get('/', (_req, res) => res.redirect('/app/'));
-
   app.use((_req, res) => {
     res.status(404).json({ error: { code: 'not_found', message: 'Маршрут не найден' } });
   });

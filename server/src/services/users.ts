@@ -214,7 +214,7 @@ export async function listResidentsOfHouse(houseId: number): Promise<ResidentRow
     where: { houseId, role: { in: ['RESIDENT', 'CHAIRMAN'] }, onboardedAt: { not: null } },
     select: residentSelect,
   });
-  return residents.sort((a, b) => (parseInt(a.apartment ?? '', 10) || 0) - (parseInt(b.apartment ?? '', 10) || 0));
+  return residents.sort((a: any, b: any) => (parseInt(a.apartment ?? '', 10) || 0) - (parseInt(b.apartment ?? '', 10) || 0));
 }
 
 export async function listEmployees(): Promise<DbUser[]> {

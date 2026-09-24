@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import { CATEGORY_LABELS } from '../lib/labels.js';
 import { getCompany, listOrganizations } from '../services/users.js';
+import { RequestCategory } from "@prisma/client";
 
 export async function getCompanyInfo(_req: Request, res: Response) {
   const company = await getCompany();
@@ -9,5 +10,5 @@ export async function getCompanyInfo(_req: Request, res: Response) {
 
 export async function listOrganizationsInfo(_req: Request, res: Response) {
   const organizations = await listOrganizations();
-  res.json(organizations.map((org) => ({ ...org, categoryLabels: org.categories.map((c) => CATEGORY_LABELS[c]) })));
+  res.json(organizations.map((org: any) => ({ ...org, categoryLabels: org.categories.map((c: RequestCategory) => CATEGORY_LABELS[c]) })));
 }

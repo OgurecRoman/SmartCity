@@ -7,7 +7,7 @@ import { parseBody, parseQuery } from '../routes/validation.js';
 
 export async function list(_req: Request, res: Response) {
   const houses = await listHouses();
-  res.json(houses.map((house) => serializeHouse(house, { residentsCount: house._count.residents })));
+  res.json(houses.map((house: any) => serializeHouse(house, { residentsCount: house._count.residents })));
 }
 
 const pointSchema = z.object({
