@@ -39,6 +39,8 @@ interface Me {
 interface RequestItem {
   id: number;
   title: string;
+  description: string;
+  categoryLabel: string;
   status: string;
   statusLabel: string;
   isMine: boolean;
@@ -46,7 +48,18 @@ interface RequestItem {
   votesCount: number;
   votesRequired: number;
   author: { name: string; apartment: string | null };
+  house: { id: number; address: string };
+  delegatedTo: { id: number; name: string } | null;
+  resolutionNote: string | null;
+  resolvedByName: string | null;
   photoUrls: string[];
+  resultPhotoUrls: string[];
+}
+
+interface Organization {
+  id: number;
+  name: string;
+  categories: string[];
 }
 
 interface SearchHit {
@@ -129,6 +142,9 @@ type ApiError = Error & { code?: string };
   let announcementsOffset = 0;
   let newsOffset = 0;
   let membershipOffset = 0;
+  let ukRequestsOffset = 0;
+  let organizations: Organization[] = [];
+  let resolvingRequestId: number | null = null;
 
   function updatePager(infoId: string, buttonId: string, shown: number, total: number): void {
     $(infoId).textContent = total > 0 ? `Показано ${shown} из ${total}` : '';
@@ -372,9 +388,12 @@ type ApiError = Error & { code?: string };
     const el = document.createElement('div');
     el.className = 'request';
     const votes = r.status === 'VOTING' ? `<div class="muted">Подписей: ${r.votesCount} из ${r.votesRequired}</div>` : '';
+    const resultPhotos = r.resultPhotoUrls.length
+      ? `<div class="muted" style="margin-top:6px">📷 Фото результата:</div>${renderPhotoStrip(r.resultPhotoUrls)}`
+      : '';
     el.innerHTML = `<div>${r.title}${r.isMine ? ' <span class="muted">(моя)</span>' : ''}<span class="status">${r.statusLabel}</span></div>` +
       `<div class="muted">${r.author.name}, кв. ${r.author.apartment || '—'}</div>${votes}` +
-      renderPhotoStrip(r.photoUrls);
+      renderPhotoStrip(r.photoUrls) + resultPhotos;
     if (r.canVote) {
       const b = document.createElement('button');
       b.textContent = 'Поддержать';
@@ -566,6 +585,156 @@ type ApiError = Error & { code?: string };
     loadUkCameras();
   }
 
+  async function ensureOrganizations(): Promise<Organization[]> {
+    if (!organizations.length) organizations = await api<Organization[]>('GET', '/organizations');
+    return organizations;
+  }
+
+  async function ukChangeStatus(requestId: number, status: string): Promise<void> {
+    try {
+      await api('PATCH', `/requests/${requestId}/status`, { status });
+      loadUkRequests(true);
+    } catch (e) {
+      alert((e as Error).message);
+    }
+  }
+
+  async function ukReject(requestId: number): Promise<void> {
+    const comment = prompt('Причина отклонения (необязательно):');
+    if (comment === null) return;
+    try {
+      await api('PATCH', `/requests/${requestId}/status`, { status: 'REJECTED', comment: comment.trim() || undefined });
+      loadUkRequests(true);
+    } catch (e) {
+      alert((e as Error).message);
+    }
+  }
+
+  async function toggleDelegatePicker(container: HTMLElement, requestId: number): Promise<void> {
+    const existing = container.querySelector('.delegate-picker');
+    if (existing) { existing.remove(); return; }
+    const orgs = await ensureOrganizations();
+    const wrap = document.createElement('div');
+    wrap.className = 'delegate-picker row';
+    wrap.style.marginTop = '6px';
+    const select = document.createElement('select');
+    select.innerHTML = orgs.map((o) => `<option value="${o.id}">${o.name}</option>`).join('');
+    const confirmBtn = document.createElement('button');
+    confirmBtn.textContent = 'Передать';
+    confirmBtn.onclick = async () => {
+      confirmBtn.disabled = true;
+      try {
+        await api('PATCH', `/requests/${requestId}/status`, { status: 'DELEGATED', organizationId: Number(select.value) });
+        loadUkRequests(true);
+      } catch (e) {
+        alert((e as Error).message);
+        confirmBtn.disabled = false;
+      }
+    };
+    wrap.appendChild(select);
+    wrap.appendChild(confirmBtn);
+    container.appendChild(wrap);
+  }
+
+  function renderUkRequestItem(r: RequestItem): HTMLElement {
+    const el = document.createElement('div');
+    el.className = 'request';
+    const resolution = r.resolutionNote
+      ? `<div class="muted" style="margin-top:6px">Выполнено: ${r.resolutionNote}${r.resolvedByName ? ` (${r.resolvedByName})` : ''}</div>`
+      : '';
+    const resultPhotos = r.resultPhotoUrls.length
+      ? `<div class="muted" style="margin-top:6px">📷 Фото результата:</div>${renderPhotoStrip(r.resultPhotoUrls)}`
+      : '';
+    el.innerHTML = `<div>${r.title}<span class="status">${r.statusLabel}</span></div>` +
+      `<div class="muted">${r.categoryLabel} · ${r.author.name}, кв. ${r.author.apartment || '—'} · ${r.house.address}</div>` +
+      `<div>${r.description}</div>` +
+      (r.delegatedTo ? `<div class="muted">Передана в: ${r.delegatedTo.name}</div>` : '') +
+      resolution + renderPhotoStrip(r.photoUrls) + resultPhotos;
+
+    const actions = document.createElement('div');
+    actions.className = 'row';
+    actions.style.marginTop = '8px';
+    actions.style.flexWrap = 'wrap';
+
+    const addBtn = (text: string, onClick: () => void) => {
+      const b = document.createElement('button');
+      b.textContent = text;
+      b.className = 'secondary';
+      b.style.marginTop = '6px';
+      b.onclick = onClick;
+      actions.appendChild(b);
+    };
+
+    if (r.status === 'SUBMITTED') addBtn('🛠 Взять в работу', () => ukChangeStatus(r.id, 'IN_PROGRESS'));
+    if (r.status === 'DELEGATED') addBtn('🛠 Вернуть в работу', () => ukChangeStatus(r.id, 'IN_PROGRESS'));
+    if (r.status === 'SUBMITTED' || r.status === 'IN_PROGRESS') addBtn('➡️ Передать', () => toggleDelegatePicker(el, r.id));
+    addBtn('✅ Сделано', () => showResolve(r.id, r.title));
+    addBtn('❌ Отклонить', () => ukReject(r.id));
+
+    el.appendChild(actions);
+    return el;
+  }
+
+  async function loadUkRequests(reset = true): Promise<void> {
+    const box = $('uk-requests-list');
+    if (reset) ukRequestsOffset = 0;
+    try {
+      const { items, total } = await api<Page<RequestItem>>('GET', `/uk/requests?limit=${PAGE_SIZE}&offset=${ukRequestsOffset}`);
+      if (reset) {
+        box.className = '';
+        box.innerHTML = total ? '' : '<div class="muted">Активных заявок нет</div>';
+      }
+      items.forEach((r) => box.appendChild(renderUkRequestItem(r)));
+      ukRequestsOffset += items.length;
+      updatePager('uk-requests-pager-info', 'uk-requests-more', ukRequestsOffset, total);
+    } catch (e) {
+      box.className = 'error';
+      box.textContent = (e as Error).message;
+      updatePager('uk-requests-pager-info', 'uk-requests-more', 0, 0);
+    }
+  }
+
+  async function showUkRequests(): Promise<void> {
+    show('uk-requests');
+    await loadUkRequests(true);
+  }
+
+  function showResolve(requestId: number, title: string): void {
+    resolvingRequestId = requestId;
+    $('resolve-request-title').textContent = title;
+    $<HTMLTextAreaElement>('resolve-note').value = '';
+    $<HTMLInputElement>('resolve-name').value = '';
+    $<HTMLInputElement>('resolve-photos').value = '';
+    $('resolve-photos-preview').innerHTML = '';
+    $('resolve-error').textContent = '';
+    show('resolve');
+  }
+
+  async function sendResolve(): Promise<void> {
+    $('resolve-error').textContent = '';
+    const note = $<HTMLTextAreaElement>('resolve-note').value.trim();
+    const name = $<HTMLInputElement>('resolve-name').value.trim();
+    if (!note) { $('resolve-error').textContent = 'Опишите, что было сделано.'; return; }
+    if (!name) { $('resolve-error').textContent = 'Укажите ФИО ответственного.'; return; }
+    if (resolvingRequestId === null) return;
+    const btn = $<HTMLButtonElement>('resolve-send');
+    btn.disabled = true;
+    try {
+      const form = new FormData();
+      form.set('status', 'RESOLVED');
+      form.set('resolutionNote', note);
+      form.set('resolvedByName', name);
+      appendPhotos(form, $<HTMLInputElement>('resolve-photos'));
+      await apiForm('PATCH', `/requests/${resolvingRequestId}/status`, form);
+      resolvingRequestId = null;
+      await showUkRequests();
+    } catch (e) {
+      $('resolve-error').textContent = (e as Error).message;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
   function renderMembershipItem(m: MembershipRequestItem): HTMLElement {
     const el = document.createElement('div');
     el.className = 'request';
@@ -683,6 +852,12 @@ type ApiError = Error & { code?: string };
     $('membership-open-uk').onclick = () => showMembership('uk');
     $('membership-more').onclick = () => loadMembership(false);
     $('membership-back').onclick = () => (membershipReturnTo === 'uk' ? showUk() : showHome());
+    $('uk-requests-open').onclick = showUkRequests;
+    $('uk-requests-back').onclick = showUk;
+    $('uk-requests-more').onclick = () => loadUkRequests(false);
+    $('resolve-back').onclick = showUkRequests;
+    $('resolve-send').onclick = sendResolve;
+    $<HTMLInputElement>('resolve-photos').onchange = () => renderFilePreview($<HTMLInputElement>('resolve-photos'), $('resolve-photos-preview'));
     if (sdkUser && (sdkUser.first_name || sdkUser.last_name)) {
       $('use-profile-name').style.display = '';
       $('use-profile-name').onclick = () => {

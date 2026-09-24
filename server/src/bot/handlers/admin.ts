@@ -5,7 +5,7 @@ import { UK_ACTIVE_STATUSES } from '../../services/rules.js';
 import { getHouse, isChairman, isEmployee, listHouses, listResidentsOfHouse } from '../../services/users.js';
 import type { BotContext } from '../context.js';
 import { ack, isDialog } from '../helpers.js';
-import { announceScenario, delegateScenario, manageChairmanScenario, manageOwnerScenario, rejectScenario } from '../scenarios/admin.js';
+import { announceScenario, delegateScenario, manageChairmanScenario, manageOwnerScenario, rejectScenario, resolveScenario } from '../scenarios/admin.js';
 import { houseButtons, keyboard, panelButton, requestCard, residentsCards, ukRequestButtons, withKeyboard } from '../ui.js';
 import { sendRequestDocument, sendRequestList } from '../views.js';
 
@@ -32,7 +32,7 @@ async function showQueue(ctx: BotContext): Promise<void> {
   await sendRequestList(ctx, requests, 'Заявки в работе', (request) => ukRequestButtons(request));
 }
 
-async function setStatus(ctx: BotContext, requestId: number, status: 'IN_PROGRESS' | 'RESOLVED', note: string): Promise<void> {
+async function setStatus(ctx: BotContext, requestId: number, status: 'IN_PROGRESS', note: string): Promise<void> {
   if (!(await guard(ctx))) return;
   try {
     const request = await changeStatus(requestId, status, { byUserId: ctx.dbUser.id });
@@ -48,7 +48,12 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
   bot.action('uk:new', showQueue);
 
   bot.action(/^uk:take:(\d+)$/, (ctx) => setStatus(ctx, Number(ctx.match?.[1]), 'IN_PROGRESS', '🛠 Заявка взята в работу. Жители уведомлены.'));
-  bot.action(/^uk:resolve:(\d+)$/, (ctx) => setStatus(ctx, Number(ctx.match?.[1]), 'RESOLVED', '✅ Заявка закрыта как выполненная. Жители уведомлены.'));
+
+  bot.action(/^uk:resolve:(\d+)$/, async (ctx) => {
+    if (!(await guard(ctx))) return;
+    await ack(ctx);
+    await ctx.scenario.start(resolveScenario, { requestId: Number(ctx.match?.[1]), cardMid: ctx.messageId ?? null });
+  });
 
   bot.action(/^uk:delegate:(\d+)$/, async (ctx) => {
     if (!(await guard(ctx))) return;

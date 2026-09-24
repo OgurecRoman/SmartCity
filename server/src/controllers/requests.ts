@@ -149,17 +149,23 @@ export async function document(req: Request, res: Response) {
 const statusSchema = z.object({
   status: z.enum(UK_SETTABLE_STATUSES as unknown as [string, ...string[]]),
   comment: z.string().trim().max(1000).optional(),
-  organizationId: z.number().int().positive().optional(),
+  organizationId: z.coerce.number().int().positive().optional(),
+  resolutionNote: z.string().trim().max(2000).optional(),
+  resolvedByName: z.string().trim().max(150).optional(),
 });
 
 export async function updateStatus(req: Request, res: Response) {
   const user = req.user!;
   const input = parseBody(statusSchema, req);
   const requestId = idParam(req);
+  const photos = await saveUploadedPhotos(req.files as Express.Multer.File[] | undefined);
   const request = await changeStatus(requestId, input.status as keyof typeof STATUS_LABELS, {
     byUserId: user.id,
     comment: input.comment ?? null,
     organizationId: input.organizationId ?? null,
+    resolutionNote: input.resolutionNote,
+    resolvedByName: input.resolvedByName,
+    photos,
   });
 
   let mail: { simulated: boolean; to: string | null } | undefined;

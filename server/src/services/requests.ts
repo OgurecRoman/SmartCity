@@ -13,7 +13,7 @@ export const requestInclude = {
   author: { select: { id: true, firstName: true, lastName: true, apartment: true, maxUserId: true } },
   house: { select: { id: true, address: true, chatId: true, votePercent: true } },
   delegatedTo: { select: { id: true, name: true, email: true, phone: true } },
-  photos: { select: { filename: true }, orderBy: { id: 'asc' } },
+  photos: { select: { filename: true, isResult: true }, orderBy: { id: 'asc' } },
 } satisfies Prisma.RequestInclude;
 
 export const requestDetailedInclude = {
@@ -207,6 +207,9 @@ export interface ChangeStatusInput {
   byUserId: number | null;
   comment?: string | null;
   organizationId?: number | null;
+  photos?: string[];
+  resolutionNote?: string;
+  resolvedByName?: string;
 }
 
 export async function changeStatus(
@@ -244,6 +247,17 @@ export async function changeStatus(
   }
   if (newStatus === 'SUBMITTED') data.submittedAt = new Date();
   if (newStatus === 'RESOLVED' || newStatus === 'REJECTED') data.resolvedAt = new Date();
+  if (newStatus === 'RESOLVED') {
+    const note = input.resolutionNote?.trim();
+    const responsible = input.resolvedByName?.trim();
+    if (!note) throw errors.badRequest('Опишите, что именно было сделано');
+    if (!responsible) throw errors.badRequest('Укажите ФИО ответственного за выполнение');
+    data.resolutionNote = note;
+    data.resolvedByName = responsible;
+  }
+  if (input.photos?.length) {
+    data.photos = { create: input.photos.map((filename) => ({ filename, isResult: true })) };
+  }
 
   const updated = await prisma.request.update({ where: { id: requestId }, data, include: requestInclude });
   events.emit('request.status_changed', {

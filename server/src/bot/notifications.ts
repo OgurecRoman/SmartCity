@@ -153,10 +153,14 @@ function subscribe(): void {
     if (comment) lines.push(`Комментарий УК: ${comment}`);
     const line = lines.join('\n');
 
-    await sendDm(request.author.maxUserId, `${line}\n\n${requestCard(request)}`);
+    const resultPhotos = newStatus === 'RESOLVED' ? request.photos.filter((p) => p.isResult).map((p) => p.filename) : [];
+    const images = await photoAttachments(resultPhotos);
+    const extra = images.length ? { attachments: images } : undefined;
+
+    await sendDm(request.author.maxUserId, `${line}\n\n${requestCard(request)}`, extra);
     const voters = await voterIds(request.id, request.authorId);
-    await Promise.all(voters.map((id) => sendDm(id, `${line}\nТема: ${request.title}`)));
-    if (request.house.chatId) await sendToChat(request.house.chatId, `${line}\nТема: ${request.title}`);
+    await Promise.all(voters.map((id) => sendDm(id, `${line}\nТема: ${request.title}`, extra)));
+    if (request.house.chatId) await sendToChat(request.house.chatId, `${line}\nТема: ${request.title}`, extra);
     await refreshChatMessage(request);
   });
 

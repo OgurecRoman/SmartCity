@@ -264,6 +264,8 @@ components:
         deadline: { type: [string, 'null'], format: date-time, description: Срок сбора подписей }
         submittedAt: { type: [string, 'null'], format: date-time }
         resolvedAt: { type: [string, 'null'], format: date-time }
+        resolutionNote: { type: [string, 'null'], description: 'Что именно было сделано — обязательно при закрытии заявки (status = RESOLVED)' }
+        resolvedByName: { type: [string, 'null'], description: 'ФИО ответственного за выполнение — обязательно при закрытии заявки' }
         delegatedAt: { type: [string, 'null'], format: date-time }
         delegatedTo:
           type: [object, 'null']
@@ -286,7 +288,8 @@ components:
         isMine: { type: boolean }
         hasVoted: { type: boolean }
         canVote: { type: boolean, description: Текущий пользователь может поддержать заявку }
-        photoUrls: { type: array, items: { type: string }, description: 'Ссылки на приложенные фото (относительные, /uploads/photos/…)' }
+        photoUrls: { type: array, items: { type: string }, description: 'Фото проблемы, приложенные при создании заявки (относительные ссылки, /uploads/photos/…)' }
+        resultPhotoUrls: { type: array, items: { type: string }, description: 'Фото результата работы, которые УК прикладывает при закрытии заявки (RESOLVED), в боте или в мини-приложении' }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
     RequestDetailed:
@@ -347,6 +350,14 @@ components:
         status: { type: string, enum: [IN_PROGRESS, DELEGATED, RESOLVED, REJECTED] }
         comment: { type: string, maxLength: 1000 }
         organizationId: { type: integer, description: Обязателен для DELEGATED }
+        resolutionNote: { type: string, maxLength: 2000, description: Обязательно для RESOLVED — что именно было сделано }
+        resolvedByName: { type: string, maxLength: 150, description: Обязательно для RESOLVED — ФИО ответственного за выполнение }
+    ChangeStatusMultipart:
+      allOf:
+        - $ref: '#/components/schemas/ChangeStatus'
+        - type: object
+          properties:
+            photos: { type: array, items: { type: string, format: binary }, maxItems: 5, description: 'До 5 файлов jpg/png/webp/gif, каждый до 8 МБ — фото результата, только для RESOLVED' }
     SubmitMembership:
       type: object
       required: [houseId, apartment, fullName]
@@ -651,9 +662,13 @@ paths:
       description: |
         Допустимые переходы см. в `/api/dictionaries` → `transitions`. Для DELEGATED обязателен organizationId;
         в этом случае в организацию отправляется письмо с документом (без SMTP — имитация, отмечается в поле mail.simulated).
+        Для RESOLVED обязательны resolutionNote (что сделано) и resolvedByName (ФИО ответственного); фото
+        необязательны — отправляются полем `photos` только в варианте `multipart/form-data`.
       requestBody:
         required: true
-        content: { application/json: { schema: { $ref: '#/components/schemas/ChangeStatus' } } }
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/ChangeStatus' } }
+          multipart/form-data: { schema: { $ref: '#/components/schemas/ChangeStatusMultipart' } }
       responses:
         '200':
           description: OK

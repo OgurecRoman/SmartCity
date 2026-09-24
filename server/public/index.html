@@ -181,6 +181,45 @@
         <div style="font-weight:600">Заявки на вступление</div>
         <button id="membership-open-uk" class="secondary" style="margin-top:10px;width:100%">📋 Заявки на вступление</button>
       </div>
+      <div class="card">
+        <div style="font-weight:600">Заявки жителей</div>
+        <button id="uk-requests-open" class="secondary" style="margin-top:10px;width:100%">🧰 Заявки в работе</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="screen-uk-requests" class="screen">
+    <div class="panel">
+      <div class="card">
+        <div style="font-weight:600">Заявки в работе</div>
+        <a id="uk-requests-back" class="link">← Назад</a>
+      </div>
+      <div class="card">
+        <div id="uk-requests-list" class="muted">Загрузка…</div>
+        <div id="uk-requests-pager-info" class="muted" style="margin-top:8px"></div>
+        <button id="uk-requests-more" class="secondary" style="margin-top:6px;width:100%;display:none">Показать ещё</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="screen-resolve" class="screen">
+    <div class="panel">
+      <div class="card">
+        <div style="font-weight:600">Закрыть заявку</div>
+        <a id="resolve-back" class="link">← Назад</a>
+      </div>
+      <div class="card">
+        <div id="resolve-request-title" style="font-weight:600"></div>
+        <label for="resolve-note">Что именно было сделано</label>
+        <textarea id="resolve-note" placeholder="Опишите выполненные работы"></textarea>
+        <label for="resolve-name">ФИО ответственного</label>
+        <input id="resolve-name" placeholder="Фамилия Имя Отчество">
+        <label for="resolve-photos">Фото результата (необязательно, до 5)</label>
+        <input type="file" id="resolve-photos" accept="image/*" multiple>
+        <div id="resolve-photos-preview" class="photo-preview"></div>
+        <div id="resolve-error" class="error"></div>
+        <button id="resolve-send" style="margin-top:10px;width:100%">Закрыть заявку</button>
+      </div>
     </div>
   </section>
 

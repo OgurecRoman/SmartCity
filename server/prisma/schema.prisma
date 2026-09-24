@@ -127,6 +127,8 @@ model Request {
   deadline      DateTime?
   submittedAt   DateTime?
   resolvedAt    DateTime?
+  resolutionNote String?
+  resolvedByName String?
   delegatedToId Int?
   delegatedTo   ResponsibleOrganization? @relation(fields: [delegatedToId], references: [id])
   delegatedAt   DateTime?
@@ -213,6 +215,7 @@ model News {
 model Photo {
   id             Int           @id @default(autoincrement())
   filename       String
+  isResult       Boolean       @default(false)
   requestId      Int?
   request        Request?      @relation(fields: [requestId], references: [id], onDelete: Cascade)
   newsId         Int?

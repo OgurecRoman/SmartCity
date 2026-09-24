@@ -194,6 +194,10 @@ async function main() {
   await cb(admin, 'dlg:org:2');
   await cb(admin, `uk:doc:${requestId}`);
   await cb(admin, `uk:resolve:${requestId}`);
+  await msg(admin, 'Заменили аварийный участок трубы в подвале первого подъезда.');
+  await msg(admin, 'Сидоров Пётр Иванович');
+  await cb(admin, 'resolve:photos:done');
+  await cb(admin, 'resolve:send');
 
   section('Аварийная заявка');
   await msg(anna, '/create');

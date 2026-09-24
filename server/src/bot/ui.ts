@@ -167,6 +167,10 @@ export function requestCard(request: RequestWithRelations): string {
     lines.push(`Поддержали: ${request.votesCount}`);
   }
   if (request.delegatedTo) lines.push(`Передана в: ${request.delegatedTo.name}`);
+  if (request.status === 'RESOLVED' && request.resolutionNote) {
+    lines.push(`Выполнено: ${request.resolutionNote}`);
+    if (request.resolvedByName) lines.push(`Ответственный: ${request.resolvedByName}`);
+  }
   lines.push(`Статус: ${STATUS_EMOJI[request.status]} ${STATUS_LABELS[request.status]}`);
   lines.push(`Создана: ${formatDateTime(request.createdAt)}`);
   return lines.join('\n');

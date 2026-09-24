@@ -458,3 +458,112 @@ export const rejectScenario = defineScenario<BotContext, RejectData>()<RejectSte
     },
   },
 });
+
+export interface ResolveData {
+  requestId: number;
+  cardMid?: string | null;
+  note?: string;
+  responsibleName?: string;
+  photos?: string[];
+}
+
+type ResolveStep = 'start' | 'note' | 'responsible' | 'photos' | 'confirm';
+
+const RESOLVE_PHOTOS_DONE = 'resolve:photos:done';
+const RESOLVE_SEND = 'resolve:send';
+
+function resolvePhotoButtons(count: number) {
+  return [[btn.callback(count > 0 ? `Готово (${count} фото)` : 'Без фото', RESOLVE_PHOTOS_DONE)], [btn.callback('Отмена', 'cancel')]];
+}
+
+export const resolveScenario = defineScenario<BotContext, ResolveData>()<ResolveStep>({
+  id: 'resolve-request',
+  initialStep: 'start',
+  idleTimeoutMs: SCENARIO_TIMEOUT_MS,
+  intercept: cancelIntercept,
+  steps: {
+    start: async ({ ctx, data }) => {
+      const request = await getRequest(data.requestId);
+      if (!request) {
+        await ctx.reply('Заявка не найдена.', withKeyboard(panelButton()));
+        return transition.cancel();
+      }
+      await ctx.reply(
+        `Заявка №${data.requestId}. Опишите одним сообщением, что именно было сделано:`,
+        withKeyboard([[btn.callback('Отмена', 'cancel')]]),
+      );
+      return transition.goto('note');
+    },
+
+    note: async ({ ctx }) => {
+      const text = textOf(ctx);
+      if (!text || text.trim().length < 5) {
+        await ctx.reply('Опишите подробнее, что было сделано (минимум 5 символов).');
+        return transition.stay();
+      }
+      await ctx.reply('Укажите ФИО ответственного за выполнение:', withKeyboard([[btn.callback('Отмена', 'cancel')]]));
+      return transition.goto('responsible', { note: text.trim() });
+    },
+
+    responsible: async ({ ctx }) => {
+      const text = textOf(ctx);
+      if (!text || text.trim().length < 3) {
+        await ctx.reply('Укажите ФИО ответственного (минимум 3 символа).');
+        return transition.stay();
+      }
+      await ctx.reply(
+        'Можете приложить фото результата работы (необязательно) — пришлите одну или несколько, или нажмите «Без фото».',
+        withKeyboard(resolvePhotoButtons(0)),
+      );
+      return transition.goto('photos', { responsibleName: text.trim() });
+    },
+
+    photos: async ({ ctx, data }) => {
+      const result = await handlePhotoInput(ctx, RESOLVE_PHOTOS_DONE, data.photos ?? []);
+      if (result.kind === 'invalid') {
+        await ctx.reply('Пришлите фото результата или нажмите кнопку выше.', withKeyboard(resolvePhotoButtons((data.photos ?? []).length)));
+        return transition.stay();
+      }
+      if (result.kind === 'added') {
+        await ctx.reply(
+          `Добавлено. Всего фото: ${result.photos.length}. Пришлите ещё или нажмите кнопку, чтобы продолжить.`,
+          withKeyboard(resolvePhotoButtons(result.photos.length)),
+        );
+        return transition.stay({ photos: result.photos });
+      }
+      const photosLine = data.photos?.length ? `\n📷 Фото: ${data.photos.length}` : '';
+      await ack(ctx, { message: { text: `Фото: ${(data.photos ?? []).length}` } });
+      await ctx.reply(
+        `Заявка №${data.requestId} будет закрыта как выполненная:\n\n${data.note}\n\nОтветственный: ${data.responsibleName}${photosLine}`,
+        withKeyboard([[btn.callback('✅ Закрыть заявку', RESOLVE_SEND)], [btn.callback('Отмена', 'cancel')]]),
+      );
+      return transition.goto('confirm');
+    },
+
+    confirm: async ({ ctx, data }) => {
+      if (payloadOf(ctx) !== RESOLVE_SEND || !data.note || !data.responsibleName) {
+        await ctx.reply('Нажмите «Закрыть заявку» или «Отмена».');
+        return transition.stay();
+      }
+      try {
+        const request = await changeStatus(data.requestId, 'RESOLVED', {
+          byUserId: ctx.dbUser.id,
+          resolutionNote: data.note,
+          resolvedByName: data.responsibleName,
+          photos: data.photos,
+        });
+        await ack(ctx, { message: { text: 'Заявка закрыта.' } });
+        await ctx.reply(
+          `${requestCard(request)}\n\n✅ Заявка закрыта как выполненная. Жители уведомлены.`,
+          withKeyboard([...ukRequestButtons(request), ...panelButton()]),
+        );
+        await refreshCard(ctx, data.requestId, data.cardMid, '✅ Выполнена');
+      } catch (error) {
+        if (!isAppError(error)) throw error;
+        await ack(ctx, { notification: error.message });
+        await ctx.reply(`Не получилось: ${error.message}`, withKeyboard(panelButton()));
+      }
+      return transition.complete();
+    },
+  },
+});
