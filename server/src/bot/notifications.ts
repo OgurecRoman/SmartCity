@@ -168,6 +168,23 @@ function subscribe(): void {
     if (chatMessageId) await editMessage(chatMessageId, `🗑 Заявка №${requestId} «${title}» удалена автором.`, []);
   });
 
+  events.on('request.reopened', async ({ requestId, reason, photos }) => {
+    const request = await getRequest(requestId);
+    if (!request) return;
+    const images = await photoAttachments(photos);
+    const heading = `🔄 Заявка №${request.id} возвращена автором — по его словам, проблема не устранена.\nПричина: ${reason}`;
+    const employees = await listEmployees();
+    await Promise.all(
+      employees.map((employee) =>
+        sendDm(employee.maxUserId, `${heading}\n\n${requestCard(request)}`, { attachments: [...images, keyboard(ukRequestButtons(request))] }),
+      ),
+    );
+    if (request.house.chatId) {
+      await sendToChat(request.house.chatId, `${heading}\nТема: ${request.title}`, { attachments: images });
+    }
+    await refreshChatMessage(request, '🔄 Возвращена автором — проблема не устранена.');
+  });
+
   events.on('request.expired', async ({ requestId }) => {
     const request = await getRequest(requestId);
     if (!request) return;

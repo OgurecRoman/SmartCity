@@ -16,6 +16,7 @@ import { createRequestScenario } from './scenarios/createRequest.js';
 import { addTenantScenario, rejectMembershipScenario } from './scenarios/membership.js';
 import { createNewsScenario } from './scenarios/news.js';
 import { onboardingScenario } from './scenarios/onboarding.js';
+import { reopenRequestScenario } from './scenarios/reopenRequest.js';
 import { PrismaSessionStore } from './sessionStore.js';
 import { panelButton, setBotIdentity, withKeyboard } from './ui.js';
 
@@ -77,7 +78,8 @@ export function createBot(): Bot<BotContext> {
     .register(rejectScenario)
     .register(resolveScenario)
     .register(rejectMembershipScenario)
-    .register(addTenantScenario);
+    .register(addTenantScenario)
+    .register(reopenRequestScenario);
 
   bot.use(scenarios.controllerMiddleware());
   registerCommonHandlers(bot);

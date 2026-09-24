@@ -6,7 +6,7 @@ import { CATEGORY_LABELS, STATUS_LABELS, addDays } from '../lib/labels.js';
 import { deletePhotoFile } from '../lib/photoStorage.js';
 import { Prisma } from '@prisma/client';
 import type { RequestCategory, RequestPriority, RequestStatus } from '@prisma/client';
-import { AUTHOR_DELETABLE_STATUSES, canTransition, votesRequiredFor } from './rules.js';
+import { AUTHOR_DELETABLE_STATUSES, REOPEN_WINDOW_DAYS, canTransition, votesRequiredFor } from './rules.js';
 import { countResidents } from './users.js';
 
 export const requestInclude = {
@@ -252,6 +252,9 @@ export async function changeStatus(
     const responsible = input.resolvedByName?.trim();
     if (!note) throw errors.badRequest('Опишите, что именно было сделано');
     if (!responsible) throw errors.badRequest('Укажите ФИО ответственного за выполнение');
+    if (request.reopenedAt && !input.photos?.length) {
+      throw errors.badRequest('Эту заявку уже возвращал житель — при повторном закрытии обязательно приложите фото результата');
+    }
     data.resolutionNote = note;
     data.resolvedByName = responsible;
   }
@@ -267,6 +270,53 @@ export async function changeStatus(
     changedById: input.byUserId,
     comment: input.comment?.trim() || null,
   });
+  return updated;
+}
+
+export interface ReopenRequestInput {
+  userId: number;
+  reason: string;
+  photos: string[];
+}
+
+export async function reopenRequest(requestId: number, input: ReopenRequestInput): Promise<RequestWithRelations> {
+  const request = await prisma.request.findUnique({ where: { id: requestId }, include: { photos: true } });
+  if (!request) throw errors.notFound('Заявка не найдена');
+  if (request.authorId !== input.userId) throw errors.forbidden('Вернуть заявку может только её автор');
+  if (request.status !== 'RESOLVED') throw errors.conflict('Вернуть можно только заявку в статусе «Сделано»', 'invalid_transition');
+  if (request.reopenedAt) throw errors.conflict('Эту заявку уже возвращали — повторный возврат недоступен', 'reopen_limit');
+  const deadline = request.resolvedAt ? request.resolvedAt.getTime() + REOPEN_WINDOW_DAYS * 24 * 60 * 60 * 1000 : 0;
+  if (Date.now() > deadline) {
+    throw errors.conflict(`Заявку можно вернуть только в течение ${REOPEN_WINDOW_DAYS} дней после закрытия`, 'reopen_window_expired');
+  }
+
+  const reason = input.reason.trim();
+  if (reason.length < 5) throw errors.badRequest('Опишите, почему заявка не выполнена (минимум 5 символов)');
+  if (input.photos.length === 0) throw errors.badRequest('Приложите хотя бы одно фото, подтверждающее, что проблема не устранена');
+
+  const oldResultPhotos = request.photos.filter((photo) => photo.isResult);
+
+  const updated = await prisma.$transaction(async (tx) => {
+    if (oldResultPhotos.length > 0) {
+      await tx.photo.deleteMany({ where: { id: { in: oldResultPhotos.map((photo) => photo.id) } } });
+    }
+    return tx.request.update({
+      where: { id: requestId },
+      data: {
+        status: 'SUBMITTED',
+        reopenedAt: new Date(),
+        resolvedAt: null,
+        resolutionNote: null,
+        resolvedByName: null,
+        statusHistory: { create: { oldStatus: 'RESOLVED', newStatus: 'SUBMITTED', comment: reason, changedById: input.userId } },
+        photos: { create: input.photos.map((filename) => ({ filename, isResult: false })) },
+      },
+      include: requestInclude,
+    });
+  });
+
+  await Promise.all(oldResultPhotos.map((photo) => deletePhotoFile(photo.filename)));
+  events.emit('request.reopened', { requestId, reason, photos: input.photos });
   return updated;
 }
 

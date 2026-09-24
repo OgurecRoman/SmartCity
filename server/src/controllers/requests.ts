@@ -14,6 +14,7 @@ import {
   getRequestDetailed,
   hasVoted,
   listRequests,
+  reopenRequest,
   unvote,
   vote,
   votedRequestIds,
@@ -133,6 +134,18 @@ export async function unvoteFor(req: Request, res: Response) {
   const user = req.user!;
   const request = await unvote(idParam(req), user.id);
   res.json(serializeRequest(request, { hasVoted: false, viewerId: user.id }));
+}
+
+const reopenSchema = z.object({
+  reason: z.string().trim().min(5).max(1000),
+});
+
+export async function reopen(req: Request, res: Response) {
+  const user = req.user!;
+  const input = parseBody(reopenSchema, req);
+  const photos = await saveUploadedPhotos(req.files as Express.Multer.File[] | undefined);
+  const request = await reopenRequest(idParam(req), { userId: user.id, reason: input.reason, photos });
+  res.json(serializeRequest(request, { viewerId: user.id }));
 }
 
 export async function document(req: Request, res: Response) {

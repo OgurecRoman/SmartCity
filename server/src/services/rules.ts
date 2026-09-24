@@ -12,7 +12,7 @@ export const STATUS_TRANSITIONS: Record<RequestStatus, readonly RequestStatus[]>
   SUBMITTED: ['IN_PROGRESS', 'DELEGATED', 'RESOLVED', 'REJECTED'],
   IN_PROGRESS: ['DELEGATED', 'RESOLVED', 'REJECTED'],
   DELEGATED: ['IN_PROGRESS', 'RESOLVED', 'REJECTED'],
-  RESOLVED: [],
+  RESOLVED: ['SUBMITTED'],
   REJECTED: [],
   EXPIRED: [],
 };
@@ -24,6 +24,9 @@ export function canTransition(from: RequestStatus, to: RequestStatus): boolean {
 export const UK_ACTIVE_STATUSES: readonly RequestStatus[] = ['SUBMITTED', 'IN_PROGRESS', 'DELEGATED'];
 
 export const UK_SETTABLE_STATUSES: readonly RequestStatus[] = ['IN_PROGRESS', 'DELEGATED', 'RESOLVED', 'REJECTED'];
+
+// Автор может вернуть закрытую заявку («не сделано») один раз, в течение стольких дней после закрытия.
+export const REOPEN_WINDOW_DAYS = 7;
 
 export const FINAL_STATUSES: readonly RequestStatus[] = ['RESOLVED', 'REJECTED', 'EXPIRED'];
 

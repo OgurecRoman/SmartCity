@@ -16,7 +16,7 @@ import type { AnnouncementWithRelations } from '../services/announcements.js';
 import type { MembershipRequestWithRelations } from '../services/membership.js';
 import type { NewsWithRelations } from '../services/news.js';
 import type { RequestWithRelations } from '../services/requests.js';
-import { AUTHOR_DELETABLE_STATUSES } from '../services/rules.js';
+import { AUTHOR_DELETABLE_STATUSES, REOPEN_WINDOW_DAYS } from '../services/rules.js';
 import type { DbUser, ResidentRow } from '../services/users.js';
 
 export type ButtonRows = Button[][];
@@ -103,6 +103,12 @@ export function yesNoButtons(prefix: string): ButtonRows {
   return [[btn.callback('Да', `${prefix}:yes`), btn.callback('Нет', `${prefix}:no`)]];
 }
 
+export function canReopenRequest(request: RequestWithRelations): boolean {
+  if (request.status !== 'RESOLVED' || request.reopenedAt || !request.resolvedAt) return false;
+  const deadline = request.resolvedAt.getTime() + REOPEN_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+  return Date.now() <= deadline;
+}
+
 export function residentRequestButtons(request: RequestWithRelations, viewer: DbUser, viewerHasVoted: boolean): ButtonRows {
   const rows: ButtonRows = [];
   const isAuthor = request.authorId === viewer.id;
@@ -111,6 +117,9 @@ export function residentRequestButtons(request: RequestWithRelations, viewer: Db
   }
   if (isAuthor && AUTHOR_DELETABLE_STATUSES.includes(request.status)) {
     rows.push([btn.callback('🗑 Удалить', `req:delete:${request.id}`)]);
+  }
+  if (isAuthor && canReopenRequest(request)) {
+    rows.push([btn.callback('🔄 Не сделано, вернуть', `req:reopen:${request.id}`)]);
   }
   const app = openAppButton('📱 Открыть в приложении', `request_${request.id}`);
   if (app) rows.push([app]);
@@ -171,6 +180,7 @@ export function requestCard(request: RequestWithRelations): string {
     lines.push(`Выполнено: ${request.resolutionNote}`);
     if (request.resolvedByName) lines.push(`Ответственный: ${request.resolvedByName}`);
   }
+  if (request.reopenedAt) lines.push('🔄 Была возвращена автором — проблема не была устранена');
   lines.push(`Статус: ${STATUS_EMOJI[request.status]} ${STATUS_LABELS[request.status]}`);
   lines.push(`Создана: ${formatDateTime(request.createdAt)}`);
   return lines.join('\n');

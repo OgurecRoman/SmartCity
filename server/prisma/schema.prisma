@@ -129,6 +129,7 @@ model Request {
   resolvedAt    DateTime?
   resolutionNote String?
   resolvedByName String?
+  reopenedAt    DateTime?
   delegatedToId Int?
   delegatedTo   ResponsibleOrganization? @relation(fields: [delegatedToId], references: [id])
   delegatedAt   DateTime?

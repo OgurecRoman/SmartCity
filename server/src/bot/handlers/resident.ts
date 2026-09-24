@@ -9,6 +9,7 @@ import { createRequestScenario } from '../scenarios/createRequest.js';
 import { addTenantScenario } from '../scenarios/membership.js';
 import { createNewsScenario } from '../scenarios/news.js';
 import { onboardingScenario } from '../scenarios/onboarding.js';
+import { reopenRequestScenario } from '../scenarios/reopenRequest.js';
 import { TEXTS, btn, contactsCard, keyboard, panelButton, requestCard, residentRequestButtons, withKeyboard } from '../ui.js';
 import { sendRequestList } from '../views.js';
 import { reportMembershipStatus } from './common.js';
@@ -173,5 +174,11 @@ export function registerResidentHandlers(bot: Bot<BotContext>): void {
     await ack(ctx, {
       message: { text: requestCard(request), attachments: [keyboard([...residentRequestButtons(request, ctx.dbUser, false), ...panelButton()])] },
     });
+  });
+
+  bot.action(/^req:reopen:(\d+)$/, async (ctx) => {
+    if (!isDialog(ctx)) return;
+    await ack(ctx);
+    await ctx.scenario.start(reopenRequestScenario, { requestId: Number(ctx.match?.[1]) });
   });
 }

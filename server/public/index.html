@@ -223,6 +223,26 @@
     </div>
   </section>
 
+  <section id="screen-reopen" class="screen">
+    <div class="panel">
+      <div class="card">
+        <div style="font-weight:600">Вернуть заявку</div>
+        <a id="reopen-back" class="link">← Назад</a>
+      </div>
+      <div class="card">
+        <div id="reopen-request-title" style="font-weight:600"></div>
+        <div class="muted">Опишите, почему считаете, что проблема не устранена, и приложите фото — заявка сразу уйдёт в УК</div>
+        <label for="reopen-reason">Что не так</label>
+        <textarea id="reopen-reason" placeholder="Опишите, что до сих пор не работает"></textarea>
+        <label for="reopen-photos">Фото (обязательно, до 5)</label>
+        <input type="file" id="reopen-photos" accept="image/*" multiple>
+        <div id="reopen-photos-preview" class="photo-preview"></div>
+        <div id="reopen-error" class="error"></div>
+        <button id="reopen-send" style="margin-top:10px;width:100%">Вернуть заявку</button>
+      </div>
+    </div>
+  </section>
+
   <section id="screen-membership" class="screen">
     <div class="panel">
       <div class="card">

@@ -15,6 +15,7 @@ export interface AppEvents {
   };
   'request.deleted': { requestId: number; houseId: number; chatMessageId: string | null; title: string };
   'request.expired': { requestId: number };
+  'request.reopened': { requestId: number; reason: string; photos: string[] };
   'announcement.created': { announcementId: number };
   'announcement.updated': { announcementId: number };
   'announcement.deleted': { announcementId: number; houseId: number; chatMessageId: string | null; title: string };

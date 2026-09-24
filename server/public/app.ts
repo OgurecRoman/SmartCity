@@ -52,6 +52,8 @@ interface RequestItem {
   delegatedTo: { id: number; name: string } | null;
   resolutionNote: string | null;
   resolvedByName: string | null;
+  resolvedAt: string | null;
+  reopenedAt: string | null;
   photoUrls: string[];
   resultPhotoUrls: string[];
 }
@@ -138,6 +140,7 @@ type ApiError = Error & { code?: string };
   let categories: { value: string; label: string }[] = [];
 
   const PAGE_SIZE = 5;
+  const REOPEN_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
   let requestsOffset = 0;
   let announcementsOffset = 0;
   let newsOffset = 0;
@@ -145,6 +148,12 @@ type ApiError = Error & { code?: string };
   let ukRequestsOffset = 0;
   let organizations: Organization[] = [];
   let resolvingRequestId: number | null = null;
+  let reopeningRequestId: number | null = null;
+
+  function canReopen(r: RequestItem): boolean {
+    return r.isMine && r.status === 'RESOLVED' && !r.reopenedAt && !!r.resolvedAt &&
+      Date.now() - new Date(r.resolvedAt).getTime() <= REOPEN_WINDOW_MS;
+  }
 
   function updatePager(infoId: string, buttonId: string, shown: number, total: number): void {
     $(infoId).textContent = total > 0 ? `Показано ${shown} из ${total}` : '';
@@ -400,6 +409,14 @@ type ApiError = Error & { code?: string };
       b.className = 'secondary';
       b.style.marginTop = '6px';
       b.onclick = async () => { b.disabled = true; try { await api('POST', `/requests/${r.id}/vote`); loadRequests(true); } catch (e) { alert((e as Error).message); b.disabled = false; } };
+      el.appendChild(b);
+    }
+    if (canReopen(r)) {
+      const b = document.createElement('button');
+      b.textContent = '🔄 Не сделано, вернуть';
+      b.className = 'secondary';
+      b.style.marginTop = '6px';
+      b.onclick = () => showReopen(r.id, r.title);
       el.appendChild(b);
     }
     return el;
@@ -735,6 +752,39 @@ type ApiError = Error & { code?: string };
     }
   }
 
+  function showReopen(requestId: number, title: string): void {
+    reopeningRequestId = requestId;
+    $('reopen-request-title').textContent = title;
+    $<HTMLTextAreaElement>('reopen-reason').value = '';
+    $<HTMLInputElement>('reopen-photos').value = '';
+    $('reopen-photos-preview').innerHTML = '';
+    $('reopen-error').textContent = '';
+    show('reopen');
+  }
+
+  async function sendReopen(): Promise<void> {
+    $('reopen-error').textContent = '';
+    const reason = $<HTMLTextAreaElement>('reopen-reason').value.trim();
+    const photosInput = $<HTMLInputElement>('reopen-photos');
+    if (!reason) { $('reopen-error').textContent = 'Опишите, почему проблема не устранена.'; return; }
+    if (!photosInput.files || photosInput.files.length === 0) { $('reopen-error').textContent = 'Приложите хотя бы одно фото.'; return; }
+    if (reopeningRequestId === null) return;
+    const btn = $<HTMLButtonElement>('reopen-send');
+    btn.disabled = true;
+    try {
+      const form = new FormData();
+      form.set('reason', reason);
+      appendPhotos(form, photosInput);
+      await apiForm('POST', `/requests/${reopeningRequestId}/reopen`, form);
+      reopeningRequestId = null;
+      await showHome();
+    } catch (e) {
+      $('reopen-error').textContent = (e as Error).message;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
   function renderMembershipItem(m: MembershipRequestItem): HTMLElement {
     const el = document.createElement('div');
     el.className = 'request';
@@ -858,6 +908,9 @@ type ApiError = Error & { code?: string };
     $('resolve-back').onclick = showUkRequests;
     $('resolve-send').onclick = sendResolve;
     $<HTMLInputElement>('resolve-photos').onchange = () => renderFilePreview($<HTMLInputElement>('resolve-photos'), $('resolve-photos-preview'));
+    $('reopen-back').onclick = showHome;
+    $('reopen-send').onclick = sendReopen;
+    $<HTMLInputElement>('reopen-photos').onchange = () => renderFilePreview($<HTMLInputElement>('reopen-photos'), $('reopen-photos-preview'));
     if (sdkUser && (sdkUser.first_name || sdkUser.last_name)) {
       $('use-profile-name').style.display = '';
       $('use-profile-name').onclick = () => {

@@ -109,6 +109,7 @@ export function serializeRequest(request: RequestWithRelations, extra: { hasVote
     resolvedAt: request.resolvedAt,
     resolutionNote: request.resolutionNote,
     resolvedByName: request.resolvedByName,
+    reopenedAt: request.reopenedAt,
     delegatedAt: request.delegatedAt,
     delegatedTo: request.delegatedTo,
     house: { id: request.house.id, address: request.house.address },

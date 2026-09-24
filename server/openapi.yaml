@@ -264,8 +264,9 @@ components:
         deadline: { type: [string, 'null'], format: date-time, description: Срок сбора подписей }
         submittedAt: { type: [string, 'null'], format: date-time }
         resolvedAt: { type: [string, 'null'], format: date-time }
-        resolutionNote: { type: [string, 'null'], description: 'Что именно было сделано — обязательно при закрытии заявки (status = RESOLVED)' }
-        resolvedByName: { type: [string, 'null'], description: 'ФИО ответственного за выполнение — обязательно при закрытии заявки' }
+        resolutionNote: { type: [string, 'null'], description: 'Что именно было сделано — обязательно при закрытии заявки (status = RESOLVED); очищается при возврате (POST /reopen)' }
+        resolvedByName: { type: [string, 'null'], description: 'ФИО ответственного за выполнение — обязательно при закрытии заявки; очищается при возврате' }
+        reopenedAt: { type: [string, 'null'], format: date-time, description: 'Когда заявку вернул автор (POST /reopen) — заявку можно вернуть только один раз' }
         delegatedAt: { type: [string, 'null'], format: date-time }
         delegatedTo:
           type: [object, 'null']
@@ -358,6 +359,12 @@ components:
         - type: object
           properties:
             photos: { type: array, items: { type: string, format: binary }, maxItems: 5, description: 'До 5 файлов jpg/png/webp/gif, каждый до 8 МБ — фото результата, только для RESOLVED' }
+    ReopenRequest:
+      type: object
+      required: [reason, photos]
+      properties:
+        reason: { type: string, minLength: 5, maxLength: 1000, description: Почему автор считает, что проблема не устранена }
+        photos: { type: array, items: { type: string, format: binary }, minItems: 1, maxItems: 5, description: Обязательно хотя бы одно фото-подтверждение, до 5 файлов jpg/png/webp/gif по 8 МБ }
     SubmitMembership:
       type: object
       required: [houseId, apartment, fullName]
@@ -641,6 +648,29 @@ paths:
       responses:
         '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Request' } } } }
         '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/requests/{id}/reopen:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    post:
+      tags: [requests]
+      summary: Вернуть закрытую заявку («не сделано») — только автор
+      description: |
+        Только автор заявки, только пока status = RESOLVED, только один раз на заявку и только в течение
+        7 дней после закрытия (иначе 409, code = reopen_limit / reopen_window_expired). Обязательны reason
+        (минимум 5 символов) и хотя бы одно фото, подтверждающее, что проблема не устранена. Заявка
+        возвращается в статус SUBMITTED (без повторного сбора подписей), старые resolutionNote/resolvedByName
+        и фото результата предыдущего закрытия очищаются. УК получает уведомление; при повторном закрытии
+        этой же заявки фото результата уже обязательны (см. PATCH /status).
+      requestBody:
+        required: true
+        content: { multipart/form-data: { schema: { $ref: '#/components/schemas/ReopenRequest' } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Request' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: 'Не в статусе RESOLVED, уже возвращалась (reopen_limit) или истёк срок 7 дней (reopen_window_expired)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /api/requests/{id}/document:
     parameters:
