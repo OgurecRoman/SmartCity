@@ -130,6 +130,8 @@ model Request {
   resolutionNote String?
   resolvedByName String?
   reopenedAt    DateTime?
+  rating        Int?
+  ratedAt       DateTime?
   delegatedToId Int?
   delegatedTo   ResponsibleOrganization? @relation(fields: [delegatedToId], references: [id])
   delegatedAt   DateTime?

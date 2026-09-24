@@ -14,6 +14,7 @@ import {
   getRequestDetailed,
   hasVoted,
   listRequests,
+  rateRequest,
   reopenRequest,
   unvote,
   vote,
@@ -145,6 +146,17 @@ export async function reopen(req: Request, res: Response) {
   const input = parseBody(reopenSchema, req);
   const photos = await saveUploadedPhotos(req.files as Express.Multer.File[] | undefined);
   const request = await reopenRequest(idParam(req), { userId: user.id, reason: input.reason, photos });
+  res.json(serializeRequest(request, { viewerId: user.id }));
+}
+
+const rateSchema = z.object({
+  rating: z.coerce.number().int().min(1).max(5),
+});
+
+export async function rate(req: Request, res: Response) {
+  const user = req.user!;
+  const input = parseBody(rateSchema, req);
+  const request = await rateRequest(idParam(req), { userId: user.id, rating: input.rating });
   res.json(serializeRequest(request, { viewerId: user.id }));
 }
 

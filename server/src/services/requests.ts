@@ -320,6 +320,73 @@ export async function reopenRequest(requestId: number, input: ReopenRequestInput
   return updated;
 }
 
+export interface RateRequestInput {
+  userId: number;
+  rating: number;
+}
+
+export async function rateRequest(requestId: number, input: RateRequestInput): Promise<RequestWithRelations> {
+  const request = await prisma.request.findUnique({ where: { id: requestId } });
+  if (!request) throw errors.notFound('Заявка не найдена');
+  if (request.authorId !== input.userId) throw errors.forbidden('Оценить заявку может только её автор');
+  if (request.status !== 'RESOLVED') throw errors.conflict('Оценить можно только заявку в статусе «Сделано»');
+  if (!Number.isInteger(input.rating) || input.rating < 1 || input.rating > 5) {
+    throw errors.badRequest('Оценка должна быть целым числом от 1 до 5');
+  }
+  return prisma.request.update({
+    where: { id: requestId },
+    data: { rating: input.rating, ratedAt: new Date() },
+    include: requestInclude,
+  });
+}
+
+export async function getCompanyRating(companyId: number): Promise<{ average: number | null; count: number }> {
+  const result = await prisma.request.aggregate({
+    where: { house: { companyId }, rating: { not: null } },
+    _avg: { rating: true },
+    _count: { rating: true },
+  });
+  return { average: result._avg.rating, count: result._count.rating };
+}
+
+export interface CompanyMetrics {
+  avgReactionMinutes: number | null;
+  noReopenRate: number | null;
+}
+
+export async function getCompanyMetrics(companyId: number): Promise<CompanyMetrics> {
+  const histories = await prisma.statusHistory.findMany({
+    where: { request: { house: { companyId } } },
+    orderBy: [{ requestId: 'asc' }, { changedAt: 'asc' }],
+    select: { requestId: true, oldStatus: true, newStatus: true, changedAt: true },
+  });
+
+  const submittedAtByRequest = new Map<number, Date>();
+  const reactionMinutes: number[] = [];
+  for (const entry of histories) {
+    if (entry.newStatus === 'SUBMITTED') {
+      submittedAtByRequest.set(entry.requestId, entry.changedAt);
+    } else if (entry.oldStatus === 'SUBMITTED') {
+      const submittedAt = submittedAtByRequest.get(entry.requestId);
+      if (submittedAt) {
+        reactionMinutes.push((entry.changedAt.getTime() - submittedAt.getTime()) / 60_000);
+        submittedAtByRequest.delete(entry.requestId);
+      }
+    }
+  }
+  const avgReactionMinutes = reactionMinutes.length
+    ? reactionMinutes.reduce((sum, value) => sum + value, 0) / reactionMinutes.length
+    : null;
+
+  const [everResolvedCount, resolvedWithoutReopenCount] = await Promise.all([
+    prisma.request.count({ where: { house: { companyId }, OR: [{ resolvedAt: { not: null } }, { reopenedAt: { not: null } }] } }),
+    prisma.request.count({ where: { house: { companyId }, resolvedAt: { not: null }, reopenedAt: null } }),
+  ]);
+  const noReopenRate = everResolvedCount > 0 ? (resolvedWithoutReopenCount / everResolvedCount) * 100 : null;
+
+  return { avgReactionMinutes, noReopenRate };
+}
+
 export async function deleteRequest(requestId: number, userId: number): Promise<void> {
   const request = await prisma.request.findUnique({ where: { id: requestId }, include: { photos: { select: { filename: true } } } });
   if (!request) throw errors.notFound('Заявка не найдена');

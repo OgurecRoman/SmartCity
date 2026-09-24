@@ -267,6 +267,7 @@ components:
         resolutionNote: { type: [string, 'null'], description: 'Что именно было сделано — обязательно при закрытии заявки (status = RESOLVED); очищается при возврате (POST /reopen)' }
         resolvedByName: { type: [string, 'null'], description: 'ФИО ответственного за выполнение — обязательно при закрытии заявки; очищается при возврате' }
         reopenedAt: { type: [string, 'null'], format: date-time, description: 'Когда заявку вернул автор (POST /reopen) — заявку можно вернуть только один раз' }
+        rating: { type: [integer, 'null'], minimum: 1, maximum: 5, description: 'Оценка автора заявки за работу УК (1–5) — доступна только когда status = RESOLVED, можно менять' }
         delegatedAt: { type: [string, 'null'], format: date-time }
         delegatedTo:
           type: [object, 'null']
@@ -558,7 +559,7 @@ paths:
   /api/company:
     get:
       tags: [catalogs]
-      summary: Контакты управляющей компании
+      summary: Контакты и рейтинг управляющей компании
       responses:
         '200':
           description: OK
@@ -573,6 +574,18 @@ paths:
                   email: { type: [string, 'null'] }
                   address: { type: [string, 'null'] }
                   workingHours: { type: [string, 'null'] }
+                  rating:
+                    type: object
+                    description: Средняя оценка по всем заявкам компании, где житель поставил оценку (POST /requests/{id}/rate)
+                    properties:
+                      average: { type: [number, 'null'], description: 'null, если оценок ещё нет' }
+                      count: { type: integer }
+                  metrics:
+                    type: object
+                    description: Объективные показатели работы, считаются из истории статусов заявок (без участия жителей)
+                    properties:
+                      avgReactionMinutes: { type: [number, 'null'], description: 'Среднее время от передачи заявки в УК (SUBMITTED) до первой реакции УК (взять в работу/передать/закрыть/отклонить), в минутах; null, если реагировать было не на что' }
+                      noReopenRate: { type: [number, 'null'], description: 'Доля закрытых заявок, которые ни разу не вернул автор («не сделано»), в процентах (0–100); null, если ещё не было ни одной закрытой заявки' }
 
   /api/organizations:
     get:
@@ -689,6 +702,23 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { description: 'Не в статусе RESOLVED, уже возвращалась (reopen_limit) или истёк срок 7 дней (reopen_window_expired)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /api/requests/{id}/rate:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    post:
+      tags: [requests]
+      summary: Оценить работу УК по заявке (1–5) — только автор
+      description: Только автор, только пока status = RESOLVED. Можно ставить повторно — оценка перезаписывается, без ограничения по времени.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [rating], properties: { rating: { type: integer, minimum: 1, maximum: 5 } } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Request' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: 'Заявка не в статусе RESOLVED', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /api/requests/{id}/document:
     parameters:

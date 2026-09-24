@@ -55,8 +55,16 @@ interface RequestItem {
   resolvedByName: string | null;
   resolvedAt: string | null;
   reopenedAt: string | null;
+  rating: number | null;
   photoUrls: string[];
   resultPhotoUrls: string[];
+}
+
+interface CompanyInfo {
+  id: number;
+  name: string;
+  rating: { average: number | null; count: number };
+  metrics: { avgReactionMinutes: number | null; noReopenRate: number | null };
 }
 
 interface Organization {
@@ -205,6 +213,23 @@ type ApiError = Error & { code?: string };
     if (m10 === 1 && m100 !== 11) return one;
     if (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) return few;
     return many;
+  }
+
+  function formatReactionTime(minutes: number): string {
+    if (minutes < 60) return `${Math.round(minutes)} мин`;
+    const hours = minutes / 60;
+    if (hours < 24) return `${hours.toFixed(1)} ч`;
+    return `${(hours / 24).toFixed(1)} дн`;
+  }
+
+  function formatCompanySummary(company: CompanyInfo): string {
+    const ratingLine = company.rating.count === 0
+      ? 'Оценок пока нет'
+      : `${company.rating.average!.toFixed(1)} ★ (${company.rating.count} ${plural(company.rating.count, 'оценка', 'оценки', 'оценок')})`;
+    const parts = [ratingLine];
+    if (company.metrics.avgReactionMinutes !== null) parts.push(`среднее время реакции — ${formatReactionTime(company.metrics.avgReactionMinutes)}`);
+    if (company.metrics.noReopenRate !== null) parts.push(`заявок без возврата — ${Math.round(company.metrics.noReopenRate)}%`);
+    return parts.join(' · ');
   }
 
   function describeBuilding(b: Building): string {
@@ -358,6 +383,19 @@ type ApiError = Error & { code?: string };
     }
     loadAnnouncements();
     loadNews();
+    loadCompanyCard();
+  }
+
+  async function loadCompanyCard(): Promise<void> {
+    const card = $('company-card');
+    try {
+      const company = await api<CompanyInfo | null>('GET', '/company');
+      if (!company) { card.style.display = 'none'; return; }
+      card.style.display = '';
+      card.textContent = `${company.name} · ${formatCompanySummary(company)}`;
+    } catch {
+      card.style.display = 'none';
+    }
   }
 
   function renderPhotoStrip(photoUrls: string[]): string {
@@ -421,7 +459,33 @@ type ApiError = Error & { code?: string };
       b.onclick = () => showReopen(r.id, r.title);
       el.appendChild(b);
     }
+    if (r.isMine && r.status === 'RESOLVED') {
+      el.appendChild(renderRatingWidget(r));
+    }
     return el;
+  }
+
+  function renderRatingWidget(r: RequestItem): HTMLElement {
+    const wrap = document.createElement('div');
+    wrap.style.marginTop = '8px';
+    const label = document.createElement('div');
+    label.className = 'muted';
+    label.textContent = r.rating ? 'Ваша оценка работы УК:' : 'Оцените работу УК по этой заявке:';
+    wrap.appendChild(label);
+    const stars = document.createElement('div');
+    for (let i = 1; i <= 5; i += 1) {
+      const star = document.createElement('span');
+      star.textContent = r.rating && i <= r.rating ? '★' : '☆';
+      star.style.cursor = 'pointer';
+      star.style.fontSize = '22px';
+      star.style.color = r.rating && i <= r.rating ? '#f5a623' : '#ccc';
+      star.onclick = async () => {
+        try { await api('POST', `/requests/${r.id}/rate`, { rating: i }); loadRequests(true); } catch (e) { alert((e as Error).message); }
+      };
+      stars.appendChild(star);
+    }
+    wrap.appendChild(stars);
+    return wrap;
   }
 
   async function loadRequests(reset = true): Promise<void> {
@@ -573,6 +637,13 @@ type ApiError = Error & { code?: string };
     if (!select.options.length) {
       ukHouses = await api<House[]>('GET', '/houses');
       select.innerHTML = '<option value="">— выберите дом —</option>' + ukHouses.map((h) => `<option value="${h.id}">${h.address}</option>`).join('');
+    }
+    const ratingBox = $('uk-rating');
+    try {
+      const company = await api<CompanyInfo | null>('GET', '/company');
+      ratingBox.textContent = company ? formatCompanySummary(company) : 'УК не найдена';
+    } catch (e) {
+      ratingBox.textContent = (e as Error).message;
     }
   }
 
