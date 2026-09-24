@@ -1,8 +1,11 @@
 import { CATEGORY_LABELS, PRIORITY_LABELS, RESIDENT_TYPE_LABELS, ROLE_LABELS, STATUS_LABELS, fullName } from '../lib/labels.js';
+import type { AnnouncementWithRelations } from '../services/announcements.js';
+import type { CameraWithHouse } from '../services/cameras.js';
+import type { MembershipRequestWithRelations } from '../services/membership.js';
+import type { NewsWithRelations } from '../services/news.js';
 import type { RequestDetailed, RequestWithRelations } from '../services/requests.js';
 import { checkApartment, type Entrance } from '../services/rules.js';
-import { apartmentDataOf, type DbUser } from '../services/users.js';
-import { RequestStatus } from '@prisma/client';
+import { apartmentDataOf, type DbUser, type ResidentRow } from '../services/users.js';
 
 type HouseRow = {
   id: number;
@@ -55,8 +58,25 @@ export function serializeUser(user: DbUser) {
     entrance: entranceOf(user),
     residentType: user.residentType,
     residentTypeLabel: user.residentType ? RESIDENT_TYPE_LABELS[user.residentType] : null,
+    verifiedFullName: user.verifiedFullName,
     onboarded: user.houseId !== null && user.onboardedAt !== null,
     createdAt: user.createdAt,
+  };
+}
+
+export function serializeMembershipRequest(request: MembershipRequestWithRelations) {
+  return {
+    id: request.id,
+    houseId: request.houseId,
+    houseAddress: request.house.address,
+    apartment: request.apartment,
+    fullName: request.fullName,
+    status: request.status,
+    rejectReason: request.rejectReason,
+    applicant: { id: request.applicant.id, maxUserId: request.applicant.maxUserId.toString(), name: fullName(request.applicant) },
+    reviewedBy: request.reviewedBy ? { id: request.reviewedBy.id, name: fullName(request.reviewedBy) } : null,
+    createdAt: request.createdAt,
+    updatedAt: request.updatedAt,
   };
 }
 
@@ -100,20 +120,72 @@ export function serializeRequest(request: RequestWithRelations, extra: { hasVote
 export function serializeRequestDetailed(request: RequestDetailed, extra: { hasVoted?: boolean; viewerId?: number } = {}) {
   return {
     ...serializeRequest(request, extra),
-    votes: request.votes.map((vote: any) => ({
+    votes: request.votes.map((vote) => ({
       id: vote.id,
       createdAt: vote.createdAt,
       user: { id: vote.user.id, name: fullName(vote.user), apartment: vote.user.apartment },
     })),
-    statusHistory: request.statusHistory.map((entry: any) => ({
+    statusHistory: request.statusHistory.map((entry) => ({
       id: entry.id,
       oldStatus: entry.oldStatus,
-      oldStatusLabel: entry.oldStatus ? STATUS_LABELS[entry.oldStatus as RequestStatus] : null,
+      oldStatusLabel: entry.oldStatus ? STATUS_LABELS[entry.oldStatus] : null,
       newStatus: entry.newStatus,
-      newStatusLabel: STATUS_LABELS[entry.newStatus as RequestStatus],
+      newStatusLabel: STATUS_LABELS[entry.newStatus],
       comment: entry.comment,
       changedAt: entry.changedAt,
       changedBy: entry.changedBy ? { id: entry.changedBy.id, name: fullName(entry.changedBy), role: entry.changedBy.role } : null,
     })),
+  };
+}
+
+export function serializeAnnouncement(announcement: AnnouncementWithRelations) {
+  return {
+    id: announcement.id,
+    houseId: announcement.houseId,
+    houseAddress: announcement.house.address,
+    title: announcement.title,
+    description: announcement.description,
+    author: { id: announcement.author.id, name: fullName(announcement.author), role: announcement.author.role },
+    createdAt: announcement.createdAt,
+    updatedAt: announcement.updatedAt,
+  };
+}
+
+export function serializeNews(news: NewsWithRelations, extra: { viewerId?: number } = {}) {
+  return {
+    id: news.id,
+    houseId: news.houseId,
+    houseAddress: news.house.address,
+    title: news.title,
+    description: news.description,
+    contact: news.contact,
+    author: { id: news.author.id, name: fullName(news.author), role: news.author.role },
+    isMine: extra.viewerId !== undefined ? news.authorId === extra.viewerId : undefined,
+    createdAt: news.createdAt,
+    updatedAt: news.updatedAt,
+  };
+}
+
+export function serializeResident(user: ResidentRow) {
+  return {
+    id: user.id,
+    maxUserId: user.maxUserId.toString(),
+    username: user.username,
+    apartment: user.apartment,
+    fullName: user.verifiedFullName ?? fullName(user),
+    verified: user.verifiedFullName !== null,
+    role: user.role,
+    residentType: user.residentType,
+    residentTypeLabel: user.residentType ? RESIDENT_TYPE_LABELS[user.residentType] : null,
+  };
+}
+
+export function serializeCamera(camera: CameraWithHouse) {
+  return {
+    id: camera.id,
+    houseId: camera.houseId,
+    houseAddress: camera.house.address,
+    label: camera.label,
+    streamUrl: camera.streamUrl,
   };
 }

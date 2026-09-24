@@ -10,7 +10,6 @@ import swaggerUi from 'swagger-ui-express';
 import { swaggerSpec } from './lib/swagger.js';
 import './lib/bigint.js';
 
-
 export type WebhookHandler = (req: IncomingMessage, res: ServerResponse) => void;
 
 export function createApp(options: { webhookHandler?: WebhookHandler } = {}) {

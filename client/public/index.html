@@ -32,6 +32,7 @@
     .request:first-child { border-top: 0; }
     .status { display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 999px; background: #eef2ff; color: #3730a3; margin-left: 6px; }
     a.link { color: var(--accent); cursor: pointer; font-size: 14px; }
+    .camera-box { background: #e5e7eb; border-radius: 10px; height: 140px; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 14px; text-align: center; margin-top: 8px; }
   </style>
 </head>
 <body>
@@ -57,21 +58,21 @@
       <div class="card">
         <div id="apt-house" style="font-weight:600"></div>
         <div id="apt-info" class="muted"></div>
+        <div class="muted">Заявку проверит председатель ТСЖ или управляющая компания — это подтверждает, что квартира действительно ваша.</div>
         <label for="apartment">Номер квартиры</label>
         <input id="apartment" inputmode="numeric" placeholder="например, 27">
-        <label>Вы владелец или арендатор?</label>
-        <div class="row">
-          <button id="type-owner" class="secondary">Владелец</button>
-          <button id="type-tenant" class="secondary">Арендатор</button>
-        </div>
+        <label for="full-name">ФИО</label>
+        <input id="full-name" placeholder="Фамилия Имя Отчество">
+        <a id="use-profile-name" class="link" style="display:none">Подставить имя из профиля MAX</a>
         <div id="apt-error" class="error"></div>
         <div class="row" style="margin-top:12px">
           <button id="apt-back" class="secondary">← Карта</button>
-          <button id="apt-save">Сохранить</button>
+          <button id="apt-save">Отправить на проверку</button>
         </div>
       </div>
     </div>
   </section>
+
 
   <section id="screen-home" class="screen">
     <div class="panel">
@@ -80,7 +81,19 @@
         <div id="home-apartment" class="muted"></div>
         <a id="change-house" class="link">Сменить дом</a>
       </div>
-      <div class="card">
+      <div id="status-card" class="card" style="display:none">
+        <div id="status-text"></div>
+      </div>
+      <div id="announcements-card" class="card" style="display:none">
+        <div style="font-weight:600">Объявления дома</div>
+        <div id="announcements" class="muted">Загрузка…</div>
+      </div>
+      <div id="cameras-card" class="card" style="display:none">
+        <div style="font-weight:600">Камеры</div>
+        <div class="muted">Двор и подъезд дома</div>
+        <button id="cameras-open" class="secondary" style="margin-top:10px;width:100%">📹 Открыть камеры</button>
+      </div>
+      <div id="request-form-card" class="card">
         <div style="font-weight:600">Новая заявка</div>
         <label for="category">Категория</label>
         <select id="category"></select>
@@ -91,9 +104,57 @@
         <div id="req-ok" class="ok"></div>
         <button id="req-send" style="margin-top:10px;width:100%">Отправить заявку</button>
       </div>
-      <div class="card">
+      <div id="requests-list-card" class="card">
         <div style="font-weight:600">Заявки дома</div>
+        <div class="row">
+          <select id="requests-filter-category"></select>
+          <select id="requests-filter-status"></select>
+        </div>
         <div id="requests" class="muted">Загрузка…</div>
+      </div>
+      <div id="news-form-card" class="card">
+        <div style="font-weight:600">Новость соседям</div>
+        <div class="muted">Например, позвать в гости или поделиться новостью — не для проблем дома</div>
+        <label for="news-title">Заголовок</label>
+        <input id="news-title" placeholder="Например: Зову на Новый год">
+        <label for="news-description">Текст</label>
+        <textarea id="news-description" placeholder="О чём хотите рассказать соседям"></textarea>
+        <label for="news-contact">Как с вами связаться</label>
+        <input id="news-contact" placeholder="Телефон, ссылка на профиль…">
+        <div id="news-error" class="error"></div>
+        <div id="news-ok" class="ok"></div>
+        <button id="news-send" style="margin-top:10px;width:100%">Опубликовать</button>
+      </div>
+      <div class="card">
+        <div style="font-weight:600">Новости соседей</div>
+        <div id="news-list" class="muted">Загрузка…</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="screen-cameras" class="screen">
+    <div class="panel">
+      <div class="card">
+        <div id="cameras-house" style="font-weight:600"></div>
+        <a id="cameras-back" class="link">← Назад</a>
+      </div>
+      <div id="cameras-list" class="card muted">Загрузка…</div>
+    </div>
+  </section>
+
+  <section id="screen-uk" class="screen">
+    <div class="panel">
+      <div class="card">
+        <div style="font-weight:600">Жители дома</div>
+        <label for="uk-house">Дом</label>
+        <select id="uk-house"></select>
+      </div>
+      <div class="card">
+        <div id="uk-residents" class="muted">Выберите дом</div>
+      </div>
+      <div class="card">
+        <div style="font-weight:600">Камеры</div>
+        <div id="uk-cameras" class="muted">Выберите дом</div>
       </div>
     </div>
   </section>

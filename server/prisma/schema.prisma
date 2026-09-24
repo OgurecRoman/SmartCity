@@ -9,6 +9,7 @@ datasource db {
 enum UserRole {
   RESIDENT
   UK_EMPLOYEE
+  CHAIRMAN
 }
 
 enum ResidentType {
@@ -42,6 +43,12 @@ enum RequestStatus {
   EXPIRED
 }
 
+enum MembershipStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model ManagementCompany {
   id            Int                       @id @default(autoincrement())
   name          String
@@ -71,6 +78,10 @@ model House {
   company     ManagementCompany @relation(fields: [companyId], references: [id])
   residents   User[]
   requests    Request[]
+  announcements Announcement[]
+  news        News[]
+  membershipRequests MembershipRequest[]
+  cameras     Camera[]
   createdAt   DateTime  @default(now())
 }
 
@@ -85,6 +96,7 @@ model User {
   house         House?        @relation(fields: [houseId], references: [id])
   apartment     String?
   residentType  ResidentType?
+  verifiedFullName String?
   companyId     Int?
   company       ManagementCompany? @relation(fields: [companyId], references: [id])
   onboardedAt   DateTime?
@@ -93,6 +105,10 @@ model User {
   requests      Request[]
   votes         Vote[]
   statusChanges StatusHistory[]
+  announcements Announcement[]
+  news          News[]
+  membershipRequests MembershipRequest[] @relation("MembershipApplicant")
+  reviewedMemberships MembershipRequest[] @relation("MembershipReviewer")
 }
 
 model Request {
@@ -158,6 +174,68 @@ model ResponsibleOrganization {
   phone      String?
   categories RequestCategory[]
   requests   Request[]
+}
+
+model Announcement {
+  id            Int      @id @default(autoincrement())
+  houseId       Int
+  house         House    @relation(fields: [houseId], references: [id])
+  authorId      Int
+  author        User     @relation(fields: [authorId], references: [id])
+  title         String
+  description   String
+  chatMessageId String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([houseId])
+}
+
+model News {
+  id            Int      @id @default(autoincrement())
+  houseId       Int
+  house         House    @relation(fields: [houseId], references: [id])
+  authorId      Int
+  author        User     @relation(fields: [authorId], references: [id])
+  title         String
+  description   String
+  contact       String
+  chatMessageId String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([houseId])
+}
+
+model MembershipRequest {
+  id           Int              @id @default(autoincrement())
+  applicantId  Int
+  applicant    User             @relation("MembershipApplicant", fields: [applicantId], references: [id])
+  houseId      Int
+  house        House            @relation(fields: [houseId], references: [id])
+  apartment    String
+  fullName     String
+  status       MembershipStatus @default(PENDING)
+  reviewedById Int?
+  reviewedBy   User?            @relation("MembershipReviewer", fields: [reviewedById], references: [id])
+  rejectReason String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@index([houseId, status])
+  @@index([applicantId])
+}
+
+model Camera {
+  id        Int      @id @default(autoincrement())
+  houseId   Int
+  house     House    @relation(fields: [houseId], references: [id])
+  label     String
+  streamUrl String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([houseId])
 }
 
 model BotSession {

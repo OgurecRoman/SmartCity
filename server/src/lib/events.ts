@@ -15,6 +15,16 @@ export interface AppEvents {
   };
   'request.deleted': { requestId: number; houseId: number; chatMessageId: string | null; title: string };
   'request.expired': { requestId: number };
+  'announcement.created': { announcementId: number };
+  'announcement.updated': { announcementId: number };
+  'announcement.deleted': { announcementId: number; houseId: number; chatMessageId: string | null; title: string };
+  'news.created': { newsId: number };
+  'news.updated': { newsId: number };
+  'news.deleted': { newsId: number; houseId: number; chatMessageId: string | null; title: string };
+  'membership.requested': { requestId: number };
+  'membership.approved': { requestId: number };
+  'membership.rejected': { requestId: number };
+  'tenant.added': { houseId: number; ownerId: number; tenantId: number; apartment: string };
 }
 
 type Handler<K extends keyof AppEvents> = (payload: AppEvents[K]) => Promise<void> | void;

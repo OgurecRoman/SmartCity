@@ -109,10 +109,18 @@ async function userAdded(u: MaxUser, chatId: number) {
   await handle({ update_type: 'user_added', timestamp: Date.now(), chat_id: chatId, user: u, inviter_id: null, is_channel: false });
   await settle();
 }
-async function onboard(u: MaxUser, apartment: string, type: 'OWNER' | 'TENANT') {
+
+async function onboard(u: MaxUser, apartment: string, reviewer: MaxUser) {
   await cb(u, 'onb:house:1');
   await msg(u, apartment);
-  await cb(u, `onb:type:${type}`);
+  await cb(u, 'onb:name:profile');
+  await cb(u, 'onb:send');
+  const request = await prisma.membershipRequest.findFirst({
+    where: { applicant: { maxUserId: BigInt(u.user_id) }, status: 'PENDING' },
+    orderBy: { id: 'desc' },
+  });
+  if (!request) throw new Error('Заявка на вступление не создана');
+  await cb(reviewer, `mem:approve:${request.id}`);
 }
 async function latestRequestId(maxUserId: number): Promise<number> {
   const request = await prisma.request.findFirst({ where: { author: { maxUserId: BigInt(maxUserId) } }, orderBy: { id: 'desc' } });
@@ -130,6 +138,9 @@ async function main() {
 
   await prisma.botSession.deleteMany({});
   await prisma.request.deleteMany({ where: { author: { maxUserId: { in: [5000001n, 5000002n, 5000003n] } } } });
+  await prisma.announcement.deleteMany({ where: { author: { maxUserId: { in: [5000001n, 5000002n, 5000003n] } } } });
+  await prisma.news.deleteMany({ where: { author: { maxUserId: { in: [5000001n, 5000002n, 5000003n] } } } });
+  await prisma.membershipRequest.deleteMany({ where: { applicant: { maxUserId: { in: [5000001n, 5000002n, 5000003n] } } } });
   await prisma.user.deleteMany({ where: { maxUserId: { in: [5000001n, 5000002n, 5000003n] } } });
   await prisma.house.updateMany({ where: { id: 1 }, data: { chatId: null } });
 
@@ -138,9 +149,9 @@ async function main() {
   await cb(admin, 'bind:1', GROUP, 'chat');
   await userAdded(anna, GROUP);
 
-  section('Житель регистрируется');
+  section('Житель регистрируется — заявку на вступление подтверждает УК');
   await started(anna);
-  await onboard(anna, '15', 'OWNER');
+  await onboard(anna, '15', admin);
 
   section('Житель создаёт заявку');
   await cb(anna, 'menu:create');
@@ -152,15 +163,19 @@ async function main() {
   const requestId = await latestRequestId(anna.user_id);
   out(`   (создана заявка №${requestId})`);
 
-  section('Сосед переходит по «Подробнее», регистрируется и поддерживает');
+  section('Собственник добавляет своего съёмщика — тот сразу пользуется ботом');
+  await msg(anna, '/add_tenant');
+  await msg(anna, String(olga.user_id));
+  await msg(anna, '16');
+
+  section('Съёмщик переходит по «Подробнее» к заявке и поддерживает');
   await started(olga, `req_${requestId}`);
-  await onboard(olga, '16', 'TENANT');
   await cb(olga, `req:vote:${requestId}`);
   await cb(olga, `req:vote:${requestId}`);
 
   section('Второй сосед поддерживает — порог достигнут, заявка уходит в УК');
   await started(kirill);
-  await onboard(kirill, '17', 'OWNER');
+  await onboard(kirill, '17', admin);
   await started(kirill, `req_${requestId}`);
   await cb(kirill, `req:vote:${requestId}`);
 
@@ -203,9 +218,10 @@ async function main() {
   await msg(anna, '/contacts');
   await cb(anna, 'uk:new');
 
-  section('УК: объявление и добавление владельца');
+  section('УК: объявление в дом и добавление владельца');
   await cb(admin, 'menu:announce');
   await cb(admin, 'ann:house:1');
+  await msg(admin, 'Отключение горячей воды');
   await msg(admin, 'Плановое отключение воды 25.09 с 10:00 до 14:00.');
   await cb(admin, 'ann:yes');
   await cb(admin, 'menu:add_owner');
@@ -215,6 +231,24 @@ async function main() {
   await cb(admin, 'menu:remove_owner');
   await msg(admin, '5000009');
   await cb(admin, 'own:yes');
+
+  section('УК назначает жителя председателем ТСЖ');
+  await cb(admin, 'menu:appoint_chairman');
+  await msg(admin, String(anna.user_id));
+  await cb(admin, 'chair:house:1');
+  await cb(admin, 'chair:yes');
+
+  section('Председатель ТСЖ публикует объявление жителям своего дома');
+  await started(anna);
+  await cb(anna, 'menu:announce');
+  await msg(anna, 'Собрание жильцов');
+  await msg(anna, 'Собрание состоится 30.09 в 19:00 у подъезда №1.');
+  await cb(anna, 'ann:yes');
+
+  section('УК снимает председателя ТСЖ');
+  await cb(admin, 'menu:dismiss_chairman');
+  await msg(admin, String(anna.user_id));
+  await cb(admin, 'chair:yes');
 
   out('\n✅ Прогон завершён без необработанных ошибок');
 }

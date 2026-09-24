@@ -20,13 +20,20 @@ interface House extends Building {
   lng: number | null;
 }
 
+interface Membership {
+  status: 'PENDING' | 'REJECTED';
+  rejectReason: string | null;
+}
+
 interface Me {
   role: string;
   onboarded: boolean;
   apartment: string | null;
   entrance: string | null;
-  residentTypeLabel: string;
+  residentTypeLabel: string | null;
+  verifiedFullName: string | null;
   house: House | null;
+  membership: Membership | null;
 }
 
 interface RequestItem {
@@ -47,10 +54,45 @@ interface SearchHit {
   lng: number;
 }
 
+interface AnnouncementItem {
+  id: number;
+  title: string;
+  description: string;
+  author: { name: string };
+  createdAt: string;
+}
+
+interface NewsItem {
+  id: number;
+  title: string;
+  description: string;
+  contact: string;
+  author: { name: string };
+  isMine: boolean;
+  createdAt: string;
+}
+
+interface Resident {
+  id: number;
+  maxUserId: string;
+  username: string | null;
+  apartment: string | null;
+  fullName: string;
+  verified: boolean;
+  residentTypeLabel: string | null;
+}
+
+interface Camera {
+  id: number;
+  houseId: number;
+  houseAddress: string;
+  label: string;
+  streamUrl: string | null;
+}
+
 type ApiError = Error & { code?: string };
 
 (() => {
-  const API_BASE = process.env.API_URL || '';
   const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
   const params = new URLSearchParams(location.search);
   const hashParams = new URLSearchParams(location.hash.slice(1));
@@ -63,7 +105,6 @@ type ApiError = Error & { code?: string };
   let map: L.Map | null = null;
   let marker: L.Marker | null = null;
   let selected: { lat: number; lng: number; building: Building; house: House | null } | null = null;
-  let residentType = 'OWNER';
   let categories: { value: string; label: string }[] = [];
 
   function authHeaders(): Record<string, string> {
@@ -76,7 +117,7 @@ type ApiError = Error & { code?: string };
   }
 
   async function api<T>(method: string, path: string, body?: unknown): Promise<T> {
-    const res = await fetch(API_BASE + '/api' + path, {
+    const res = await fetch('/api' + path, {
       method,
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: body ? JSON.stringify(body) : undefined,
@@ -153,6 +194,7 @@ type ApiError = Error & { code?: string };
       $('apt-info').textContent = describeBuilding(house);
       $('apt-error').textContent = '';
       $<HTMLInputElement>('apartment').value = (me && me.apartment) || '';
+      $<HTMLInputElement>('full-name').value = (me && me.verifiedFullName) || '';
       show('apartment');
     } catch (e) {
       $('house-card').className = 'card error';
@@ -182,40 +224,107 @@ type ApiError = Error & { code?: string };
     }
   }
 
-  function setType(type: string): void {
-    residentType = type;
-    $('type-owner').className = type === 'OWNER' ? '' : 'secondary';
-    $('type-tenant').className = type === 'TENANT' ? '' : 'secondary';
+  async function loadMe(): Promise<void> {
+    me = await api<Me>('GET', '/me');
   }
 
-  async function saveApartment(): Promise<void> {
+  async function submitMembership(): Promise<void> {
     const apartment = $<HTMLInputElement>('apartment').value.trim();
+    const fullName = $<HTMLInputElement>('full-name').value.trim();
     $('apt-error').textContent = '';
     if (!apartment) { $('apt-error').textContent = 'Укажите номер квартиры'; return; }
+    if (!fullName) { $('apt-error').textContent = 'Укажите ФИО'; return; }
+    const btn = $<HTMLButtonElement>('apt-save');
+    btn.disabled = true;
     try {
-      me = await api<Me>('PATCH', '/me', { houseId: selected!.house!.id, apartment, residentType });
+      await api('PATCH', '/me', { houseId: selected!.house!.id, apartment, fullName });
+      await loadMe();
       showHome();
     } catch (e) {
       $('apt-error').textContent = (e as Error).message;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  function renderStatus(): void {
+    const card = $('status-card');
+    const text = $('status-text');
+    if (!me!.membership) { card.style.display = 'none'; return; }
+    card.style.display = '';
+    if (me!.membership.status === 'PENDING') {
+      card.className = 'card muted';
+      text.textContent = 'Заявка на вступление отправлена и ждёт подтверждения председателя ТСЖ или УК. Вы уже можете читать объявления и новости дома.';
+    } else {
+      card.className = 'card error';
+      text.textContent = `Заявка на вступление отклонена. Причина: ${me!.membership.rejectReason}`;
     }
   }
 
   async function showHome(): Promise<void> {
     show('home');
-    $('home-address').textContent = me!.house!.address;
-    $('home-apartment').textContent = `кв. ${me!.apartment}` + (me!.entrance ? `, подъезд ${me!.entrance}` : '') + ` · ${me!.residentTypeLabel.toLowerCase()}`;
-    if (!categories.length) {
-      const dict = await api<{ categories: { value: string; label: string }[] }>('GET', '/dictionaries');
-      categories = dict.categories;
-      $('category').innerHTML = categories.map((c) => `<option value="${c.value}">${c.label}</option>`).join('');
+    renderStatus();
+    $('home-address').textContent = me!.house ? me!.house.address : 'Дом ещё не выбран';
+    $('home-apartment').textContent = me!.apartment
+      ? `кв. ${me!.apartment}` + (me!.entrance ? `, подъезд ${me!.entrance}` : '') + (me!.residentTypeLabel ? ` · ${me!.residentTypeLabel.toLowerCase()}` : '')
+      : '';
+    $('change-house').textContent = me!.onboarded ? 'Сменить дом' : 'Подать заявку заново';
+
+    const approved = me!.onboarded;
+    $('cameras-card').style.display = approved ? '' : 'none';
+    $('request-form-card').style.display = approved ? '' : 'none';
+    $('requests-list-card').style.display = approved ? '' : 'none';
+    $('news-form-card').style.display = approved ? '' : 'none';
+
+    if (approved) {
+      if (!categories.length) {
+        const dict = await api<{
+          categories: { value: string; label: string }[];
+          statuses: { value: string; label: string }[];
+        }>('GET', '/dictionaries');
+        categories = dict.categories;
+        $('category').innerHTML = categories.map((c) => `<option value="${c.value}">${c.label}</option>`).join('');
+        $('requests-filter-category').innerHTML = '<option value="">Все категории</option>' +
+          categories.map((c) => `<option value="${c.value}">${c.label}</option>`).join('');
+        $('requests-filter-status').innerHTML = '<option value="">Все статусы</option>' +
+          dict.statuses.map((s) => `<option value="${s.value}">${s.label}</option>`).join('');
+      }
+      loadRequests();
     }
-    loadRequests();
+    loadAnnouncements();
+    loadNews();
+  }
+
+  async function loadAnnouncements(): Promise<void> {
+    const wrap = $('announcements-card');
+    const box = $('announcements');
+    try {
+      const list = await api<AnnouncementItem[]>('GET', '/announcements?limit=20');
+      if (!list.length) { wrap.style.display = 'none'; return; }
+      wrap.style.display = '';
+      box.className = '';
+      box.innerHTML = '';
+      list.forEach((a) => {
+        const el = document.createElement('div');
+        el.className = 'request';
+        el.innerHTML = `<div style="font-weight:600">${a.title}</div><div>${a.description}</div>` +
+          `<div class="muted">${a.author.name} · ${new Date(a.createdAt).toLocaleDateString('ru-RU')}</div>`;
+        box.appendChild(el);
+      });
+    } catch {
+      wrap.style.display = 'none';
+    }
   }
 
   async function loadRequests(): Promise<void> {
     const box = $('requests');
+    const category = $<HTMLSelectElement>('requests-filter-category').value;
+    const status = $<HTMLSelectElement>('requests-filter-status').value;
+    const query = new URLSearchParams({ filter: 'all', limit: '50' });
+    if (category) query.set('category', category);
+    if (status) query.set('status', status);
     try {
-      const list = await api<RequestItem[]>('GET', '/requests?filter=all&limit=50');
+      const list = await api<RequestItem[]>('GET', '/requests?' + query.toString());
       box.className = '';
       box.innerHTML = list.length ? '' : '<div class="muted">Заявок пока нет</div>';
       list.forEach((r) => {
@@ -238,6 +347,136 @@ type ApiError = Error & { code?: string };
       box.className = 'error';
       box.textContent = (e as Error).message;
     }
+  }
+
+  async function loadNews(): Promise<void> {
+    const box = $('news-list');
+    try {
+      const list = await api<NewsItem[]>('GET', '/news?limit=20');
+      box.className = '';
+      box.innerHTML = list.length ? '' : '<div class="muted">Новостей пока нет</div>';
+      list.forEach((n) => {
+        const el = document.createElement('div');
+        el.className = 'request';
+        el.innerHTML = `<div style="font-weight:600">${n.title}${n.isMine ? ' <span class="muted">(моя)</span>' : ''}</div><div>${n.description}</div>` +
+          `<div class="muted">${n.author.name} · ${new Date(n.createdAt).toLocaleDateString('ru-RU')}</div>` +
+          `<div class="muted">Связаться: ${n.contact}</div>`;
+        if (n.isMine) {
+          const b = document.createElement('button');
+          b.textContent = 'Удалить';
+          b.className = 'secondary';
+          b.style.marginTop = '6px';
+          b.onclick = async () => { if (!confirm('Удалить новость?')) return; try { await api('DELETE', `/news/${n.id}`); loadNews(); } catch (e) { alert((e as Error).message); } };
+          el.appendChild(b);
+        }
+        box.appendChild(el);
+      });
+    } catch (e) {
+      box.className = 'error';
+      box.textContent = (e as Error).message;
+    }
+  }
+
+  async function sendNews(): Promise<void> {
+    $('news-error').textContent = '';
+    $('news-ok').textContent = '';
+    const btn = $<HTMLButtonElement>('news-send');
+    btn.disabled = true;
+    try {
+      await api<NewsItem>('POST', '/news', {
+        title: $<HTMLInputElement>('news-title').value.trim(),
+        description: $<HTMLTextAreaElement>('news-description').value.trim(),
+        contact: $<HTMLInputElement>('news-contact').value.trim(),
+      });
+      $<HTMLInputElement>('news-title').value = '';
+      $<HTMLTextAreaElement>('news-description').value = '';
+      $<HTMLInputElement>('news-contact').value = '';
+      $('news-ok').textContent = 'Новость опубликована.';
+      loadNews();
+    } catch (e) {
+      $('news-error').textContent = (e as Error).message;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  function renderCameras(box: HTMLElement, cameras: Camera[]): void {
+    box.className = '';
+    box.innerHTML = cameras.length ? '' : '<div class="muted">В этом доме пока нет камер</div>';
+    cameras.forEach((c) => {
+      const el = document.createElement('div');
+      el.className = 'request';
+      el.innerHTML = `<div style="font-weight:600">${c.label}</div>` +
+        `<div class="camera-box">${c.streamUrl ? `<a href="${c.streamUrl}" target="_blank">Открыть трансляцию</a>` : 'Здесь будет трансляция'}</div>`;
+      box.appendChild(el);
+    });
+  }
+
+  async function showCameras(): Promise<void> {
+    show('cameras');
+    $('cameras-house').textContent = me!.house ? me!.house.address : '';
+    const box = $('cameras-list');
+    box.className = 'muted';
+    box.textContent = 'Загрузка…';
+    try {
+      const cameras = await api<Camera[]>('GET', '/cameras');
+      renderCameras(box, cameras);
+    } catch (e) {
+      box.className = 'error';
+      box.textContent = (e as Error).message;
+    }
+  }
+
+  async function loadUkCameras(): Promise<void> {
+    const box = $('uk-cameras');
+    const houseId = $<HTMLSelectElement>('uk-house').value;
+    if (!houseId) { box.className = 'muted'; box.textContent = 'Выберите дом'; return; }
+    box.className = 'muted';
+    box.textContent = 'Загрузка…';
+    try {
+      const cameras = await api<Camera[]>('GET', `/cameras?houseId=${houseId}`);
+      renderCameras(box, cameras);
+    } catch (e) {
+      box.className = 'error';
+      box.textContent = (e as Error).message;
+    }
+  }
+
+  async function showUk(): Promise<void> {
+    show('uk');
+    const select = $<HTMLSelectElement>('uk-house');
+    if (!select.options.length) {
+      const houses = await api<House[]>('GET', '/houses');
+      select.innerHTML = '<option value="">— выберите дом —</option>' + houses.map((h) => `<option value="${h.id}">${h.address}</option>`).join('');
+    }
+  }
+
+  async function loadUkResidents(): Promise<void> {
+    const box = $('uk-residents');
+    const houseId = $<HTMLSelectElement>('uk-house').value;
+    if (!houseId) { box.className = 'muted'; box.textContent = 'Выберите дом'; return; }
+    box.className = 'muted';
+    box.textContent = 'Загрузка…';
+    try {
+      const list = await api<Resident[]>('GET', `/residents?houseId=${houseId}`);
+      box.className = '';
+      box.innerHTML = list.length ? '' : '<div class="muted">В этом доме пока нет подтверждённых жителей</div>';
+      list.forEach((r) => {
+        const el = document.createElement('div');
+        el.className = 'request';
+        el.innerHTML = `<div style="font-weight:600">Кв. ${r.apartment ?? '—'} · ${r.fullName}${r.verified ? '' : ' <span class="muted">(ФИО не подтверждено)</span>'}</div>` +
+          `<div class="muted">${r.residentTypeLabel ?? ''} · ${r.username ? '@' + r.username : 'без ника'} · MAX ID ${r.maxUserId}</div>`;
+        box.appendChild(el);
+      });
+    } catch (e) {
+      box.className = 'error';
+      box.textContent = (e as Error).message;
+    }
+  }
+
+  function loadUkHouse(): void {
+    loadUkResidents();
+    loadUkCameras();
   }
 
   async function sendRequest(): Promise<void> {
@@ -272,17 +511,26 @@ type ApiError = Error & { code?: string };
     $('search-btn').onclick = searchAddress;
     $('search').addEventListener('keydown', (e) => { if (e.key === 'Enter') searchAddress(); });
     $('locate-btn').onclick = () => map!.locate({ setView: true, maxZoom: 17 });
-    $('type-owner').onclick = () => setType('OWNER');
-    $('type-tenant').onclick = () => setType('TENANT');
     $('apt-back').onclick = showMap;
-    $('apt-save').onclick = saveApartment;
+    $('apt-save').onclick = submitMembership;
     $('change-house').onclick = showMap;
     $('req-send').onclick = sendRequest;
-    setType('OWNER');
+    $('news-send').onclick = sendNews;
+    $('requests-filter-category').onchange = loadRequests;
+    $('requests-filter-status').onchange = loadRequests;
+    $('cameras-open').onclick = showCameras;
+    $('cameras-back').onclick = showHome;
+    $('uk-house').onchange = loadUkHouse;
+    if (sdkUser && (sdkUser.first_name || sdkUser.last_name)) {
+      $('use-profile-name').style.display = '';
+      $('use-profile-name').onclick = () => {
+        $<HTMLInputElement>('full-name').value = [sdkUser.first_name, sdkUser.last_name].filter(Boolean).join(' ').trim();
+      };
+    }
     try {
-      me = await api<Me>('GET', '/me');
-      if (me.role === 'UK_EMPLOYEE') { $('fatal').textContent = 'Панель сотрудника УК — в боте (команда /requests). Мини-приложение предназначено для жителей.'; show('error'); return; }
-      if (me.onboarded) showHome(); else showMap();
+      await loadMe();
+      if (me!.role === 'UK_EMPLOYEE') { showUk(); return; }
+      if (me!.onboarded || me!.membership) showHome(); else showMap();
     } catch (e) {
       $('fatal').textContent = (e as Error).message;
       show('error');

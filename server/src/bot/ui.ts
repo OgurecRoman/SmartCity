@@ -5,15 +5,19 @@ import {
   CATEGORY_LABELS,
   CATEGORY_ORDER,
   PRIORITY_LABELS,
+  RESIDENT_TYPE_LABELS,
   STATUS_EMOJI,
   STATUS_LABELS,
   formatDate,
   formatDateTime,
   fullName,
 } from '../lib/labels.js';
+import type { AnnouncementWithRelations } from '../services/announcements.js';
+import type { MembershipRequestWithRelations } from '../services/membership.js';
+import type { NewsWithRelations } from '../services/news.js';
 import type { RequestWithRelations } from '../services/requests.js';
 import { AUTHOR_DELETABLE_STATUSES } from '../services/rules.js';
-import type { DbUser } from '../services/users.js';
+import type { DbUser, ResidentRow } from '../services/users.js';
 
 export type ButtonRows = Button[][];
 export const btn = Keyboard.button;
@@ -47,12 +51,18 @@ export function openAppButton(text: string, payload?: string): Button | null {
   return btn.link(text, `https://max.ru/${botUsername}?startapp${payload ? `=${encodeURIComponent(payload)}` : ''}`);
 }
 
-export function residentMenu(): ButtonRows {
+export function residentMenu(isChairman = false, isOwner = false): ButtonRows {
   const rows: ButtonRows = [
     [btn.callback('📝 Создать заявку', 'menu:create')],
     [btn.callback('📋 Мои заявки', 'menu:my'), btn.callback('🤝 Поддержанные', 'menu:supported')],
-    [btn.callback('📞 Контакты УК', 'menu:contacts')],
+    [btn.callback('🎉 Новость соседям', 'menu:news_new')],
   ];
+  if (isOwner) rows.push([btn.callback('➕ Добавить съёмщика', 'menu:add_tenant')]);
+  if (isChairman) {
+    rows.push([btn.callback('📢 Объявление жителям', 'menu:announce')]);
+    rows.push([btn.callback('📋 Заявки на вступление', 'menu:membership_queue')]);
+  }
+  rows.push([btn.callback('📞 Контакты УК', 'menu:contacts')]);
   const app = openAppButton('📱 Открыть приложение');
   if (app) rows.push([app]);
   return rows;
@@ -61,8 +71,11 @@ export function residentMenu(): ButtonRows {
 export function adminMenu(): ButtonRows {
   return [
     [btn.callback('📨 Новые заявки', 'uk:new')],
+    [btn.callback('📋 Заявки на вступление', 'menu:membership_queue')],
+    [btn.callback('👥 Жители дома', 'menu:residents')],
     [btn.callback('➕ Добавить владельца', 'menu:add_owner'), btn.callback('➖ Удалить владельца', 'menu:remove_owner')],
-    [btn.callback('📢 Объявление в чат дома', 'menu:announce')],
+    [btn.callback('👤 Назначить председателя', 'menu:appoint_chairman'), btn.callback('🚫 Снять председателя', 'menu:dismiss_chairman')],
+    [btn.callback('📢 Объявление жителям', 'menu:announce')],
     [btn.callback('📞 Контакты УК', 'menu:contacts')],
   ];
 }
@@ -163,6 +176,67 @@ export function requestShortLine(request: RequestWithRelations): string {
   return `${STATUS_EMOJI[request.status]} №${request.id} · ${CATEGORY_LABELS[request.category]} · ${STATUS_LABELS[request.status]}`;
 }
 
+export function announcementCard(announcement: AnnouncementWithRelations): string {
+  const lines = [
+    `📢 ${announcement.title}`,
+    '',
+    announcement.description,
+    '',
+    `Дом: ${announcement.house.address}`,
+    `От: ${fullName(announcement.author)}`,
+    `Опубликовано: ${formatDateTime(announcement.createdAt)}`,
+  ];
+  return lines.join('\n');
+}
+
+export function newsCard(news: NewsWithRelations): string {
+  const lines = [
+    `🎉 ${news.title}`,
+    '',
+    news.description,
+    '',
+    `Дом: ${news.house.address}`,
+    `От: ${fullName(news.author)}`,
+    `Связаться: ${news.contact}`,
+  ];
+  return lines.join('\n');
+}
+
+export function membershipCard(request: MembershipRequestWithRelations): string {
+  const lines = [
+    `🆕 Заявка на вступление №${request.id}`,
+    `ФИО: ${request.fullName}`,
+    `Дом: ${request.house.address}`,
+    `Квартира: ${request.apartment}`,
+    `MAX ID заявителя: ${request.applicant.maxUserId}`,
+    `Подана: ${formatDateTime(request.createdAt)}`,
+  ];
+  return lines.join('\n');
+}
+
+export function membershipReviewButtons(requestId: number): ButtonRows {
+  return [[btn.callback('✅ Подтвердить', `mem:approve:${requestId}`), btn.callback('❌ Отклонить', `mem:reject:${requestId}`)]];
+}
+
+export function residentsCards(house: { address: string }, residents: ResidentRow[]): string[] {
+  const lines = residents.map((r) => {
+    const name = r.verifiedFullName ?? fullName(r);
+    const verified = r.verifiedFullName ? '' : ' (ФИО не подтверждено)';
+    const type = r.residentType ? ` · ${RESIDENT_TYPE_LABELS[r.residentType]}` : '';
+    const nick = r.username ? `@${r.username}` : 'без ника';
+    return `Кв. ${r.apartment ?? '—'} — ${name}${verified}${type}\n${nick} · MAX ID ${r.maxUserId}`;
+  });
+
+  const perMessage = 15;
+  const chunks: string[] = [];
+  for (let i = 0; i < lines.length; i += perMessage) {
+    chunks.push(lines.slice(i, i + perMessage).join('\n\n'));
+  }
+  if (chunks.length === 0) return chunks;
+  chunks[0] = `👥 Жители дома «${house.address}» (${residents.length})\n\n${chunks[0]}`;
+  return chunks;
+}
+
 export function contactsCard(company: {
   name: string;
   phone: string;
@@ -183,7 +257,7 @@ export const TEXTS = {
     'Привет! Я бот «Умный дом» — помогаю жителям решать проблемы дома вместе с управляющей компанией.\n\n' +
     'Здесь можно создать заявку (шумные соседи, сломанный лифт, ремонт подъезда, авария), поддержать заявки соседей ' +
     'и следить за статусом: от сбора подписей до выполнения.\n\n' +
-    'Для начала расскажите, где вы живёте.',
+    'Для начала расскажите, где вы живёте — заявку проверит председатель ТСЖ или УК.',
   welcomeBack: (name: string) => `С возвращением, ${name}! Что делаем?`,
   welcomeAdmin:
     'Вы сотрудник управляющей компании. Что умеет бот:\n' +
@@ -201,16 +275,35 @@ export const TEXTS = {
     '/create — создать заявку\n' +
     '/my — мои заявки\n' +
     '/supported — заявки, которые я поддержал\n' +
+    '/news_new — новость соседям (например, позвать в гости)\n' +
+    '/add_tenant — добавить своего съёмщика (только для собственника)\n' +
     '/contacts — контакты УК\n' +
     '/id — мой ID в MAX (нужен УК для добавления владельца)\n' +
+    '/cancel — отменить текущее действие',
+  helpChairman:
+    'Команды:\n' +
+    '/panel — главное меню\n' +
+    '/create — создать заявку\n' +
+    '/my — мои заявки\n' +
+    '/supported — заявки, которые я поддержал\n' +
+    '/news_new — новость соседям (например, позвать в гости)\n' +
+    '/add_tenant — добавить своего съёмщика (только для собственника)\n' +
+    '/announce — объявление жителям дома (вы председатель ТСЖ)\n' +
+    '/membership_queue — заявки жителей на вступление в дом\n' +
+    '/contacts — контакты УК\n' +
+    '/id — мой ID в MAX\n' +
     '/cancel — отменить текущее действие',
   helpAdmin:
     'Команды сотрудника УК:\n' +
     '/panel — панель управления\n' +
     '/requests — заявки в работе\n' +
+    '/membership_queue — заявки жителей на вступление в дом\n' +
+    '/residents — список жителей выбранного дома (квартира, ФИО, ник в MAX, MAX ID)\n' +
     '/add_owner — добавить владельца в дом\n' +
     '/remove_owner — удалить владельца из дома\n' +
-    '/announce — объявление в чат дома\n' +
+    '/appoint_chairman — назначить председателя ТСЖ дома\n' +
+    '/dismiss_chairman — снять председателя ТСЖ\n' +
+    '/announce — объявление жителям дома\n' +
     '/bind — (в групповом чате, с упоминанием бота) привязать чат к дому\n' +
     '/cancel — отменить текущее действие',
   groupInstructions: (link: string | null) =>

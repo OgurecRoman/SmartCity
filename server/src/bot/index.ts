@@ -7,11 +7,14 @@ import type { BotContext, BotSession } from './context.js';
 import { registerAdminHandlers } from './handlers/admin.js';
 import { registerChatHandlers } from './handlers/chat.js';
 import { registerCommonHandlers } from './handlers/common.js';
+import { registerMembershipHandlers } from './handlers/membership.js';
 import { registerResidentHandlers } from './handlers/resident.js';
 import { ack, isDialog, maxUserOf } from './helpers.js';
 import { initNotifications } from './notifications.js';
-import { announceScenario, delegateScenario, manageOwnerScenario, rejectScenario } from './scenarios/admin.js';
+import { announceScenario, delegateScenario, manageChairmanScenario, manageOwnerScenario, rejectScenario } from './scenarios/admin.js';
 import { createRequestScenario } from './scenarios/createRequest.js';
+import { addTenantScenario, rejectMembershipScenario } from './scenarios/membership.js';
+import { createNewsScenario } from './scenarios/news.js';
 import { onboardingScenario } from './scenarios/onboarding.js';
 import { PrismaSessionStore } from './sessionStore.js';
 import { panelButton, setBotIdentity, withKeyboard } from './ui.js';
@@ -66,16 +69,21 @@ export function createBot(): Bot<BotContext> {
   scenarios
     .register(onboardingScenario)
     .register(createRequestScenario)
+    .register(createNewsScenario)
     .register(manageOwnerScenario)
+    .register(manageChairmanScenario)
     .register(announceScenario)
     .register(delegateScenario)
-    .register(rejectScenario);
+    .register(rejectScenario)
+    .register(rejectMembershipScenario)
+    .register(addTenantScenario);
 
   bot.use(scenarios.controllerMiddleware());
   registerCommonHandlers(bot);
   bot.use(scenarios.interceptMiddleware());
   registerResidentHandlers(bot);
   registerAdminHandlers(bot);
+  registerMembershipHandlers(bot);
   registerChatHandlers(bot);
 
   bot.on('message_created', async (ctx) => {

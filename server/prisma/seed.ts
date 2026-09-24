@@ -76,24 +76,40 @@ async function main() {
   }
 
   const residentSpecs = [
-    { maxUserId: 900000001n, firstName: 'Иван', lastName: 'Иванов', houseId: house1.id, apartment: '12', residentType: 'OWNER' },
-    { maxUserId: 900000002n, firstName: 'Мария', lastName: 'Петрова', houseId: house1.id, apartment: '27', residentType: 'OWNER' },
-    { maxUserId: 900000003n, firstName: 'Олег', lastName: 'Сидоров', houseId: house1.id, apartment: '41', residentType: 'TENANT' },
-    { maxUserId: 900000004n, firstName: 'Анна', lastName: 'Кузнецова', houseId: house1.id, apartment: '58', residentType: 'OWNER' },
-    { maxUserId: 900000005n, firstName: 'Дмитрий', lastName: 'Смирнов', houseId: house1.id, apartment: '63', residentType: 'OWNER' },
-    { maxUserId: 900000006n, firstName: 'Елена', lastName: 'Волкова', houseId: house2.id, apartment: '5', residentType: 'OWNER' },
+    { maxUserId: 900000001n, firstName: 'Иван', lastName: 'Иванов', username: 'ivan_ivanov', houseId: house1.id, apartment: '12', residentType: 'OWNER' },
+    { maxUserId: 900000002n, firstName: 'Мария', lastName: 'Петрова', username: null, houseId: house1.id, apartment: '27', residentType: 'OWNER' },
+    { maxUserId: 900000003n, firstName: 'Олег', lastName: 'Сидоров', username: null, houseId: house1.id, apartment: '41', residentType: 'TENANT' },
+    { maxUserId: 900000004n, firstName: 'Анна', lastName: 'Кузнецова', username: null, houseId: house1.id, apartment: '58', residentType: 'OWNER' },
+    { maxUserId: 900000005n, firstName: 'Дмитрий', lastName: 'Смирнов', username: null, houseId: house1.id, apartment: '63', residentType: 'OWNER' },
+    { maxUserId: 900000006n, firstName: 'Елена', lastName: 'Волкова', username: null, houseId: house2.id, apartment: '5', residentType: 'OWNER' },
+
   ] as const;
   const residents = [];
   for (const spec of residentSpecs) {
     residents.push(
       await prisma.user.upsert({
         where: { maxUserId: spec.maxUserId },
-        update: {},
+        update: { username: spec.username },
         create: { ...spec, onboardedAt: new Date() },
       }),
     );
   }
   const [ivan, maria, oleg, anna] = residents;
+
+  const chairman = await prisma.user.upsert({
+    where: { maxUserId: 900000007n },
+    update: { role: 'CHAIRMAN', houseId: house1.id },
+    create: {
+      maxUserId: 900000007n,
+      firstName: 'Светлана',
+      lastName: 'Председателева',
+      role: 'CHAIRMAN',
+      houseId: house1.id,
+      apartment: '3',
+      residentType: 'OWNER',
+      onboardedAt: new Date(),
+    },
+  });
 
   const requestsCount = await prisma.request.count();
   if (requestsCount === 0) {
@@ -184,7 +200,72 @@ async function main() {
     console.log(`Создано 4 демо-заявки (первая: №${painting.id}), порог подписей для «${house1.address}»: ${required}`);
   }
 
-  console.log('Seed выполнен: УК, дома, организации, жители готовы.');
+  const announcementsCount = await prisma.announcement.count({ where: { houseId: house1.id } });
+  if (announcementsCount === 0) {
+    await prisma.announcement.create({
+      data: {
+        houseId: house1.id,
+        authorId: chairman.id,
+        title: 'Отключение горячей воды',
+        description: 'С 25 по 26 сентября проводится плановое опрессование системы отопления, горячей воды не будет.',
+      },
+    });
+    console.log(`Создано демо-объявление от председателя ТСЖ для дома «${house1.address}».`);
+  }
+
+  const newsCount = await prisma.news.count({ where: { houseId: house1.id } });
+  if (newsCount === 0) {
+    await prisma.news.create({
+      data: {
+        houseId: house1.id,
+        authorId: ivan.id,
+        title: 'Зову на чай в честь новоселья',
+        description: 'В субботу в 18:00 жду соседей на чай, кв. 12. Заходите познакомиться!',
+        contact: 'кв. 12 или напишите в боте /id 900000001',
+      },
+    });
+    console.log(`Создана демо-новость от жителя для дома «${house1.address}».`);
+  }
+
+  const applicant = await prisma.user.upsert({
+    where: { maxUserId: 900000008n },
+    update: {},
+    create: {
+      maxUserId: 900000008n,
+      firstName: 'Николай',
+      lastName: 'Новосёлов',
+      houseId: house1.id,
+      apartment: '9',
+      residentType: 'OWNER',
+    },
+  });
+
+  const pendingCount = await prisma.membershipRequest.count({ where: { houseId: house1.id, status: 'PENDING' } });
+  if (pendingCount === 0) {
+    await prisma.membershipRequest.create({
+      data: {
+        applicantId: applicant.id,
+        houseId: house1.id,
+        apartment: '9',
+        fullName: 'Новосёлов Николай Николаевич',
+        status: 'PENDING',
+      },
+    });
+    console.log(`Создана демо-заявка на вступление для дома «${house1.address}» — ждёт подтверждения председателя ТСЖ.`);
+  }
+
+  const camerasCount = await prisma.camera.count({ where: { houseId: house1.id } });
+  if (camerasCount === 0) {
+    await prisma.camera.createMany({
+      data: [
+        { houseId: house1.id, label: 'Двор' },
+        { houseId: house1.id, label: 'Подъезд' },
+      ],
+    });
+    console.log(`Созданы демо-камеры (пока без трансляции) для дома «${house1.address}».`);
+  }
+
+  console.log('Seed выполнен: УК, дома, организации, жители, председатель ТСЖ готовы.');
 }
 
 main()

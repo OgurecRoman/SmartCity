@@ -1,11 +1,27 @@
 import type { Bot } from '@maxhub/max-bot-api';
 import { config } from '../../config.js';
-import { isEmployee, isOnboarded, promoteToEmployee } from '../../services/users.js';
+import { getLatestMembershipRequestFor } from '../../services/membership.js';
+import { isChairman, isEmployee, isOnboarded, promoteToEmployee } from '../../services/users.js';
 import type { BotContext } from '../context.js';
 import { ack, isDialog, parseIntStrict } from '../helpers.js';
 import { onboardingScenario } from '../scenarios/onboarding.js';
 import { TEXTS, adminMenu, residentMenu, withKeyboard } from '../ui.js';
 import { showRequestToEmployee, showRequestToResident } from '../views.js';
+
+export async function reportMembershipStatus(ctx: BotContext): Promise<boolean> {
+  const latest = await getLatestMembershipRequestFor(ctx.dbUser.id);
+  if (latest?.status === 'PENDING') {
+    await ctx.reply(
+      `Заявка на вступление в дом «${latest.house.address}» (кв. ${latest.apartment}) уже отправлена и ждёт ` +
+        'подтверждения председателя ТСЖ или УК. Как только её рассмотрят, я пришлю сообщение.',
+    );
+    return true;
+  }
+  if (latest?.status === 'REJECTED') {
+    await ctx.reply(`Предыдущая заявка на вступление отклонена. Причина: ${latest.rejectReason}\n\nМожно подать заявку заново.`);
+  }
+  return false;
+}
 
 export async function showPanel(ctx: BotContext): Promise<void> {
   const user = ctx.dbUser;
@@ -14,9 +30,13 @@ export async function showPanel(ctx: BotContext): Promise<void> {
     return;
   }
   if (isOnboarded(user)) {
-    await ctx.reply(`Дом: ${user.house?.address ?? '—'}, кв. ${user.apartment ?? '—'}. Что делаем?`, withKeyboard(residentMenu()));
+    await ctx.reply(
+      `Дом: ${user.house?.address ?? '—'}, кв. ${user.apartment ?? '—'}. Что делаем?`,
+      withKeyboard(residentMenu(isChairman(user), user.residentType === 'OWNER')),
+    );
     return;
   }
+  if (await reportMembershipStatus(ctx)) return;
   await ctx.reply(TEXTS.onboardingRequired);
   await ctx.scenario.start(onboardingScenario, {});
 }
@@ -32,6 +52,7 @@ export async function handleStart(ctx: BotContext, payload: string | null): Prom
     if (requestId) {
       if (isEmployee(user)) return showRequestToEmployee(ctx, requestId);
       if (isOnboarded(user)) return showRequestToResident(ctx, requestId);
+      if (await reportMembershipStatus(ctx)) return;
       await ctx.reply(`${TEXTS.welcomeResident}\n\nПосле регистрации покажу заявку №${requestId}.`);
       await ctx.scenario.start(onboardingScenario, { next: `req_${requestId}` });
       return;
@@ -43,9 +64,10 @@ export async function handleStart(ctx: BotContext, payload: string | null): Prom
     return;
   }
   if (isOnboarded(user)) {
-    await ctx.reply(TEXTS.welcomeBack(user.firstName), withKeyboard(residentMenu()));
+    await ctx.reply(TEXTS.welcomeBack(user.firstName), withKeyboard(residentMenu(isChairman(user), user.residentType === 'OWNER')));
     return;
   }
+  if (await reportMembershipStatus(ctx)) return;
   await ctx.reply(TEXTS.welcomeResident);
   await ctx.scenario.start(onboardingScenario, { next: payload === 'create' ? 'create' : null });
 }
@@ -76,7 +98,8 @@ export function registerCommonHandlers(bot: Bot<BotContext>): void {
 
   bot.command('help', async (ctx) => {
     if (!isDialog(ctx)) return;
-    await ctx.reply(isEmployee(ctx.dbUser) ? TEXTS.helpAdmin : TEXTS.helpResident);
+    const text = isEmployee(ctx.dbUser) ? TEXTS.helpAdmin : isChairman(ctx.dbUser) ? TEXTS.helpChairman : TEXTS.helpResident;
+    await ctx.reply(text);
   });
 
   bot.command('id', async (ctx) => {

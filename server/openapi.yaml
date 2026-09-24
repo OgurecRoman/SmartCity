@@ -18,6 +18,12 @@ tags:
   - name: profile
   - name: catalogs
   - name: requests
+  - name: announcements
+    description: Создавать, редактировать и удалять могут только УК (любой дом) и председатель ТСЖ (свой дом)
+  - name: news
+    description: Создать может любой житель своего дома; изменить или удалить — автор или УК
+  - name: cameras
+    description: Только подтверждённым жителям своего дома; сотрудник УК — по houseId для любого дома
   - name: uk
     description: Только для сотрудников УК (role = UK_EMPLOYEE)
 
@@ -42,7 +48,7 @@ components:
           type: object
           required: [code, message]
           properties:
-            code: { type: string, examples: [unauthorized, forbidden, not_found, conflict, validation_error, onboarding_required, apartment_not_found, building_not_found] }
+            code: { type: string, examples: [unauthorized, forbidden, not_found, conflict, validation_error, onboarding_required, apartment_not_found, building_not_found, membership_pending] }
             message: { type: string }
     RequestCategory:
       type: string
@@ -65,7 +71,7 @@ components:
       properties:
         id: { type: integer }
         maxUserId: { type: string, description: MAX id пользователя (строка, т.к. BigInt) }
-        role: { type: string, enum: [RESIDENT, UK_EMPLOYEE] }
+        role: { type: string, enum: [RESIDENT, UK_EMPLOYEE, CHAIRMAN], description: 'CHAIRMAN — председатель ТСЖ (назначается УК среди жителей дома)' }
         roleLabel: { type: string }
         firstName: { type: string }
         lastName: { type: [string, 'null'] }
@@ -84,8 +90,23 @@ components:
         entrance: { type: [string, 'null'], description: Номер подъезда по квартире, если у дома известны диапазоны квартир по подъездам }
         residentType: { oneOf: [{ $ref: '#/components/schemas/ResidentType' }, { type: 'null' }] }
         residentTypeLabel: { type: [string, 'null'] }
-        onboarded: { type: boolean, description: Указаны дом, квартира и статус }
+        verifiedFullName: { type: [string, 'null'], description: ФИО, подтверждённое председателем ТСЖ или УК при одобрении заявки на вступление }
+        onboarded: { type: boolean, description: Заявка на вступление подтверждена — доступны все функции бота и приложения }
         createdAt: { type: string, format: date-time }
+        membership:
+          description: Незавершённая заявка на вступление (пока onboarded = false); null, если ещё не подавалась или уже одобрена
+          oneOf:
+            - { type: 'null' }
+            - type: object
+              properties:
+                id: { type: integer }
+                houseId: { type: integer }
+                houseAddress: { type: string }
+                apartment: { type: string }
+                fullName: { type: string }
+                status: { type: string, enum: [PENDING, REJECTED] }
+                rejectReason: { type: [string, 'null'] }
+                createdAt: { type: string, format: date-time }
     Entrance:
       type: object
       description: Подъезд и диапазон квартир в нём
@@ -131,6 +152,91 @@ components:
         email: { type: [string, 'null'] }
         phone: { type: [string, 'null'] }
         categories: { type: array, items: { $ref: '#/components/schemas/RequestCategory' } }
+    Announcement:
+      type: object
+      description: Объявление УК или председателя ТСЖ жителям дома (например — об отключении горячей воды)
+      properties:
+        id: { type: integer }
+        houseId: { type: integer }
+        houseAddress: { type: string }
+        title: { type: string }
+        description: { type: string }
+        author:
+          type: object
+          properties:
+            id: { type: integer }
+            name: { type: string }
+            role: { type: string, enum: [RESIDENT, UK_EMPLOYEE, CHAIRMAN] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    CreateAnnouncement:
+      type: object
+      required: [title, description]
+      properties:
+        houseId: { type: integer, description: Обязателен для УК; председатель может не указывать — берётся его дом }
+        title: { type: string, minLength: 3, maxLength: 120 }
+        description: { type: string, minLength: 5, maxLength: 2000 }
+    UpdateAnnouncement:
+      type: object
+      properties:
+        title: { type: string, minLength: 3, maxLength: 120 }
+        description: { type: string, minLength: 5, maxLength: 2000 }
+    News:
+      type: object
+      description: Новость от жителя дома (не от УК) — например, приглашение в гости; обязателен контакт автора
+      properties:
+        id: { type: integer }
+        houseId: { type: integer }
+        houseAddress: { type: string }
+        title: { type: string }
+        description: { type: string }
+        contact: { type: string, description: Как связаться с автором — телефон, ссылка на профиль и т.п. }
+        author:
+          type: object
+          properties:
+            id: { type: integer }
+            name: { type: string }
+            role: { type: string, enum: [RESIDENT, UK_EMPLOYEE, CHAIRMAN] }
+        isMine: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    CreateNews:
+      type: object
+      required: [title, description, contact]
+      properties:
+        title: { type: string, minLength: 3, maxLength: 120 }
+        description: { type: string, minLength: 5, maxLength: 2000 }
+        contact: { type: string, minLength: 3, maxLength: 200 }
+    UpdateNews:
+      type: object
+      properties:
+        title: { type: string, minLength: 3, maxLength: 120 }
+        description: { type: string, minLength: 5, maxLength: 2000 }
+        contact: { type: string, minLength: 3, maxLength: 200 }
+    Resident:
+      type: object
+      description: Подтверждённый житель дома — только для сотрудников УК
+      properties:
+        id: { type: integer }
+        maxUserId: { type: string, description: MAX id пользователя (строка, т.к. BigInt) }
+        username: { type: [string, 'null'], description: Ник в MAX (без @) }
+        apartment: { type: [string, 'null'] }
+        fullName: { type: string, description: 'ФИО, подтверждённое при одобрении заявки на вступление, либо имя из профиля MAX' }
+        verified: { type: boolean, description: true — ФИО подтверждено через заявку на вступление; false — это только имя из профиля MAX }
+        role: { type: string, enum: [RESIDENT, CHAIRMAN] }
+        residentType: { oneOf: [{ $ref: '#/components/schemas/ResidentType' }, { type: 'null' }] }
+        residentTypeLabel: { type: [string, 'null'] }
+    Camera:
+      type: object
+      description: |
+        Камера дома (двор/подъезд) — раздел-заготовка под масштабирование. Реальных трансляций пока нет:
+        streamUrl всегда null, пока в БД не проставят ссылку на конкретную камеру этого дома.
+      properties:
+        id: { type: integer }
+        houseId: { type: integer }
+        houseAddress: { type: string }
+        label: { type: string, examples: ['Двор', 'Подъезд'] }
+        streamUrl: { type: [string, 'null'], description: Ссылка на трансляцию; null — трансляция ещё не подключена }
     Request:
       type: object
       properties:
@@ -224,16 +330,19 @@ components:
         status: { type: string, enum: [IN_PROGRESS, DELEGATED, RESOLVED, REJECTED] }
         comment: { type: string, maxLength: 1000 }
         organizationId: { type: integer, description: Обязателен для DELEGATED }
-    Onboarding:
+    SubmitMembership:
       type: object
-      required: [houseId, apartment, residentType]
+      required: [houseId, apartment, fullName]
       description: |
-        Номер квартиры проверяется по данным дома: он должен быть в пределах числа квартир и, если известны
-        подъезды, попадать в диапазон одного из них. Иначе 400 с code = apartment_not_found.
+        Заявка на вступление (только для собственника — координатора-жителя добавляет собственник командой
+        /add_tenant в боте, не через этот эндпоинт). Номер квартиры проверяется по данным дома: он должен быть
+        в пределах числа квартир и, если известны подъезды, попадать в диапазон одного из них — иначе 400
+        с code = apartment_not_found. Дом переходит в статус ожидания подтверждения председателем ТСЖ (если он
+        назначен для этого дома) или сотрудником УК; полный доступ появляется только после подтверждения.
       properties:
         houseId: { type: integer, description: 'Дом, выбранный на карте (POST /api/houses) или из списка' }
         apartment: { type: string, maxLength: 10, examples: ['27', '15а'] }
-        residentType: { $ref: '#/components/schemas/ResidentType' }
+        fullName: { type: string, minLength: 3, maxLength: 150, description: ФИО заявителя — увидит проверяющий }
   responses:
     Unauthorized:
       description: Нет или неверный initData
@@ -248,7 +357,7 @@ components:
       description: Действие недопустимо в текущем состоянии (уже подписано, сбор завершён, недопустимый переход статуса)
       content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
     BadRequest:
-      description: Ошибка валидации или не пройдена регистрация (code = onboarding_required)
+      description: 'Ошибка валидации или заявка на вступление ещё не подтверждена (code = onboarding_required)'
       content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
 
 security:
@@ -301,14 +410,27 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
     patch:
       tags: [profile]
-      summary: Регистрация жителя (дом, квартира, владелец/арендатор)
+      summary: Подать заявку на вступление (дом, квартира, ФИО)
+      description: |
+        Не даёт доступ сразу — создаёт заявку со статусом PENDING (см. User.membership) и отправляет её на
+        подтверждение. 409 с code = membership_pending, если у заявителя уже есть заявка на рассмотрении.
       requestBody:
         required: true
-        content: { application/json: { schema: { $ref: '#/components/schemas/Onboarding' } } }
+        content: { application/json: { schema: { $ref: '#/components/schemas/SubmitMembership' } } }
       responses:
-        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/User' } } } }
+        '202':
+          description: Заявка принята и ждёт подтверждения
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  membership:
+                    type: object
+                    description: То же, что User.membership, но без oneOf-обёртки с null
         '400': { description: 'Ошибка валидации или квартиры нет в доме (code = apartment_not_found)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: 'Уже есть заявка на рассмотрении (code = membership_pending)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /api/houses:
     get:
@@ -385,6 +507,7 @@ paths:
       parameters:
         - { name: filter, in: query, schema: { type: string, enum: [all, mine, supported], default: all } }
         - { name: status, in: query, description: 'Статусы через запятую, например VOTING,SUBMITTED', schema: { type: string } }
+        - { name: category, in: query, description: 'Категории через запятую, например PLUMBING,ELEVATOR', schema: { type: string } }
         - { name: houseId, in: query, description: Только для сотрудников УК, schema: { type: integer } }
         - { name: limit, in: query, schema: { type: integer, default: 50, maximum: 200 } }
         - { name: offset, in: query, schema: { type: integer, default: 0 } }
@@ -498,9 +621,125 @@ paths:
       summary: Очередь УК (по умолчанию SUBMITTED, IN_PROGRESS, DELEGATED)
       parameters:
         - { name: status, in: query, schema: { type: string } }
+        - { name: category, in: query, description: 'Категории через запятую, например PLUMBING,ELEVATOR', schema: { type: string } }
         - { name: houseId, in: query, schema: { type: integer } }
         - { name: limit, in: query, schema: { type: integer, default: 50 } }
         - { name: offset, in: query, schema: { type: integer, default: 0 } }
       responses:
         '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Request' } } } } }
         '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/announcements:
+    get:
+      tags: [announcements]
+      summary: Список объявлений (житель и председатель — своего дома, сотрудник УК — по houseId или все)
+      parameters:
+        - { name: houseId, in: query, description: Только для сотрудников УК, schema: { type: integer } }
+        - { name: limit, in: query, schema: { type: integer, default: 50, maximum: 200 } }
+        - { name: offset, in: query, schema: { type: integer, default: 0 } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Announcement' } } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+    post:
+      tags: [announcements]
+      summary: Опубликовать объявление
+      description: |
+        Сотрудник УК указывает houseId (любой дом). Председатель ТСЖ houseId может не указывать —
+        объявление публикуется в его доме; указать чужой дом ему запрещено. Житель без роли — 403.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateAnnouncement' } } }
+      responses:
+        '201': { description: Создано, content: { application/json: { schema: { $ref: '#/components/schemas/Announcement' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/announcements/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    patch:
+      tags: [announcements]
+      summary: Изменить объявление (УК или председатель ТСЖ своего дома)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/UpdateAnnouncement' } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Announcement' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [announcements]
+      summary: Удалить объявление (УК или председатель ТСЖ своего дома)
+      responses:
+        '204': { description: Удалено }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/news:
+    get:
+      tags: [news]
+      summary: Список новостей дома (житель — своего дома, сотрудник УК — по houseId или все)
+      parameters:
+        - { name: houseId, in: query, description: Только для сотрудников УК, schema: { type: integer } }
+        - { name: limit, in: query, schema: { type: integer, default: 50, maximum: 200 } }
+        - { name: offset, in: query, schema: { type: integer, default: 0 } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/News' } } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+    post:
+      tags: [news]
+      summary: Опубликовать новость в своём доме
+      description: Может любой прописанный к дому житель. houseId брать не нужно — берётся дом автора.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateNews' } } }
+      responses:
+        '201': { description: Создано, content: { application/json: { schema: { $ref: '#/components/schemas/News' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /api/news/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    patch:
+      tags: [news]
+      summary: Изменить новость (автор или сотрудник УК)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/UpdateNews' } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/News' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [news]
+      summary: Удалить новость (автор или сотрудник УК)
+      responses:
+        '204': { description: Удалено }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/residents:
+    get:
+      tags: [uk]
+      summary: Подтверждённые жители дома (только для сотрудников УК)
+      parameters:
+        - { name: houseId, in: query, required: true, schema: { type: integer } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Resident' } } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/cameras:
+    get:
+      tags: [cameras]
+      summary: Камеры дома (двор, подъезд) — заготовка под будущие трансляции
+      description: |
+        Житель/председатель — только свой дом (без houseId, доступно после подтверждения заявки на
+        вступление). Сотрудник УК — обязательный houseId, любой дом.
+      parameters:
+        - { name: houseId, in: query, description: Обязателен для сотрудников УК, schema: { type: integer } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Camera' } } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
