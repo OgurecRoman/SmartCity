@@ -3,7 +3,7 @@ import { isAppError } from '../../lib/errors.js';
 import { reopenRequest } from '../../services/requests.js';
 import type { BotContext } from '../context.js';
 import { ack, payloadOf, textOf } from '../helpers.js';
-import { btn, panelButton, requestCard, withKeyboard, type ButtonRows } from '../ui.js';
+import { MD, btn, panelButton, requestCard, withKeyboard, type ButtonRows } from '../ui.js';
 import { SCENARIO_TIMEOUT_MS, cancelIntercept, handlePhotoInput } from './common.js';
 
 export interface ReopenRequestData {
@@ -84,7 +84,7 @@ export const reopenRequestScenario = defineScenario<BotContext, ReopenRequestDat
       try {
         const request = await reopenRequest(data.requestId, { userId: ctx.dbUser.id, reason: data.reason, photos: data.photos });
         await ack(ctx, { message: { text: 'Заявка возвращена.' } });
-        await ctx.reply(`🔄 Заявка №${data.requestId} возвращена в УК.\n\n${requestCard(request)}`, withKeyboard(panelButton()));
+        await ctx.reply(`🔄 Заявка №${data.requestId} возвращена в УК.\n\n${requestCard(request)}`, { ...withKeyboard(panelButton()), ...MD });
       } catch (error) {
         if (!isAppError(error)) throw error;
         await ack(ctx, { notification: error.message });

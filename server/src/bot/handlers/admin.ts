@@ -6,7 +6,7 @@ import { getHouse, isChairman, isEmployee, listHouses, listResidentsOfHouse } fr
 import type { BotContext } from '../context.js';
 import { ack, isDialog } from '../helpers.js';
 import { announceScenario, delegateScenario, manageChairmanScenario, manageOwnerScenario, rejectScenario, resolveScenario } from '../scenarios/admin.js';
-import { houseButtons, keyboard, panelButton, requestCard, residentsCards, ukRequestButtons, withKeyboard } from '../ui.js';
+import { esc, houseButtons, keyboard, MD, panelButton, requestCard, residentsCards, ukRequestButtons, withKeyboard } from '../ui.js';
 import { sendRequestDocument, sendRequestList } from '../views.js';
 
 async function guard(ctx: BotContext): Promise<boolean> {
@@ -36,7 +36,9 @@ async function setStatus(ctx: BotContext, requestId: number, status: 'IN_PROGRES
   if (!(await guard(ctx))) return;
   try {
     const request = await changeStatus(requestId, status, { byUserId: ctx.dbUser.id });
-    await ack(ctx, { message: { text: `${requestCard(request)}\n\n${note}`, attachments: [keyboard([...ukRequestButtons(request), ...panelButton()])] } });
+    await ack(ctx, {
+      message: { text: `${requestCard(request)}\n\n${note}`, attachments: [keyboard([...ukRequestButtons(request), ...panelButton()])], ...MD },
+    });
   } catch (error) {
     if (!isAppError(error)) throw error;
     await ack(ctx, { notification: error.message });
@@ -122,7 +124,7 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
       await ack(ctx, { notification: 'Дом не найден' });
       return;
     }
-    await ack(ctx, { message: { text: `🏠 ${house.address}` } });
+    await ack(ctx, { message: { text: `🏠 ${esc(house.address)}`, format: 'markdown' } });
     const residents = await listResidentsOfHouse(houseId);
     if (residents.length === 0) {
       await ctx.reply(`В доме «${house.address}» пока нет подтверждённых жителей.`, withKeyboard(panelButton()));
@@ -131,7 +133,7 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     const cards = residentsCards(house, residents);
     for (let i = 0; i < cards.length; i += 1) {
       const isLast = i === cards.length - 1;
-      await ctx.reply(cards[i], isLast ? withKeyboard(panelButton()) : undefined);
+      await ctx.reply(cards[i], isLast ? { ...withKeyboard(panelButton()), ...MD } : MD);
     }
   });
 }

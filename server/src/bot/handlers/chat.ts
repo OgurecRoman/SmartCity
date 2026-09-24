@@ -4,7 +4,7 @@ import { log } from '../../lib/logger.js';
 import { bindHouseChat, getHouse, getHouseByChat, isEmployee, listHouses, unbindHouseChat } from '../../services/users.js';
 import type { BotContext } from '../context.js';
 import { ack, isDialog } from '../helpers.js';
-import { TEXTS, botDeepLink, btn, getBotUsername, houseButtons, withKeyboard } from '../ui.js';
+import { esc, MD, TEXTS, botDeepLink, btn, getBotUsername, houseButtons, mdName, withKeyboard } from '../ui.js';
 
 async function sendBindPrompt(ctx: BotContext): Promise<void> {
   const houses = await listHouses();
@@ -70,9 +70,9 @@ export function registerChatHandlers(bot: Bot<BotContext>): void {
     const link = botDeepLink('join');
     const name = fullName({ firstName: ctx.update.user.first_name || ctx.update.user.name, lastName: ctx.update.user.last_name });
     await ctx.reply(
-      `Добро пожаловать, ${name}! Это чат дома «${house.address}». ` +
+      `Добро пожаловать, ${mdName(name)}! Это чат дома «${esc(house.address)}». ` +
         'Чтобы создавать заявки и поддерживать заявки соседей, откройте диалог с ботом и пройдите короткую регистрацию.',
-      link ? withKeyboard([[btn.link('Открыть бота', link)]]) : undefined,
+      { ...(link ? withKeyboard([[btn.link('Открыть бота', link)]]) : {}), ...MD },
     );
   });
 

@@ -13,7 +13,11 @@ import { uploadPhotosToMax } from './photos.js';
 import {
   announcementCard,
   chatDetailsButtons,
+  esc,
   keyboard,
+  MD,
+  mdName,
+  mdStatus,
   membershipCard,
   membershipReviewButtons,
   newsCard,
@@ -32,7 +36,7 @@ type Extra = { attachments?: AttachmentRequest[] };
 async function sendDm(maxUserId: bigint, text: string, extra?: Extra): Promise<void> {
   if (!api) return;
   try {
-    await api.sendMessageToUser(Number(maxUserId), text, extra);
+    await api.sendMessageToUser(Number(maxUserId), text, { ...extra, ...MD });
   } catch (error) {
 
     log.warn(`Не удалось отправить личное сообщение пользователю ${maxUserId}`, error);
@@ -42,7 +46,7 @@ async function sendDm(maxUserId: bigint, text: string, extra?: Extra): Promise<v
 async function sendToChat(chatId: bigint, text: string, extra?: Extra): Promise<Message | null> {
   if (!api) return null;
   try {
-    return await api.sendMessageToChat(Number(chatId), text, extra);
+    return await api.sendMessageToChat(Number(chatId), text, { ...extra, ...MD });
   } catch (error) {
     log.warn(`Не удалось отправить сообщение в чат ${chatId}`, error);
     return null;
@@ -52,14 +56,14 @@ async function sendToChat(chatId: bigint, text: string, extra?: Extra): Promise<
 async function editMessage(messageId: string, text: string, rows: ButtonRows): Promise<void> {
   if (!api) return;
   try {
-    await api.editMessage(messageId, { text, attachments: rows.length > 0 ? [keyboard(rows)] : [] });
+    await api.editMessage(messageId, { text, attachments: rows.length > 0 ? [keyboard(rows)] : [], ...MD });
   } catch (error) {
     log.warn(`Не удалось отредактировать сообщение ${messageId}`, error);
   }
 }
 
 function chatHeading(request: RequestWithRelations): string {
-  const author = fullName(request.author);
+  const author = mdName(fullName(request.author));
   if (request.priority === 'EMERGENCY') {
     return `🚨 Жителем ${author} создана аварийная заявка — она сразу передана в УК`;
   }
@@ -138,7 +142,7 @@ function subscribe(): void {
     );
     const voters = await voterIds(request.id, request.authorId);
     await Promise.all(
-      voters.map((id) => sendDm(id, `📨 Заявка №${request.id} «${request.title}», которую вы поддержали, передана в УК.`)),
+      voters.map((id) => sendDm(id, `📨 Заявка №${request.id} «${esc(request.title)}», которую вы поддержали, передана в УК.`)),
     );
     await notifyEmployees(request, '📨 Новая заявка от жителей: собрано необходимое количество подписей');
   });
@@ -147,10 +151,10 @@ function subscribe(): void {
     const request = await getRequest(requestId);
     if (!request) return;
     const lines = [
-      `${STATUS_EMOJI[newStatus]} Статус заявки №${request.id} изменён: ${STATUS_LABELS[oldStatus]} → ${STATUS_LABELS[newStatus]}`,
+      `${STATUS_EMOJI[newStatus]} Статус заявки №${request.id} изменён: ${mdStatus(STATUS_LABELS[oldStatus])} → ${mdStatus(STATUS_LABELS[newStatus])}`,
     ];
-    if (newStatus === 'DELEGATED' && request.delegatedTo) lines.push(`Ответственная организация: ${request.delegatedTo.name}`);
-    if (comment) lines.push(`Комментарий УК: ${comment}`);
+    if (newStatus === 'DELEGATED' && request.delegatedTo) lines.push(`Ответственная организация: ${esc(request.delegatedTo.name)}`);
+    if (comment) lines.push(`Комментарий УК: ${esc(comment)}`);
     const line = lines.join('\n');
 
     const resultPhotos = newStatus === 'RESOLVED' ? request.photos.filter((p) => p.isResult).map((p) => p.filename) : [];
@@ -159,20 +163,20 @@ function subscribe(): void {
 
     await sendDm(request.author.maxUserId, `${line}\n\n${requestCard(request)}`, extra);
     const voters = await voterIds(request.id, request.authorId);
-    await Promise.all(voters.map((id) => sendDm(id, `${line}\nТема: ${request.title}`, extra)));
-    if (request.house.chatId) await sendToChat(request.house.chatId, `${line}\nТема: ${request.title}`, extra);
+    await Promise.all(voters.map((id) => sendDm(id, `${line}\nТема: ${esc(request.title)}`, extra)));
+    if (request.house.chatId) await sendToChat(request.house.chatId, `${line}\nТема: ${esc(request.title)}`, extra);
     await refreshChatMessage(request);
   });
 
   events.on('request.deleted', async ({ requestId, chatMessageId, title }) => {
-    if (chatMessageId) await editMessage(chatMessageId, `🗑 Заявка №${requestId} «${title}» удалена автором.`, []);
+    if (chatMessageId) await editMessage(chatMessageId, `🗑 Заявка №${requestId} «${esc(title)}» удалена автором.`, []);
   });
 
   events.on('request.reopened', async ({ requestId, reason, photos }) => {
     const request = await getRequest(requestId);
     if (!request) return;
     const images = await photoAttachments(photos);
-    const heading = `🔄 Заявка №${request.id} возвращена автором — по его словам, проблема не устранена.\nПричина: ${reason}`;
+    const heading = `🔄 Заявка №${request.id} возвращена автором — по его словам, проблема не устранена.\nПричина: ${esc(reason)}`;
     const employees = await listEmployees();
     await Promise.all(
       employees.map((employee) =>
@@ -180,7 +184,7 @@ function subscribe(): void {
       ),
     );
     if (request.house.chatId) {
-      await sendToChat(request.house.chatId, `${heading}\nТема: ${request.title}`, { attachments: images });
+      await sendToChat(request.house.chatId, `${heading}\nТема: ${esc(request.title)}`, { attachments: images });
     }
     await refreshChatMessage(request, '🔄 Возвращена автором — проблема не устранена.');
   });
@@ -212,7 +216,7 @@ function subscribe(): void {
   });
 
   events.on('announcement.deleted', async ({ chatMessageId, title }) => {
-    if (chatMessageId) await editMessage(chatMessageId, `🗑 Объявление «${title}» удалено.`, []);
+    if (chatMessageId) await editMessage(chatMessageId, `🗑 Объявление «${esc(title)}» удалено.`, []);
   });
 
   events.on('news.created', async ({ newsId }) => {
@@ -231,7 +235,7 @@ function subscribe(): void {
   });
 
   events.on('news.deleted', async ({ chatMessageId, title }) => {
-    if (chatMessageId) await editMessage(chatMessageId, `🗑 Новость «${title}» удалена.`, []);
+    if (chatMessageId) await editMessage(chatMessageId, `🗑 Новость «${esc(title)}» удалена.`, []);
   });
 
   events.on('membership.requested', async ({ requestId }) => {
@@ -265,7 +269,7 @@ function subscribe(): void {
     }
     await sendDm(
       request.applicant.maxUserId,
-      `✅ Заявка на вступление в дом «${request.house.address}» подтверждена. Теперь доступны все функции бота и приложения.${chatLine}`,
+      `✅ Заявка на вступление в дом «${esc(request.house.address)}» подтверждена. Теперь доступны все функции бота и приложения.${chatLine}`,
       withKeyboard(residentMenu(false, true)),
     );
   });
@@ -275,7 +279,7 @@ function subscribe(): void {
     if (!request) return;
     await sendDm(
       request.applicant.maxUserId,
-      `❌ Заявка на вступление в дом «${request.house.address}» отклонена.\nПричина: ${request.rejectReason}\n\n` +
+      `❌ Заявка на вступление в дом «${esc(request.house.address)}» отклонена.\nПричина: ${esc(request.rejectReason ?? '—')}\n\n` +
         'Можете подать заявку заново — отправьте боту /start.',
     );
   });
@@ -285,7 +289,7 @@ function subscribe(): void {
     if (!chairman) return;
     const [owner, tenant] = await Promise.all([getUserById(ownerId), getUserById(tenantId)]);
     if (!owner || !tenant) return;
-    await sendDm(chairman.maxUserId, `ℹ️ ${fullName(owner)} добавил(а) съёмщика ${fullName(tenant)} в квартиру ${apartment}.`);
+    await sendDm(chairman.maxUserId, `ℹ️ ${mdName(fullName(owner))} добавил(а) съёмщика ${mdName(fullName(tenant))} в квартиру ${apartment}.`);
   });
 }
 

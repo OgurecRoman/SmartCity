@@ -5,7 +5,7 @@ import type { RequestCategory, RequestPriority } from '@prisma/client';
 import { computeVotesRequired, createRequest } from '../../services/requests.js';
 import type { BotContext } from '../context.js';
 import { ack, payloadOf, textOf } from '../helpers.js';
-import { btn, categoryButtons, panelButton, requestCard, withKeyboard, type ButtonRows } from '../ui.js';
+import { MD, btn, categoryButtons, panelButton, requestCard, withKeyboard, type ButtonRows } from '../ui.js';
 import { SCENARIO_TIMEOUT_MS, cancelIntercept, handlePhotoInput } from './common.js';
 
 export interface CreateRequestData {
@@ -174,7 +174,7 @@ export const createRequestScenario = defineScenario<BotContext, CreateRequestDat
         request.priority === 'EMERGENCY'
           ? 'Аварийная заявка передана в УК. Сотрудники получили уведомление.'
           : `Соседи получат уведомление в чате дома. Как только соберётся ${request.votesRequired} ${request.votesRequired === 1 ? 'подпись' : 'подписей'}, заявка уйдёт в УК, а вы получите уведомление.`;
-      await ctx.reply(`Готово! Заявка №${request.id} создана.\n${hint}\n\n${requestCard(request)}`, withKeyboard(panelButton()));
+      await ctx.reply(`Готово! Заявка №${request.id} создана.\n${hint}\n\n${requestCard(request)}`, { ...withKeyboard(panelButton()), ...MD });
       return transition.complete();
     },
   },

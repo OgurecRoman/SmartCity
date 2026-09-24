@@ -19,7 +19,7 @@ import {
 } from '../../services/users.js';
 import type { BotContext } from '../context.js';
 import { ack, payloadOf, textOf } from '../helpers.js';
-import { btn, houseButtons, keyboard, panelButton, requestCard, ukRequestButtons, withKeyboard, yesNoButtons } from '../ui.js';
+import { MD, btn, esc, houseButtons, keyboard, mdName, panelButton, requestCard, ukRequestButtons, withKeyboard, yesNoButtons } from '../ui.js';
 import { SCENARIO_TIMEOUT_MS, cancelIntercept, handlePhotoInput } from './common.js';
 
 export interface ManageOwnerData {
@@ -62,8 +62,8 @@ export const manageOwnerScenario = defineScenario<BotContext, ManageOwnerData>()
           return transition.cancel();
         }
         await ctx.reply(
-          `Удалить ${targetName} (кв. ${existing.apartment ?? '—'}, ${existing.house?.address ?? '—'}) из дома?`,
-          withKeyboard(yesNoButtons('own')),
+          `Удалить ${mdName(targetName)} (кв. ${esc(existing.apartment ?? '—')}, ${esc(existing.house?.address ?? '—')}) из дома?`,
+          { ...withKeyboard(yesNoButtons('own')), ...MD },
         );
         return transition.goto('confirm', { maxUserId: text, targetName });
       }
@@ -85,7 +85,10 @@ export const manageOwnerScenario = defineScenario<BotContext, ManageOwnerData>()
         return transition.stay();
       }
       await ack(ctx, { message: { text: `🏠 ${house.address}` } });
-      await ctx.reply(`Добавить ${data.targetName} в дом «${house.address}» как владельца?`, withKeyboard(yesNoButtons('own')));
+      await ctx.reply(
+        `Добавить ${mdName(data.targetName ?? '')} в дом «${esc(house.address)}» как владельца?`,
+        { ...withKeyboard(yesNoButtons('own')), ...MD },
+      );
       return transition.goto('confirm', { houseId: house.id, houseAddress: house.address });
     },
 
@@ -104,11 +107,14 @@ export const manageOwnerScenario = defineScenario<BotContext, ManageOwnerData>()
         if (data.action === 'add' && data.houseId) {
           await assignResidentToHouse(BigInt(data.maxUserId), data.houseId);
           await ack(ctx, { message: { text: 'Пользователь был добавлен!' } });
-          await ctx.reply(`✅ ${data.targetName} добавлен в дом «${data.houseAddress}».`, withKeyboard(panelButton()));
+          await ctx.reply(
+            `✅ ${mdName(data.targetName ?? '')} добавлен в дом «${esc(data.houseAddress ?? '')}».`,
+            { ...withKeyboard(panelButton()), ...MD },
+          );
         } else {
           await detachResident(BigInt(data.maxUserId));
           await ack(ctx, { message: { text: 'Пользователь был удалён!' } });
-          await ctx.reply(`✅ ${data.targetName} удалён из дома.`, withKeyboard(panelButton()));
+          await ctx.reply(`✅ ${mdName(data.targetName ?? '')} удалён из дома.`, { ...withKeyboard(panelButton()), ...MD });
         }
       } catch (error) {
         if (!isAppError(error)) throw error;
@@ -160,8 +166,8 @@ export const manageChairmanScenario = defineScenario<BotContext, ManageChairmanD
           return transition.cancel();
         }
         await ctx.reply(
-          `Снять ${targetName} (${existing.house?.address ?? '—'}) с должности председателя ТСЖ?`,
-          withKeyboard(yesNoButtons('chair')),
+          `Снять ${mdName(targetName)} (${esc(existing.house?.address ?? '—')}) с должности председателя ТСЖ?`,
+          { ...withKeyboard(yesNoButtons('chair')), ...MD },
         );
         return transition.goto('confirm', { maxUserId: text, targetName });
       }
@@ -188,7 +194,10 @@ export const manageChairmanScenario = defineScenario<BotContext, ManageChairmanD
         return transition.stay();
       }
       await ack(ctx, { message: { text: `🏠 ${house.address}` } });
-      await ctx.reply(`Назначить ${data.targetName} председателем ТСЖ дома «${house.address}»?`, withKeyboard(yesNoButtons('chair')));
+      await ctx.reply(
+        `Назначить ${mdName(data.targetName ?? '')} председателем ТСЖ дома «${esc(house.address)}»?`,
+        { ...withKeyboard(yesNoButtons('chair')), ...MD },
+      );
       return transition.goto('confirm', { houseId: house.id, houseAddress: house.address });
     },
 
@@ -207,11 +216,14 @@ export const manageChairmanScenario = defineScenario<BotContext, ManageChairmanD
         if (data.action === 'appoint' && data.houseId) {
           await appointChairman(BigInt(data.maxUserId), data.houseId);
           await ack(ctx, { message: { text: 'Председатель назначен!' } });
-          await ctx.reply(`✅ ${data.targetName} назначен председателем ТСЖ дома «${data.houseAddress}».`, withKeyboard(panelButton()));
+          await ctx.reply(
+            `✅ ${mdName(data.targetName ?? '')} назначен председателем ТСЖ дома «${esc(data.houseAddress ?? '')}».`,
+            { ...withKeyboard(panelButton()), ...MD },
+          );
         } else {
           await dismissChairman(BigInt(data.maxUserId));
           await ack(ctx, { message: { text: 'Председатель снят!' } });
-          await ctx.reply(`✅ ${data.targetName} больше не председатель ТСЖ.`, withKeyboard(panelButton()));
+          await ctx.reply(`✅ ${mdName(data.targetName ?? '')} больше не председатель ТСЖ.`, { ...withKeyboard(panelButton()), ...MD });
         }
       } catch (error) {
         if (!isAppError(error)) throw error;
@@ -349,7 +361,11 @@ async function refreshCard(ctx: BotContext, requestId: number, cardMid: string |
   const request = await getRequest(requestId);
   if (!request) return;
   try {
-    await ctx.api.editMessage(cardMid, { text: `${requestCard(request)}\n\n${note}`, attachments: [keyboard(ukRequestButtons(request))] });
+    await ctx.api.editMessage(cardMid, {
+      text: `${requestCard(request)}\n\n${note}`,
+      attachments: [keyboard(ukRequestButtons(request))],
+      ...MD,
+    });
   } catch {
 
   }
@@ -405,7 +421,7 @@ export const delegateScenario = defineScenario<BotContext, DelegateData>()<Deleg
         }
         await ack(ctx, { message: { text: `Организация: ${organization?.name ?? organizationId}` } });
         await ctx.reply(`➡️ Заявка №${data.requestId} передана в «${organization?.name}». ${mailNote}`, withKeyboard(panelButton()));
-        await refreshCard(ctx, data.requestId, data.cardMid, `➡️ Передана в организацию: ${organization?.name}`);
+        await refreshCard(ctx, data.requestId, data.cardMid, `➡️ Передана в организацию: ${esc(organization?.name ?? '')}`);
       } catch (error) {
         if (!isAppError(error)) throw error;
         await ack(ctx, { notification: error.message });
@@ -534,8 +550,8 @@ export const resolveScenario = defineScenario<BotContext, ResolveData>()<Resolve
       const photosLine = data.photos?.length ? `\n📷 Фото: ${data.photos.length}` : '';
       await ack(ctx, { message: { text: `Фото: ${(data.photos ?? []).length}` } });
       await ctx.reply(
-        `Заявка №${data.requestId} будет закрыта как выполненная:\n\n${data.note}\n\nОтветственный: ${data.responsibleName}${photosLine}`,
-        withKeyboard([[btn.callback('✅ Закрыть заявку', RESOLVE_SEND)], [btn.callback('Отмена', 'cancel')]]),
+        `Заявка №${data.requestId} будет закрыта как выполненная:\n\n${esc(data.note ?? '')}\n\nОтветственный: ${mdName(data.responsibleName ?? '')}${photosLine}`,
+        { ...withKeyboard([[btn.callback('✅ Закрыть заявку', RESOLVE_SEND)], [btn.callback('Отмена', 'cancel')]]), ...MD },
       );
       return transition.goto('confirm');
     },
@@ -555,7 +571,7 @@ export const resolveScenario = defineScenario<BotContext, ResolveData>()<Resolve
         await ack(ctx, { message: { text: 'Заявка закрыта.' } });
         await ctx.reply(
           `${requestCard(request)}\n\n✅ Заявка закрыта как выполненная. Жители уведомлены.`,
-          withKeyboard([...ukRequestButtons(request), ...panelButton()]),
+          { ...withKeyboard([...ukRequestButtons(request), ...panelButton()]), ...MD },
         );
         await refreshCard(ctx, data.requestId, data.cardMid, '✅ Выполнена');
       } catch (error) {
