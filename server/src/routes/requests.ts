@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import { requireEmployee } from '../auth/middleware.js';
+import { photoUpload } from '../lib/upload.js';
 import * as requestsController from '../controllers/requests.js';
 
 const router = Router();
 
 router.get('/requests', requestsController.list);
-router.post('/requests', requestsController.create);
+router.post('/requests', photoUpload.array('photos'), requestsController.create);
 router.get('/requests/:id', requestsController.get);
 router.delete('/requests/:id', requestsController.remove);
 router.post('/requests/:id/vote', requestsController.voteFor);

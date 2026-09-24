@@ -165,6 +165,7 @@ async function main() {
   await msg(anna, 'Прорвало трубу в подвале первого подъезда, вода течёт третий день.');
   await cb(anna, 'cr:prio:NORMAL');
   await cb(anna, 'cr:skip');
+  await cb(anna, 'cr:photos:done');
   await cb(anna, 'cr:send');
   const requestId = await latestRequestId(anna.user_id);
   out(`   (создана заявка №${requestId})`);
@@ -199,6 +200,7 @@ async function main() {
   await cb(anna, 'cr:cat:ELEVATOR');
   await msg(anna, 'Застрял лифт во втором подъезде между 5 и 6 этажами.');
   await cb(anna, 'cr:prio:EMERGENCY');
+  await cb(anna, 'cr:photos:done');
   await cb(anna, 'cr:send');
   const emergencyId = await latestRequestId(anna.user_id);
 
@@ -213,6 +215,7 @@ async function main() {
   await cb(olga, 'cr:prio:NORMAL');
   await msg(olga, '01.01.2020');
   await msg(olga, '31.12.2026');
+  await cb(olga, 'cr:photos:done');
   await cb(olga, 'cr:edit');
   await cb(olga, 'cancel');
   await msg(olga, '/my');
@@ -229,6 +232,7 @@ async function main() {
   await cb(admin, 'ann:house:1');
   await msg(admin, 'Отключение горячей воды');
   await msg(admin, 'Плановое отключение воды 25.09 с 10:00 до 14:00.');
+  await cb(admin, 'ann:photos:done');
   await cb(admin, 'ann:yes');
   await cb(admin, 'menu:add_owner');
   await msg(admin, '5000009');
@@ -249,6 +253,7 @@ async function main() {
   await cb(anna, 'menu:announce');
   await msg(anna, 'Собрание жильцов');
   await msg(anna, 'Собрание состоится 30.09 в 19:00 у подъезда №1.');
+  await cb(anna, 'ann:photos:done');
   await cb(anna, 'ann:yes');
 
   section('УК снимает председателя ТСЖ');

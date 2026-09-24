@@ -9,6 +9,7 @@ import { getMembershipRequest } from '../services/membership.js';
 import { getNews } from '../services/news.js';
 import { getRequest, type RequestWithRelations } from '../services/requests.js';
 import { getChairmanOf, getUserById, listEmployees } from '../services/users.js';
+import { uploadPhotosToMax } from './photos.js';
 import {
   announcementCard,
   chatDetailsButtons,
@@ -84,6 +85,11 @@ async function notifyEmployees(request: RequestWithRelations, heading: string): 
   );
 }
 
+async function photoAttachments(filenames: string[]): Promise<AttachmentRequest[]> {
+  if (!api || filenames.length === 0) return [];
+  return uploadPhotosToMax(api, filenames);
+}
+
 async function voterIds(requestId: number, excludeUserId?: number): Promise<bigint[]> {
   const votes = await prisma.vote.findMany({
     where: { requestId, ...(excludeUserId ? { userId: { not: excludeUserId } } : {}) },
@@ -102,10 +108,11 @@ function subscribe(): void {
     const emergency = request.priority === 'EMERGENCY';
     if (request.house.chatId) {
       const note = emergency ? '' : '\n\nНажмите «Подробнее», чтобы поддержать заявку.';
+      const images = await photoAttachments(request.photos.map((p) => p.filename));
       const message = await sendToChat(
         request.house.chatId,
         `${chatHeading(request)}\n\n${requestCard(request)}${note}`,
-        withKeyboard(chatDetailsButtons(request.id)),
+        { attachments: [...images, keyboard(chatDetailsButtons(request.id))] },
       );
       if (message) {
         await prisma.request.update({ where: { id: request.id }, data: { chatMessageId: message.body.mid } });
@@ -171,7 +178,8 @@ function subscribe(): void {
   events.on('announcement.created', async ({ announcementId }) => {
     const announcement = await getAnnouncement(announcementId);
     if (!announcement || !announcement.house.chatId) return;
-    const message = await sendToChat(announcement.house.chatId, announcementCard(announcement));
+    const images = await photoAttachments(announcement.photos.map((p) => p.filename));
+    const message = await sendToChat(announcement.house.chatId, announcementCard(announcement), { attachments: images });
     if (message) {
       await prisma.announcement.update({ where: { id: announcement.id }, data: { chatMessageId: message.body.mid } });
     }
@@ -189,7 +197,8 @@ function subscribe(): void {
   events.on('news.created', async ({ newsId }) => {
     const news = await getNews(newsId);
     if (!news || !news.house.chatId) return;
-    const message = await sendToChat(news.house.chatId, newsCard(news));
+    const images = await photoAttachments(news.photos.map((p) => p.filename));
+    const message = await sendToChat(news.house.chatId, newsCard(news), { attachments: images });
     if (message) {
       await prisma.news.update({ where: { id: news.id }, data: { chatMessageId: message.body.mid } });
     }

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { errors } from '../lib/errors.js';
 import { CATEGORY_LABELS, STATUS_LABELS, parseRuDate } from '../lib/labels.js';
 import { prisma } from '../lib/db.js';
+import { saveUploadedPhotos } from '../lib/upload.js';
 import { buildRequestDocument } from '../services/documents.js';
 import { sendDelegationEmail } from '../services/mailer.js';
 import {
@@ -95,6 +96,7 @@ export async function create(req: Request, res: Response) {
     deadline = parseRuDate(input.deadline) ?? new Date(input.deadline);
     if (Number.isNaN(deadline.getTime())) throw errors.badRequest('Некорректная дата в поле deadline');
   }
+  const photos = await saveUploadedPhotos(req.files as Express.Multer.File[] | undefined);
   const request = await createRequest({
     authorId: user.id,
     category: input.category as keyof typeof CATEGORY_LABELS,
@@ -102,6 +104,7 @@ export async function create(req: Request, res: Response) {
     title: input.title ?? null,
     priority: input.priority,
     deadline,
+    photos,
   });
   res.status(201).json(serializeRequest(request, { hasVoted: false, viewerId: user.id }));
 }

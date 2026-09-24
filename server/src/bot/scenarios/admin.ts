@@ -20,7 +20,7 @@ import {
 import type { BotContext } from '../context.js';
 import { ack, payloadOf, textOf } from '../helpers.js';
 import { btn, houseButtons, keyboard, panelButton, requestCard, ukRequestButtons, withKeyboard, yesNoButtons } from '../ui.js';
-import { SCENARIO_TIMEOUT_MS, cancelIntercept } from './common.js';
+import { SCENARIO_TIMEOUT_MS, cancelIntercept, handlePhotoInput } from './common.js';
 
 export interface ManageOwnerData {
   action: 'add' | 'remove';
@@ -228,9 +228,16 @@ export interface AnnounceData {
   houseAddress?: string;
   title?: string;
   description?: string;
+  photos?: string[];
 }
 
-type AnnounceStep = 'start' | 'house' | 'title' | 'description' | 'confirm';
+type AnnounceStep = 'start' | 'house' | 'title' | 'description' | 'photos' | 'confirm';
+
+const ANN_PHOTOS_DONE = 'ann:photos:done';
+
+function announcePhotoButtons(count: number) {
+  return [[btn.callback(count > 0 ? `Готово (${count})` : 'Без фото', ANN_PHOTOS_DONE)], [btn.callback('Отмена', 'cancel')]];
+}
 
 export const announceScenario = defineScenario<BotContext, AnnounceData>()<AnnounceStep>({
   id: 'announce',
@@ -287,12 +294,27 @@ export const announceScenario = defineScenario<BotContext, AnnounceData>()<Annou
         await ctx.reply('Опишите объявление подробнее (минимум 5 символов).');
         return transition.stay();
       }
-      const description = text.trim();
-      await ctx.reply(
-        `Опубликовать в доме «${data.houseAddress}»:\n\n📢 ${data.title}\n\n${description}`,
-        withKeyboard([[btn.callback('Опубликовать', 'ann:yes'), btn.callback('Отмена', 'cancel')]]),
-      );
-      return transition.goto('confirm', { description });
+      await ctx.reply('Можете приложить фото (необязательно) — пришлите одну или несколько, или нажмите «Без фото».', withKeyboard(announcePhotoButtons(0)));
+      return transition.goto('photos', { description: text.trim() });
+    },
+
+    photos: async ({ ctx, data }) => {
+      const result = await handlePhotoInput(ctx, ANN_PHOTOS_DONE, data.photos ?? []);
+      if (result.kind === 'done') {
+        await ack(ctx, { message: { text: `Фото: ${(data.photos ?? []).length}` } });
+        const photosLine = data.photos?.length ? `\n\n📷 Фото: ${data.photos.length}` : '';
+        await ctx.reply(
+          `Опубликовать в доме «${data.houseAddress}»:\n\n📢 ${data.title}\n\n${data.description}${photosLine}`,
+          withKeyboard([[btn.callback('Опубликовать', 'ann:yes'), btn.callback('Отмена', 'cancel')]]),
+        );
+        return transition.goto('confirm');
+      }
+      if (result.kind === 'invalid') {
+        await ctx.reply('Пришлите фото или нажмите кнопку выше.', withKeyboard(announcePhotoButtons((data.photos ?? []).length)));
+        return transition.stay();
+      }
+      await ctx.reply(`Добавлено. Всего фото: ${result.photos.length}. Пришлите ещё или нажмите «Готово».`, withKeyboard(announcePhotoButtons(result.photos.length)));
+      return transition.stay({ photos: result.photos });
     },
 
     confirm: async ({ ctx, data }) => {
@@ -301,7 +323,7 @@ export const announceScenario = defineScenario<BotContext, AnnounceData>()<Annou
         return transition.stay();
       }
       try {
-        await createAnnouncement({ houseId: data.houseId, authorId: ctx.dbUser.id, title: data.title, description: data.description });
+        await createAnnouncement({ houseId: data.houseId, authorId: ctx.dbUser.id, title: data.title, description: data.description, photos: data.photos });
         await ack(ctx, { message: { text: 'Объявление опубликовано.' } });
         await ctx.reply(`✅ Объявление опубликовано в доме «${data.houseAddress}».`, withKeyboard(panelButton()));
       } catch (error) {

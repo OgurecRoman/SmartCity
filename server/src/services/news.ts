@@ -2,11 +2,13 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/db.js';
 import { errors } from '../lib/errors.js';
 import { events } from '../lib/events.js';
+import { deletePhotoFile } from '../lib/photoStorage.js';
 import type { DbUser } from './users.js';
 
 export const newsInclude = {
   author: { select: { id: true, firstName: true, lastName: true, role: true } },
   house: { select: { id: true, address: true, chatId: true } },
+  photos: { select: { filename: true }, orderBy: { id: 'asc' } },
 } satisfies Prisma.NewsInclude;
 
 export type NewsWithRelations = Prisma.NewsGetPayload<{ include: typeof newsInclude }>;
@@ -27,6 +29,7 @@ export interface CreateNewsInput {
   title: string;
   description: string;
   contact: string;
+  photos?: string[];
 }
 
 export async function createNews(input: CreateNewsInput): Promise<NewsWithRelations> {
@@ -37,7 +40,14 @@ export async function createNews(input: CreateNewsInput): Promise<NewsWithRelati
   const contact = input.contact.trim();
   validateFields(title, description, contact);
   const news = await prisma.news.create({
-    data: { houseId: input.houseId, authorId: input.authorId, title, description, contact },
+    data: {
+      houseId: input.houseId,
+      authorId: input.authorId,
+      title,
+      description,
+      contact,
+      photos: input.photos?.length ? { create: input.photos.map((filename) => ({ filename })) } : undefined,
+    },
     include: newsInclude,
   });
   events.emit('news.created', { newsId: news.id });
@@ -94,9 +104,10 @@ export async function updateNews(id: number, editor: Pick<DbUser, 'id' | 'role'>
 }
 
 export async function deleteNews(id: number, editor: Pick<DbUser, 'id' | 'role'>): Promise<void> {
-  const existing = await prisma.news.findUnique({ where: { id } });
+  const existing = await prisma.news.findUnique({ where: { id }, include: { photos: { select: { filename: true } } } });
   if (!existing) throw errors.notFound('Новость не найдена');
   if (!canManageNews(editor, existing)) throw errors.forbidden('Удалить новость может её автор или сотрудник УК');
   await prisma.news.delete({ where: { id } });
+  await Promise.all(existing.photos.map((photo) => deletePhotoFile(photo.filename)));
   events.emit('news.deleted', { newsId: id, houseId: existing.houseId, chatMessageId: existing.chatMessageId, title: existing.title });
 }

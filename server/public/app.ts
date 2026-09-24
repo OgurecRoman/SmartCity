@@ -46,6 +46,7 @@ interface RequestItem {
   votesCount: number;
   votesRequired: number;
   author: { name: string; apartment: string | null };
+  photoUrls: string[];
 }
 
 interface SearchHit {
@@ -59,6 +60,7 @@ interface AnnouncementItem {
   title: string;
   description: string;
   author: { name: string };
+  photoUrls: string[];
   createdAt: string;
 }
 
@@ -69,6 +71,7 @@ interface NewsItem {
   contact: string;
   author: { name: string };
   isMine: boolean;
+  photoUrls: string[];
   createdAt: string;
 }
 
@@ -141,12 +144,7 @@ type ApiError = Error & { code?: string };
     return headers;
   }
 
-  async function api<T>(method: string, path: string, body?: unknown): Promise<T> {
-    const res = await fetch('/api' + path, {
-      method,
-      headers: { 'Content-Type': 'application/json', ...authHeaders() },
-      body: body ? JSON.stringify(body) : undefined,
-    });
+  async function handleApiResponse<T>(res: Response): Promise<T> {
     const data = res.status === 204 ? null : await res.json().catch(() => null);
     if (!res.ok) {
       const error: ApiError = new Error((data && data.error && data.error.message) || 'Ошибка ' + res.status);
@@ -154,6 +152,20 @@ type ApiError = Error & { code?: string };
       throw error;
     }
     return data as T;
+  }
+
+  async function api<T>(method: string, path: string, body?: unknown): Promise<T> {
+    const res = await fetch('/api' + path, {
+      method,
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    return handleApiResponse<T>(res);
+  }
+
+  async function apiForm<T>(method: string, path: string, form: FormData): Promise<T> {
+    const res = await fetch('/api' + path, { method, headers: authHeaders(), body: form });
+    return handleApiResponse<T>(res);
   }
 
   function show(name: string): void {
@@ -321,10 +333,17 @@ type ApiError = Error & { code?: string };
     loadNews();
   }
 
+  function renderPhotoStrip(photoUrls: string[]): string {
+    if (!photoUrls.length) return '';
+    const thumbs = photoUrls.map((url) => `<a href="${url}" target="_blank"><img src="${url}" class="photo-thumb"></a>`).join('');
+    return `<div class="photo-strip">${thumbs}</div>`;
+  }
+
   function renderAnnouncementItem(a: AnnouncementItem): HTMLElement {
     const el = document.createElement('div');
     el.className = 'request';
     el.innerHTML = `<div style="font-weight:600">${a.title}</div><div>${a.description}</div>` +
+      renderPhotoStrip(a.photoUrls) +
       `<div class="muted">${a.author.name} · ${new Date(a.createdAt).toLocaleDateString('ru-RU')}</div>`;
     return el;
   }
@@ -354,7 +373,8 @@ type ApiError = Error & { code?: string };
     el.className = 'request';
     const votes = r.status === 'VOTING' ? `<div class="muted">Подписей: ${r.votesCount} из ${r.votesRequired}</div>` : '';
     el.innerHTML = `<div>${r.title}${r.isMine ? ' <span class="muted">(моя)</span>' : ''}<span class="status">${r.statusLabel}</span></div>` +
-      `<div class="muted">${r.author.name}, кв. ${r.author.apartment || '—'}</div>${votes}`;
+      `<div class="muted">${r.author.name}, кв. ${r.author.apartment || '—'}</div>${votes}` +
+      renderPhotoStrip(r.photoUrls);
     if (r.canVote) {
       const b = document.createElement('button');
       b.textContent = 'Поддержать';
@@ -394,6 +414,7 @@ type ApiError = Error & { code?: string };
     const el = document.createElement('div');
     el.className = 'request';
     el.innerHTML = `<div style="font-weight:600">${n.title}${n.isMine ? ' <span class="muted">(моя)</span>' : ''}</div><div>${n.description}</div>` +
+      renderPhotoStrip(n.photoUrls) +
       `<div class="muted">${n.author.name} · ${new Date(n.createdAt).toLocaleDateString('ru-RU')}</div>` +
       `<div class="muted">Связаться: ${n.contact}</div>`;
     if (n.isMine) {
@@ -426,20 +447,37 @@ type ApiError = Error & { code?: string };
     }
   }
 
+  function renderFilePreview(input: HTMLInputElement, box: HTMLElement): void {
+    box.innerHTML = '';
+    Array.from(input.files ?? []).forEach((file) => {
+      const img = document.createElement('img');
+      img.src = URL.createObjectURL(file);
+      box.appendChild(img);
+    });
+  }
+
+  function appendPhotos(form: FormData, input: HTMLInputElement): void {
+    Array.from(input.files ?? []).forEach((file) => form.append('photos', file));
+  }
+
   async function sendNews(): Promise<void> {
     $('news-error').textContent = '';
     $('news-ok').textContent = '';
     const btn = $<HTMLButtonElement>('news-send');
     btn.disabled = true;
     try {
-      await api<NewsItem>('POST', '/news', {
-        title: $<HTMLInputElement>('news-title').value.trim(),
-        description: $<HTMLTextAreaElement>('news-description').value.trim(),
-        contact: $<HTMLInputElement>('news-contact').value.trim(),
-      });
+      const form = new FormData();
+      form.set('title', $<HTMLInputElement>('news-title').value.trim());
+      form.set('description', $<HTMLTextAreaElement>('news-description').value.trim());
+      form.set('contact', $<HTMLInputElement>('news-contact').value.trim());
+      const photosInput = $<HTMLInputElement>('news-photos');
+      appendPhotos(form, photosInput);
+      await apiForm<NewsItem>('POST', '/news', form);
       $<HTMLInputElement>('news-title').value = '';
       $<HTMLTextAreaElement>('news-description').value = '';
       $<HTMLInputElement>('news-contact').value = '';
+      photosInput.value = '';
+      $('news-photos-preview').innerHTML = '';
       $('news-ok').textContent = 'Новость опубликована.';
       loadNews();
     } catch (e) {
@@ -596,13 +634,17 @@ type ApiError = Error & { code?: string };
     const btn = $<HTMLButtonElement>('req-send');
     btn.disabled = true;
     try {
-      const r = await api<RequestItem>('POST', '/requests', {
-        category: $<HTMLSelectElement>('category').value,
-        description: $<HTMLTextAreaElement>('description').value.trim(),
-        priority: $<HTMLInputElement>('emergency').checked ? 'EMERGENCY' : 'NORMAL',
-      });
+      const form = new FormData();
+      form.set('category', $<HTMLSelectElement>('category').value);
+      form.set('description', $<HTMLTextAreaElement>('description').value.trim());
+      form.set('priority', $<HTMLInputElement>('emergency').checked ? 'EMERGENCY' : 'NORMAL');
+      const photosInput = $<HTMLInputElement>('req-photos');
+      appendPhotos(form, photosInput);
+      const r = await apiForm<RequestItem>('POST', '/requests', form);
       $<HTMLTextAreaElement>('description').value = '';
       $<HTMLInputElement>('emergency').checked = false;
+      photosInput.value = '';
+      $('req-photos-preview').innerHTML = '';
       $('req-ok').textContent = r.status === 'VOTING' ? `Заявка №${r.id} создана. Нужно ${r.votesRequired} ${plural(r.votesRequired, 'подпись', 'подписи', 'подписей')} соседей.` : `Заявка №${r.id} передана в УК.`;
       loadRequests();
     } catch (e) {
@@ -627,6 +669,8 @@ type ApiError = Error & { code?: string };
     $('change-house').onclick = showMap;
     $('req-send').onclick = sendRequest;
     $('news-send').onclick = sendNews;
+    $<HTMLInputElement>('req-photos').onchange = () => renderFilePreview($<HTMLInputElement>('req-photos'), $('req-photos-preview'));
+    $<HTMLInputElement>('news-photos').onchange = () => renderFilePreview($<HTMLInputElement>('news-photos'), $('news-photos-preview'));
     $('requests-filter-category').onchange = () => loadRequests(true);
     $('requests-filter-status').onchange = () => loadRequests(true);
     $('requests-more').onclick = () => loadRequests(false);

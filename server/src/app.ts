@@ -1,6 +1,7 @@
 import path from 'node:path';
 import cors from 'cors';
 import express, { type NextFunction, type Request, type Response } from 'express';
+import { MulterError } from 'multer';
 import { config } from './config.js';
 import { isAppError } from './lib/errors.js';
 import { log } from './lib/logger.js';
@@ -20,6 +21,7 @@ export function createApp() {
 
   app.use('/api', apiRouter);
 
+  app.use('/uploads', express.static(path.resolve(import.meta.dirname, '..', 'uploads')));
   app.use('/app', express.static(path.resolve(import.meta.dirname, '..', 'public')));
   app.get('/', (_req, res) => res.redirect('/app/'));
 
@@ -34,6 +36,11 @@ export function createApp() {
     }
     if (error && typeof error === 'object' && 'type' in error && (error as { type?: string }).type === 'entity.parse.failed') {
       res.status(400).json({ error: { code: 'invalid_json', message: 'Некорректный JSON в теле запроса' } });
+      return;
+    }
+    if (error instanceof MulterError) {
+      const message = error.code === 'LIMIT_FILE_SIZE' ? 'Фото слишком большое (максимум 8 МБ)' : 'Слишком много фото (максимум 5)';
+      res.status(400).json({ error: { code: 'invalid_upload', message } });
       return;
     }
     log.error('Необработанная ошибка API', error);

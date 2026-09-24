@@ -2,11 +2,13 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/db.js';
 import { errors } from '../lib/errors.js';
 import { events } from '../lib/events.js';
+import { deletePhotoFile } from '../lib/photoStorage.js';
 import { canManageAnnouncements, type DbUser } from './users.js';
 
 export const announcementInclude = {
   author: { select: { id: true, firstName: true, lastName: true, role: true } },
   house: { select: { id: true, address: true, chatId: true } },
+  photos: { select: { filename: true }, orderBy: { id: 'asc' } },
 } satisfies Prisma.AnnouncementInclude;
 
 export type AnnouncementWithRelations = Prisma.AnnouncementGetPayload<{ include: typeof announcementInclude }>;
@@ -21,6 +23,7 @@ export interface CreateAnnouncementInput {
   authorId: number;
   title: string;
   description: string;
+  photos?: string[];
 }
 
 export async function createAnnouncement(input: CreateAnnouncementInput): Promise<AnnouncementWithRelations> {
@@ -30,7 +33,13 @@ export async function createAnnouncement(input: CreateAnnouncementInput): Promis
   const description = input.description.trim();
   validateFields(title, description);
   const announcement = await prisma.announcement.create({
-    data: { houseId: input.houseId, authorId: input.authorId, title, description },
+    data: {
+      houseId: input.houseId,
+      authorId: input.authorId,
+      title,
+      description,
+      photos: input.photos?.length ? { create: input.photos.map((filename) => ({ filename })) } : undefined,
+    },
     include: announcementInclude,
   });
   events.emit('announcement.created', { announcementId: announcement.id });
@@ -91,12 +100,13 @@ export async function updateAnnouncement(
 }
 
 export async function deleteAnnouncement(id: number, editor: Pick<DbUser, 'role' | 'houseId'>): Promise<void> {
-  const existing = await prisma.announcement.findUnique({ where: { id } });
+  const existing = await prisma.announcement.findUnique({ where: { id }, include: { photos: { select: { filename: true } } } });
   if (!existing) throw errors.notFound('Объявление не найдено');
   if (!canManageAnnouncements(editor, existing.houseId)) {
     throw errors.forbidden('Удалить объявление может УК или председатель ТСЖ этого дома');
   }
   await prisma.announcement.delete({ where: { id } });
+  await Promise.all(existing.photos.map((photo) => deletePhotoFile(photo.filename)));
   events.emit('announcement.deleted', {
     announcementId: id,
     houseId: existing.houseId,

@@ -5,8 +5,8 @@ import type { RequestCategory, RequestPriority } from '@prisma/client';
 import { computeVotesRequired, createRequest } from '../../services/requests.js';
 import type { BotContext } from '../context.js';
 import { ack, payloadOf, textOf } from '../helpers.js';
-import { btn, categoryButtons, panelButton, requestCard, withKeyboard } from '../ui.js';
-import { SCENARIO_TIMEOUT_MS, cancelIntercept } from './common.js';
+import { btn, categoryButtons, panelButton, requestCard, withKeyboard, type ButtonRows } from '../ui.js';
+import { SCENARIO_TIMEOUT_MS, cancelIntercept, handlePhotoInput } from './common.js';
 
 export interface CreateRequestData {
   category?: RequestCategory;
@@ -14,9 +14,16 @@ export interface CreateRequestData {
   priority?: RequestPriority;
 
   deadline?: string | null;
+  photos?: string[];
 }
 
-type Step = 'start' | 'category' | 'description' | 'priority' | 'deadline' | 'preview';
+type Step = 'start' | 'category' | 'description' | 'priority' | 'deadline' | 'photos' | 'preview';
+
+const PHOTOS_DONE = 'cr:photos:done';
+
+function photoPromptButtons(count: number): ButtonRows {
+  return [[btn.callback(count > 0 ? `Готово (${count})` : 'Без фото', PHOTOS_DONE)], [btn.callback('Отмена', 'cancel')]];
+}
 
 const CATEGORY_PROMPT = 'Выберите категорию заявки:';
 
@@ -38,6 +45,7 @@ async function sendPreview(ctx: BotContext, data: CreateRequestData): Promise<vo
     lines.push('Аварийная заявка будет передана в УК сразу, без сбора подписей.');
   }
   lines.push('', data.description ?? '');
+  if (data.photos?.length) lines.push('', `📷 Фото: ${data.photos.length}`);
   await ctx.reply(
     lines.join('\n'),
     withKeyboard([[btn.callback('✅ Отправить', 'cr:send'), btn.callback('✏️ Изменить', 'cr:edit')], [btn.callback('Отмена', 'cancel')]]),
@@ -94,8 +102,8 @@ export const createRequestScenario = defineScenario<BotContext, CreateRequestDat
       const priority = match[1] as RequestPriority;
       await ack(ctx, { message: { text: `Приоритет: ${PRIORITY_LABELS[priority]}` } });
       if (priority === 'EMERGENCY') {
-        await sendPreview(ctx, { ...data, priority, deadline: null });
-        return transition.goto('preview', { priority, deadline: null });
+        await ctx.reply('Можете приложить фото проблемы (необязательно) — пришлите одну или несколько, или нажмите «Без фото».', withKeyboard(photoPromptButtons(0)));
+        return transition.goto('photos', { priority, deadline: null });
       }
       const defaultDeadline = addDays(new Date(), config.votes.defaultDeadlineDays);
       await ctx.reply(
@@ -123,8 +131,23 @@ export const createRequestScenario = defineScenario<BotContext, CreateRequestDat
         }
         deadline = parsed.toISOString();
       }
-      await sendPreview(ctx, { ...data, deadline });
-      return transition.goto('preview', { deadline });
+      await ctx.reply('Можете приложить фото проблемы (необязательно) — пришлите одну или несколько, или нажмите «Без фото».', withKeyboard(photoPromptButtons(0)));
+      return transition.goto('photos', { deadline });
+    },
+
+    photos: async ({ ctx, data }) => {
+      const result = await handlePhotoInput(ctx, PHOTOS_DONE, data.photos ?? []);
+      if (result.kind === 'done') {
+        await ack(ctx, { message: { text: `Фото: ${(data.photos ?? []).length}` } });
+        await sendPreview(ctx, data);
+        return transition.goto('preview');
+      }
+      if (result.kind === 'invalid') {
+        await ctx.reply('Пришлите фото или нажмите кнопку выше.', withKeyboard(photoPromptButtons((data.photos ?? []).length)));
+        return transition.stay();
+      }
+      await ctx.reply(`Добавлено. Всего фото: ${result.photos.length}. Пришлите ещё или нажмите «Готово».`, withKeyboard(photoPromptButtons(result.photos.length)));
+      return transition.stay({ photos: result.photos });
     },
 
     preview: async ({ ctx, data }) => {
@@ -144,6 +167,7 @@ export const createRequestScenario = defineScenario<BotContext, CreateRequestDat
         description: data.description,
         priority: data.priority ?? 'NORMAL',
         deadline: data.deadline ? new Date(data.deadline) : null,
+        photos: data.photos,
       });
       await ack(ctx, { message: { text: 'Заявка отправлена.' } });
       const hint =

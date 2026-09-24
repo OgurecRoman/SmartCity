@@ -33,6 +33,10 @@
     .status { display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 999px; background: #eef2ff; color: #3730a3; margin-left: 6px; }
     a.link { color: var(--accent); cursor: pointer; font-size: 14px; }
     .camera-box { background: #e5e7eb; border-radius: 10px; height: 140px; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 14px; text-align: center; margin-top: 8px; }
+    .photo-strip { display: flex; gap: 6px; overflow-x: auto; margin-top: 8px; }
+    .photo-thumb { width: 72px; height: 72px; object-fit: cover; border-radius: 8px; flex: 0 0 auto; }
+    .photo-preview { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+    .photo-preview img { width: 56px; height: 56px; object-fit: cover; border-radius: 8px; }
   </style>
 </head>
 <body>
@@ -107,6 +111,9 @@
         <label for="description">Опишите проблему</label>
         <textarea id="description" placeholder="Что случилось, где, с какого времени"></textarea>
         <label><input type="checkbox" id="emergency" style="width:auto"> Аварийная — сразу в УК, без сбора подписей</label>
+        <label for="req-photos">Фото (необязательно, до 5)</label>
+        <input type="file" id="req-photos" accept="image/*" multiple>
+        <div id="req-photos-preview" class="photo-preview"></div>
         <div id="req-error" class="error"></div>
         <div id="req-ok" class="ok"></div>
         <button id="req-send" style="margin-top:10px;width:100%">Отправить заявку</button>
@@ -130,6 +137,9 @@
         <textarea id="news-description" placeholder="О чём хотите рассказать соседям"></textarea>
         <label for="news-contact">Как с вами связаться</label>
         <input id="news-contact" placeholder="Телефон, ссылка на профиль…">
+        <label for="news-photos">Фото (необязательно, до 5)</label>
+        <input type="file" id="news-photos" accept="image/*" multiple>
+        <div id="news-photos-preview" class="photo-preview"></div>
         <div id="news-error" class="error"></div>
         <div id="news-ok" class="ok"></div>
         <button id="news-send" style="margin-top:10px;width:100%">Опубликовать</button>

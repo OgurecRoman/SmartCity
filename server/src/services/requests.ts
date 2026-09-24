@@ -3,6 +3,7 @@ import { prisma } from '../lib/db.js';
 import { errors } from '../lib/errors.js';
 import { events } from '../lib/events.js';
 import { CATEGORY_LABELS, STATUS_LABELS, addDays } from '../lib/labels.js';
+import { deletePhotoFile } from '../lib/photoStorage.js';
 import { Prisma } from '@prisma/client';
 import type { RequestCategory, RequestPriority, RequestStatus } from '@prisma/client';
 import { AUTHOR_DELETABLE_STATUSES, canTransition, votesRequiredFor } from './rules.js';
@@ -12,6 +13,7 @@ export const requestInclude = {
   author: { select: { id: true, firstName: true, lastName: true, apartment: true, maxUserId: true } },
   house: { select: { id: true, address: true, chatId: true, votePercent: true } },
   delegatedTo: { select: { id: true, name: true, email: true, phone: true } },
+  photos: { select: { filename: true }, orderBy: { id: 'asc' } },
 } satisfies Prisma.RequestInclude;
 
 export const requestDetailedInclude = {
@@ -55,6 +57,7 @@ export interface CreateRequestInput {
   title?: string | null;
   priority?: RequestPriority;
   deadline?: Date | null;
+  photos?: string[];
 }
 
 export async function createRequest(input: CreateRequestInput): Promise<RequestWithRelations> {
@@ -94,6 +97,7 @@ export async function createRequest(input: CreateRequestInput): Promise<RequestW
           comment: emergency ? 'Аварийная заявка передана в УК без сбора подписей' : null,
         },
       },
+      photos: input.photos?.length ? { create: input.photos.map((filename) => ({ filename })) } : undefined,
     },
     include: requestInclude,
   });
@@ -253,13 +257,14 @@ export async function changeStatus(
 }
 
 export async function deleteRequest(requestId: number, userId: number): Promise<void> {
-  const request = await prisma.request.findUnique({ where: { id: requestId } });
+  const request = await prisma.request.findUnique({ where: { id: requestId }, include: { photos: { select: { filename: true } } } });
   if (!request) throw errors.notFound('Заявка не найдена');
   if (request.authorId !== userId) throw errors.forbidden('Удалить заявку может только её автор');
   if (!AUTHOR_DELETABLE_STATUSES.includes(request.status)) {
     throw errors.conflict('Заявка уже передана в УК, удалить её нельзя');
   }
   await prisma.request.delete({ where: { id: requestId } });
+  await Promise.all(request.photos.map((photo) => deletePhotoFile(photo.filename)));
   events.emit('request.deleted', {
     requestId,
     houseId: request.houseId,

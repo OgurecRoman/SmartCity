@@ -135,6 +135,7 @@ model Request {
   updatedAt     DateTime        @updatedAt
   votes         Vote[]
   statusHistory StatusHistory[]
+  photos        Photo[]
 
   @@index([houseId, status])
   @@index([authorId])
@@ -187,6 +188,7 @@ model Announcement {
   chatMessageId String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  photos        Photo[]
 
   @@index([houseId])
 }
@@ -203,8 +205,25 @@ model News {
   chatMessageId String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  photos        Photo[]
 
   @@index([houseId])
+}
+
+model Photo {
+  id             Int           @id @default(autoincrement())
+  filename       String
+  requestId      Int?
+  request        Request?      @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  newsId         Int?
+  news           News?         @relation(fields: [newsId], references: [id], onDelete: Cascade)
+  announcementId Int?
+  announcement   Announcement? @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  createdAt      DateTime      @default(now())
+
+  @@index([requestId])
+  @@index([newsId])
+  @@index([announcementId])
 }
 
 model MembershipRequest {

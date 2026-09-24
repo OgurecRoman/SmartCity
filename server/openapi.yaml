@@ -169,6 +169,7 @@ components:
             id: { type: integer }
             name: { type: string }
             role: { type: string, enum: [RESIDENT, UK_EMPLOYEE, CHAIRMAN] }
+        photoUrls: { type: array, items: { type: string }, description: 'Ссылки на приложенные фото (относительные, /uploads/photos/…); добавляются только в боте' }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
     CreateAnnouncement:
@@ -200,6 +201,7 @@ components:
             name: { type: string }
             role: { type: string, enum: [RESIDENT, UK_EMPLOYEE, CHAIRMAN] }
         isMine: { type: boolean }
+        photoUrls: { type: array, items: { type: string }, description: 'Ссылки на приложенные фото (относительные, /uploads/photos/…)' }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
     CreateNews:
@@ -209,6 +211,12 @@ components:
         title: { type: string, minLength: 3, maxLength: 120 }
         description: { type: string, minLength: 5, maxLength: 2000 }
         contact: { type: string, minLength: 3, maxLength: 200 }
+    CreateNewsMultipart:
+      allOf:
+        - $ref: '#/components/schemas/CreateNews'
+        - type: object
+          properties:
+            photos: { type: array, items: { type: string, format: binary }, maxItems: 5, description: До 5 файлов jpg/png/webp/gif, каждый до 8 МБ }
     UpdateNews:
       type: object
       properties:
@@ -278,6 +286,7 @@ components:
         isMine: { type: boolean }
         hasVoted: { type: boolean }
         canVote: { type: boolean, description: Текущий пользователь может поддержать заявку }
+        photoUrls: { type: array, items: { type: string }, description: 'Ссылки на приложенные фото (относительные, /uploads/photos/…)' }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
     RequestDetailed:
@@ -325,6 +334,12 @@ components:
         title: { type: string, maxLength: 120, description: Если не задан — формируется из категории и описания }
         priority: { $ref: '#/components/schemas/RequestPriority' }
         deadline: { type: string, description: 'Срок сбора подписей: ISO 8601 или ДД.ММ.ГГГГ. По умолчанию +14 дней. Для аварийных игнорируется' }
+    CreateRequestMultipart:
+      allOf:
+        - $ref: '#/components/schemas/CreateRequest'
+        - type: object
+          properties:
+            photos: { type: array, items: { type: string, format: binary }, maxItems: 5, description: До 5 файлов jpg/png/webp/gif, каждый до 8 МБ }
     ChangeStatus:
       type: object
       required: [status]
@@ -555,10 +570,15 @@ paths:
     post:
       tags: [requests]
       summary: Создать заявку
-      description: Аварийная заявка (priority = EMERGENCY) сразу получает статус SUBMITTED и уходит в УК без подписей.
+      description: |
+        Аварийная заявка (priority = EMERGENCY) сразу получает статус SUBMITTED и уходит в УК без подписей.
+        Фото необязательны: до 5 штук, каждая до 8 МБ, форматы jpg/png/webp/gif — отправляются полем `photos`
+        только в варианте `multipart/form-data` (JSON-запрос без фото работает как раньше).
       requestBody:
         required: true
-        content: { application/json: { schema: { $ref: '#/components/schemas/CreateRequest' } } }
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/CreateRequest' } }
+          multipart/form-data: { schema: { $ref: '#/components/schemas/CreateRequestMultipart' } }
       responses:
         '201': { description: Создана, content: { application/json: { schema: { $ref: '#/components/schemas/Request' } } } }
         '400': { $ref: '#/components/responses/BadRequest' }
@@ -752,10 +772,15 @@ paths:
     post:
       tags: [news]
       summary: Опубликовать новость в своём доме
-      description: Может любой прописанный к дому житель. houseId брать не нужно — берётся дом автора.
+      description: |
+        Может любой прописанный к дому житель. houseId брать не нужно — берётся дом автора.
+        Фото необязательны: до 5 штук, каждая до 8 МБ, форматы jpg/png/webp/gif — отправляются полем `photos`
+        только в варианте `multipart/form-data` (JSON-запрос без фото работает как раньше).
       requestBody:
         required: true
-        content: { application/json: { schema: { $ref: '#/components/schemas/CreateNews' } } }
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/CreateNews' } }
+          multipart/form-data: { schema: { $ref: '#/components/schemas/CreateNewsMultipart' } }
       responses:
         '201': { description: Создано, content: { application/json: { schema: { $ref: '#/components/schemas/News' } } } }
         '400': { $ref: '#/components/responses/BadRequest' }

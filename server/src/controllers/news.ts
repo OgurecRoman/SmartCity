@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { errors } from '../lib/errors.js';
+import { saveUploadedPhotos } from '../lib/upload.js';
 import { countNews, createNews, deleteNews, listNews, updateNews } from '../services/news.js';
 import { isEmployee } from '../services/users.js';
 import { serializeNews } from '../routes/serialize.js';
@@ -42,12 +43,14 @@ export async function create(req: Request, res: Response) {
     throw errors.badRequest('Сначала дождитесь подтверждения от председателя ТСЖ или УК', 'onboarding_required');
   }
   const input = parseBody(createSchema, req);
+  const photos = await saveUploadedPhotos(req.files as Express.Multer.File[] | undefined);
   const news = await createNews({
     houseId: user.houseId,
     authorId: user.id,
     title: input.title,
     description: input.description,
     contact: input.contact,
+    photos,
   });
   res.status(201).json(serializeNews(news, { viewerId: user.id }));
 }
