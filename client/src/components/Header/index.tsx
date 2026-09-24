@@ -5,7 +5,7 @@ import { Plus, X } from 'lucide-react';
 import SearchLine from '../SearchLine';
 
 export default function Header() {
-  const [selectedHouse, setSelectedHouse] = useState<string | null>(null);
+  const [selectedHouse] = useState<string | null>(null);
   const [modal, setModal] = useState(false);
 
   const handleAddHouse = () => {
