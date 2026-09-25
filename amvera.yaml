@@ -13,6 +13,6 @@ build:
 
 run:
   persistenceMount: /data
-  command: npm run start
+  command: node bot/dist/index.js
   env:
     NODE_ENV: production
