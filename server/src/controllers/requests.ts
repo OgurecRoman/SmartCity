@@ -1,5 +1,4 @@
 import type { Request, Response } from 'express';
-import { z } from 'zod';
 import { errors } from '../lib/errors.js';
 import { CATEGORY_LABELS, STATUS_LABELS, parseRuDate } from '../lib/labels.js';
 import { prisma } from '../lib/db.js';
@@ -7,22 +6,18 @@ import { saveUploadedPhotos } from '../lib/upload.js';
 import { buildRequestDocument } from '../services/documents.js';
 import { sendDelegationEmail } from '../services/mailer.js';
 import * as requestsService from '../services/requests.js';
-import { UK_ACTIVE_STATUSES, UK_SETTABLE_STATUSES } from '../services/rules.js';
+import { UK_ACTIVE_STATUSES } from '../services/rules.js';
 import { isEmployee } from '../services/users.js';
 import { serializeRequest, serializeRequestDetailed } from '../routes/serialize.js';
-import { idParam, parseBody, parseQuery } from '../routes/validation.js';
-
-const REQUEST_STATUSES = Object.keys(STATUS_LABELS) as [string, ...string[]];
-const REQUEST_CATEGORIES = Object.keys(CATEGORY_LABELS) as [string, ...string[]];
-
-const listQuerySchema = z.object({
-  filter: z.enum(['all', 'mine', 'supported']).default('all'),
-  status: z.string().optional(),
-  category: z.string().optional(),
-  houseId: z.coerce.number().int().positive().optional(),
-  limit: z.coerce.number().int().min(1).max(200).default(5),
-  offset: z.coerce.number().int().min(0).default(0),
-});
+import { REQUEST_CATEGORIES, REQUEST_STATUSES } from '../validation/common.js';
+import { idParam, parseBody, parseQuery } from '../validation/parse.js';
+import {
+  createRequestSchema,
+  listRequestsQuerySchema,
+  rateRequestSchema,
+  reopenRequestSchema,
+  updateStatusSchema,
+} from '../validation/requests.js';
 
 function parseListParam<T extends string>(raw: string | undefined, valid: readonly T[], label: string): T[] | undefined {
   if (!raw) return undefined;
@@ -35,7 +30,7 @@ function parseListParam<T extends string>(raw: string | undefined, valid: readon
 
 export async function list(req: Request, res: Response) {
   const user = req.user!;
-  const query = parseQuery(listQuerySchema, req);
+  const query = parseQuery(listRequestsQuerySchema, req);
   const statuses = parseListParam(query.status, REQUEST_STATUSES, 'статус');
   const categories = parseListParam(query.category, REQUEST_CATEGORIES, 'категория');
   const employee = isEmployee(user);
@@ -67,19 +62,10 @@ export async function list(req: Request, res: Response) {
   });
 }
 
-const createSchema = z.object({
-  category: z.enum(REQUEST_CATEGORIES),
-  description: z.string().trim().min(5).max(2000),
-  title: z.string().trim().max(120).optional(),
-  priority: z.enum(['NORMAL', 'EMERGENCY']).default('NORMAL'),
-
-  deadline: z.string().trim().optional(),
-});
-
 export async function create(req: Request, res: Response) {
   const user = req.user!;
   if (isEmployee(user)) throw errors.forbidden('Сотрудники УК не создают заявки');
-  const input = parseBody(createSchema, req);
+  const input = parseBody(createRequestSchema, req);
   let deadline: Date | null = null;
   if (input.deadline) {
     deadline = parseRuDate(input.deadline) ?? new Date(input.deadline);
@@ -124,25 +110,17 @@ export async function unvoteFor(req: Request, res: Response) {
   res.json(serializeRequest(request, { hasVoted: false, viewerId: user.id }));
 }
 
-const reopenSchema = z.object({
-  reason: z.string().trim().min(5).max(1000),
-});
-
 export async function reopen(req: Request, res: Response) {
   const user = req.user!;
-  const input = parseBody(reopenSchema, req);
+  const input = parseBody(reopenRequestSchema, req);
   const photos = await saveUploadedPhotos(req.files as Express.Multer.File[] | undefined);
   const request = await requestsService.reopenRequest(idParam(req), { userId: user.id, reason: input.reason, photos });
   res.json(serializeRequest(request, { viewerId: user.id }));
 }
 
-const rateSchema = z.object({
-  rating: z.coerce.number().int().min(1).max(5),
-});
-
 export async function rate(req: Request, res: Response) {
   const user = req.user!;
-  const input = parseBody(rateSchema, req);
+  const input = parseBody(rateRequestSchema, req);
   const request = await requestsService.rateRequest(idParam(req), { userId: user.id, rating: input.rating });
   res.json(serializeRequest(request, { viewerId: user.id }));
 }
@@ -158,17 +136,9 @@ export async function document(req: Request, res: Response) {
   res.send(doc.content);
 }
 
-const statusSchema = z.object({
-  status: z.enum(UK_SETTABLE_STATUSES as unknown as [string, ...string[]]),
-  comment: z.string().trim().max(1000).optional(),
-  organizationId: z.coerce.number().int().positive().optional(),
-  resolutionNote: z.string().trim().max(2000).optional(),
-  resolvedByName: z.string().trim().max(150).optional(),
-});
-
 export async function updateStatus(req: Request, res: Response) {
   const user = req.user!;
-  const input = parseBody(statusSchema, req);
+  const input = parseBody(updateStatusSchema, req);
   const requestId = idParam(req);
   const photos = await saveUploadedPhotos(req.files as Express.Multer.File[] | undefined);
   const request = await requestsService.changeStatus(requestId, input.status as keyof typeof STATUS_LABELS, {
@@ -189,14 +159,9 @@ export async function updateStatus(req: Request, res: Response) {
   res.json({ ...serializeRequest(request, { viewerId: user.id }), mail });
 }
 
-export async function updateMessage(req: Request, res: Response) {
-  await requestsService.updateMessage();
-  res.json({ ...serializeRequest(request, { viewerId: user.id }), mail });
-}
-
 export async function listForUk(req: Request, res: Response) {
   const user = req.user!;
-  const query = parseQuery(listQuerySchema, req);
+  const query = parseQuery(listRequestsQuerySchema, req);
   const statuses = (parseListParam(query.status, REQUEST_STATUSES, 'статус') as (keyof typeof STATUS_LABELS)[] | undefined) ?? [
     ...UK_ACTIVE_STATUSES,
   ];

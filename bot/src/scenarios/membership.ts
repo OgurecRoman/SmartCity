@@ -1,10 +1,9 @@
 import { defineScenario, transition } from '@maxhub/max-bot-api';
-import { isAppError } from '../../lib/errors.js';
-import { rejectMembershipRequest } from '../../services/membership.js';
-import { addTenantByOwner } from '../../services/users.js';
-import type { BotContext } from '../context.js';
-import { textOf } from '../helpers.js';
-import { btn, panelButton, withKeyboard } from '../ui.js';
+import type { BotContext } from '../controllers/context.js';
+import { textOf } from '../controllers/helpers.js';
+import { btn, panelButton, withKeyboard } from '../controllers/ui.js';
+import { addTenantByOwner, rejectMembershipRequest } from '../lib/api.js';
+import { isAppError } from '../lib/errors.js';
 import { SCENARIO_TIMEOUT_MS, cancelIntercept } from './common.js';
 
 export interface RejectMembershipData {
@@ -34,7 +33,7 @@ export const rejectMembershipScenario = defineScenario<BotContext, RejectMembers
         return transition.stay();
       }
       try {
-        await rejectMembershipRequest(data.requestId, ctx.dbUser, text.trim());
+        await rejectMembershipRequest(data.requestId, ctx.dbUser.id, text.trim());
         await ctx.reply(`❌ Заявка №${data.requestId} отклонена, заявителю отправлена причина.`, withKeyboard(panelButton()));
       } catch (error) {
         if (!isAppError(error)) throw error;
@@ -83,7 +82,7 @@ export const addTenantScenario = defineScenario<BotContext, AddTenantData>()<Add
         return transition.stay();
       }
       try {
-        const tenant = await addTenantByOwner(ctx.dbUser, BigInt(data.maxUserId), text);
+        const tenant = await addTenantByOwner(ctx.dbUser.id, data.maxUserId, text);
         await ctx.reply(`✅ Съёмщик добавлен в квартиру ${tenant.apartment}. Теперь он может пользоваться ботом и приложением.`, withKeyboard(panelButton()));
       } catch (error) {
         if (!isAppError(error)) throw error;

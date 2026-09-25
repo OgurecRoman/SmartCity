@@ -1,12 +1,17 @@
-import '../src/lib/bigint.js';
+// Офлайн-прогон сценариев бота: MAX API подменён заглушками, а бэкенд — настоящий.
+// Перед запуском поднимите сервер (cd server && npm run dev) и укажите BACKEND_API_URL в bot/.env.
+// Сотрудник УК (900000099) должен быть в UK_ADMIN_IDS сервера, тестовые жители 5000001–5000003 очищаются перед прогоном.
 import type { Update, User as MaxUser } from '@maxhub/max-bot-api/types';
-import { createBot } from '../src/bot/index.js';
-import { initNotifications } from '../src/bot/notifications.js';
-import { drainOutboxOnce } from '../src/bot/outboxConsumer.js';
-import { setBotIdentity } from '../src/bot/ui.js';
-import { prisma } from '../src/lib/db.js';
+import { createBot } from '../controllers/index.js';
+import { initNotifications } from '../controllers/notifications.js';
+import { drainOutboxOnce } from '../controllers/outboxConsumer.js';
+import { setBotIdentity } from '../controllers/ui.js';
+import { config } from '../config.js';
+import { getLatestMembershipRequestFor, getUserByMaxId, listRequests } from '../lib/api.js';
+import { ping, request } from '../lib/network.js';
 
 const BOT_ID = 1;
+const RESIDENT_IDS = ['5000001', '5000002', '5000003'];
 let midCounter = 0;
 const out = (line: string) => console.log(line);
 
@@ -70,8 +75,7 @@ initNotifications(bot.api);
 const handle = (bot as unknown as { handleUpdate: (update: Update) => Promise<void> }).handleUpdate;
 const settle = async () => {
   await new Promise((resolve) => setTimeout(resolve, 150));
-  // В реальном запуске события уходят в NotificationOutbox и их забирает отдельный процесс бота
-  // (src/bot-worker.ts). Здесь всё в одном процессе, поэтому вычитываем очередь вручную после каждого шага.
+  // В реальном запуске очередь NotificationOutbox опрашивается по таймеру; здесь вычитываем её вручную после каждого шага.
   await drainOutboxOnce();
 };
 
@@ -116,40 +120,40 @@ async function userAdded(u: MaxUser, chatId: number) {
   await settle();
 }
 
+async function dbUserOf(u: MaxUser) {
+  const row = await getUserByMaxId(u.user_id);
+  if (!row) throw new Error(`Пользователь ${u.user_id} не найден на бэкенде`);
+  return row;
+}
+
 async function onboard(u: MaxUser, apartment: string, reviewer: MaxUser) {
   await cb(u, 'onb:house:1');
   await msg(u, apartment);
   await cb(u, 'onb:name:profile');
   await cb(u, 'onb:send');
-  const request = await prisma.membershipRequest.findFirst({
-    where: { applicant: { maxUserId: BigInt(u.user_id) }, status: 'PENDING' },
-    orderBy: { id: 'desc' },
-  });
-  if (!request) throw new Error('Заявка на вступление не создана');
-  await cb(reviewer, `mem:approve:${request.id}`);
+  const membership = await getLatestMembershipRequestFor((await dbUserOf(u)).id);
+  if (!membership || membership.status !== 'PENDING') throw new Error('Заявка на вступление не создана');
+  await cb(reviewer, `mem:approve:${membership.id}`);
 }
-async function latestRequestId(maxUserId: number): Promise<number> {
-  const request = await prisma.request.findFirst({ where: { author: { maxUserId: BigInt(maxUserId) } }, orderBy: { id: 'desc' } });
-  if (!request) throw new Error('Заявка не создана');
-  return request.id;
+async function latestRequestId(u: MaxUser): Promise<number> {
+  const requests = await listRequests({ authorId: (await dbUserOf(u)).id });
+  if (requests.length === 0) throw new Error('Заявка не создана');
+  return Math.max(...requests.map((r) => r.id));
 }
 
 const section = (title: string) => out(`\n━━━ ${title} ━━━`);
 
 async function main() {
+  if (!(await ping())) {
+    throw new Error(`Бэкенд не отвечает по адресу ${config.backend.apiUrl}. Запустите сервер (cd server && npm run dev) и повторите.`);
+  }
+
   const admin = user(900000099, 'Сергей', 'Управляев');
   const anna = user(5000001, 'Пётр', 'Жильцов');
   const olga = user(5000002, 'Ольга', 'Соседова');
   const kirill = user(5000003, 'Кирилл', 'Подписов');
 
-  await prisma.botSession.deleteMany({});
-  await prisma.notificationOutbox.deleteMany({});
-  await prisma.request.deleteMany({ where: { author: { maxUserId: { in: [5000001n, 5000002n, 5000003n] } } } });
-  await prisma.announcement.deleteMany({ where: { author: { maxUserId: { in: [5000001n, 5000002n, 5000003n] } } } });
-  await prisma.news.deleteMany({ where: { author: { maxUserId: { in: [5000001n, 5000002n, 5000003n] } } } });
-  await prisma.membershipRequest.deleteMany({ where: { applicant: { maxUserId: { in: [5000001n, 5000002n, 5000003n] } } } });
-  await prisma.user.deleteMany({ where: { maxUserId: { in: [5000001n, 5000002n, 5000003n] } } });
-  await prisma.house.updateMany({ where: { id: 1 }, data: { chatId: null } });
+  await request('POST', 'bot/dev/reset', { maxUserIds: RESIDENT_IDS, unbindChatOfHouseIds: [1] });
 
   section('УК привязывает чат дома');
   await botAdded(admin, GROUP);
@@ -168,7 +172,7 @@ async function main() {
   await cb(anna, 'cr:skip');
   await cb(anna, 'cr:photos:done');
   await cb(anna, 'cr:send');
-  const requestId = await latestRequestId(anna.user_id);
+  const requestId = await latestRequestId(anna);
   out(`   (создана заявка №${requestId})`);
 
   section('Собственник добавляет своего съёмщика — тот сразу пользуется ботом');
@@ -207,7 +211,7 @@ async function main() {
   await cb(anna, 'cr:prio:EMERGENCY');
   await cb(anna, 'cr:photos:done');
   await cb(anna, 'cr:send');
-  const emergencyId = await latestRequestId(anna.user_id);
+  const emergencyId = await latestRequestId(anna);
 
   section('УК отклоняет с комментарием');
   await cb(admin, `uk:reject:${emergencyId}`);
@@ -269,9 +273,7 @@ async function main() {
   out('\n✅ Прогон завершён без необработанных ошибок');
 }
 
-main()
-  .catch((error) => {
-    console.error('❌ Прогон упал:', error);
-    process.exitCode = 1;
-  })
-  .finally(() => prisma.$disconnect());
+main().catch((error) => {
+  console.error('❌ Прогон упал:', error);
+  process.exitCode = 1;
+});

@@ -1,13 +1,12 @@
 import type { Bot } from '@maxhub/max-bot-api';
-import { isAppError } from '../../lib/errors.js';
-import { changeStatus, listRequests } from '../../services/requests.js';
-import { UK_ACTIVE_STATUSES } from '../../services/rules.js';
-import { getHouse, isChairman, isEmployee, listHouses, listResidentsOfHouse } from '../../services/users.js';
-import type { BotContext } from '../context.js';
-import { ack, isDialog } from '../helpers.js';
+import type { BotContext } from '../controllers/context.js';
+import { ack, isDialog } from '../controllers/helpers.js';
+import { esc, houseButtons, keyboard, MD, panelButton, requestCard, residentsCards, ukRequestButtons, withKeyboard } from '../controllers/ui.js';
+import { sendRequestDocument, sendRequestList } from '../controllers/views.js';
+import { changeStatus, getHouse, listHouses, listRequests, listResidentsOfHouse } from '../lib/api.js';
+import { isAppError } from '../lib/errors.js';
+import { isChairman, isEmployee, UK_ACTIVE_STATUSES } from '../lib/rules.js';
 import { announceScenario, delegateScenario, manageChairmanScenario, manageOwnerScenario, rejectScenario, resolveScenario } from '../scenarios/admin.js';
-import { esc, houseButtons, keyboard, MD, panelButton, requestCard, residentsCards, ukRequestButtons, withKeyboard } from '../ui.js';
-import { sendRequestDocument, sendRequestList } from '../views.js';
 
 async function guard(ctx: BotContext): Promise<boolean> {
   if (!isDialog(ctx)) return false;
@@ -35,7 +34,7 @@ async function showQueue(ctx: BotContext): Promise<void> {
 async function setStatus(ctx: BotContext, requestId: number, status: 'IN_PROGRESS', note: string): Promise<void> {
   if (!(await guard(ctx))) return;
   try {
-    const request = await changeStatus(requestId, status, { byUserId: ctx.dbUser.id });
+    const { request } = await changeStatus(requestId, status, { byUserId: ctx.dbUser.id });
     await ack(ctx, {
       message: { text: `${requestCard(request)}\n\n${note}`, attachments: [keyboard([...ukRequestButtons(request), ...panelButton()])], ...MD },
     });

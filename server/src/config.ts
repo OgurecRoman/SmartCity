@@ -32,7 +32,9 @@ export const config = {
   databaseUrl: process.env.DATABASE_URL ?? '',
   corsOrigin: process.env.CORS_ORIGIN?.trim() || '*',
   bot: {
-    token: botToken
+    token: botToken,
+    // Секрет для процесса бота: он передаёт его в заголовке X-Bot-Token к ручкам /api/bot/*.
+    apiToken: process.env.BOT_API_TOKEN?.trim() ?? '',
   },
   uk: {
     accessCode: process.env.UK_ACCESS_CODE?.trim() ?? '',

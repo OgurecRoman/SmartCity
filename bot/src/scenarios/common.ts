@@ -1,10 +1,10 @@
 import { transition } from '@maxhub/max-bot-api';
 import type { PhotoAttachment } from '@maxhub/max-bot-api/types';
-import { MAX_PHOTOS_PER_ITEM } from '../../lib/photoStorage.js';
-import type { BotContext } from '../context.js';
-import { payloadOf, stripButtons } from '../helpers.js';
-import { downloadPhotoFromMax } from '../photos.js';
-import { panelButton, withKeyboard } from '../ui.js';
+import type { BotContext } from '../controllers/context.js';
+import { payloadOf, stripButtons } from '../controllers/helpers.js';
+import { downloadPhotoFromMax } from '../controllers/photos.js';
+import { panelButton, withKeyboard } from '../controllers/ui.js';
+import { MAX_PHOTOS_PER_ITEM } from '../lib/rules.js';
 
 export async function cancelIntercept({ ctx }: { ctx: BotContext }) {
   if (payloadOf(ctx) !== 'cancel') return undefined;

@@ -31,13 +31,22 @@ export const config = {
     username: process.env.BOT_USERNAME?.trim().replace(/^@/, '') ?? '',
   },
   backend: {
-    apiUrl: process.env.BACKEND_API_URL?.trim() || 'http://localhost:3000',
-  }
+    apiUrl: (process.env.BACKEND_API_URL?.trim() || 'http://localhost:3000').replace(/\/+$/, ''),
+    // Должен совпадать с BOT_API_TOKEN на сервере; если на сервере не задан — проверка отключена.
+    token: process.env.BOT_API_TOKEN?.trim() ?? '',
+  },
+  jobs: {
+    outboxPollIntervalSec: int(process.env.NOTIFY_POLL_INTERVAL_SEC, 3),
+  },
+  votes: {
+    // Только для подсказки жителю при создании заявки; фактический срок выставляет сервер.
+    defaultDeadlineDays: int(process.env.DEFAULT_DEADLINE_DAYS, 14),
+  },
 } as const;
 
 export function assertConfig(): void {
   if (config.bot.enabled && !config.bot.token) {
-    throw new Error('BOT_TOKEN не задан, но бот включен (BOT_ENABLED=true).');
+    throw new Error('MAX_BOT_TOKEN не задан, но бот включён (BOT_ENABLED=true).');
   }
   if (config.bot.enabled && config.bot.mode === 'webhook' && !config.bot.webhookDomain) {
     throw new Error('BOT_MODE=webhook требует WEBHOOK_DOMAIN (публичный HTTPS-адрес).');

@@ -1,10 +1,11 @@
 import type { Bot } from '@maxhub/max-bot-api';
-import { fullName } from '../../lib/labels.js';
-import { log } from '../../lib/logger.js';
-import { bindHouseChat, getHouse, getHouseByChat, isEmployee, listHouses, unbindHouseChat } from '../../services/users.js';
-import type { BotContext } from '../context.js';
-import { ack, isDialog } from '../helpers.js';
-import { esc, MD, TEXTS, botDeepLink, btn, getBotUsername, houseButtons, mdName, withKeyboard } from '../ui.js';
+import type { BotContext } from '../controllers/context.js';
+import { ack, isDialog } from '../controllers/helpers.js';
+import { esc, MD, TEXTS, botDeepLink, btn, getBotUsername, houseButtons, mdName, withKeyboard } from '../controllers/ui.js';
+import { bindHouseChat, getHouse, getHouseByChat, listHouses, unbindHouseChat } from '../lib/api.js';
+import { fullName } from '../lib/labels.js';
+import { log } from '../lib/logger.js';
+import { isEmployee } from '../lib/rules.js';
 
 async function sendBindPrompt(ctx: BotContext): Promise<void> {
   const houses = await listHouses();

@@ -3,11 +3,21 @@ import type { AttachmentRequest, Message } from '@maxhub/max-bot-api/types';
 import { events } from '../lib/events.js';
 import { CATEGORY_LABELS, STATUS_EMOJI, STATUS_LABELS, fullName } from '../lib/labels.js';
 import { log } from '../lib/logger.js';
-import { getAnnouncement } from '../services/announcements.js';
-import { getMembershipRequest } from '../services/membership.js';
-import { getNews } from '../services/news.js';
-import { getRequest, type RequestWithRelations } from '../services/requests.js';
-import { getChairmanOf, getUserById, listEmployees } from '../services/users.js';
+import {
+  getAnnouncement,
+  getChairmanOf,
+  getHouse,
+  getMembershipRequest,
+  getNews,
+  getRequest,
+  getUserById,
+  listEmployees,
+  setAnnouncementChatMessage,
+  setNewsChatMessage,
+  setRequestChatMessage,
+  voterMaxIds,
+} from '../lib/api.js';
+import type { RequestWithRelations } from '../types/index.js';
 import { uploadPhotosToMax } from './photos.js';
 import {
   announcementCard,
@@ -26,14 +36,14 @@ import {
   withKeyboard,
   type ButtonRows,
 } from './ui.js';
-import { request } from '../lib/network.js';
 
 let api: Api | null = null;
 let subscribed = false;
 
 type Extra = { attachments?: AttachmentRequest[] };
 
-async function sendDm(maxUserId: bigint, text: string, extra?: Extra): Promise<void> {
+// MAX ID и chat_id приходят от бэкенда строками (BigInt в JSON).
+async function sendDm(maxUserId: string | bigint, text: string, extra?: Extra): Promise<void> {
   if (!api) return;
   try {
     await api.sendMessageToUser(Number(maxUserId), text, { ...extra, ...MD });
@@ -43,7 +53,7 @@ async function sendDm(maxUserId: bigint, text: string, extra?: Extra): Promise<v
   }
 }
 
-async function sendToChat(chatId: bigint, text: string, extra?: Extra): Promise<Message | null> {
+async function sendToChat(chatId: string | bigint, text: string, extra?: Extra): Promise<Message | null> {
   if (!api) return null;
   try {
     return await api.sendMessageToChat(Number(chatId), text, { ...extra, ...MD });
@@ -83,7 +93,7 @@ async function notifyEmployees(request: RequestWithRelations, heading: string): 
     return;
   }
   await Promise.all(
-    employees.map((employee: any) =>
+    employees.map((employee) =>
       sendDm(employee.maxUserId, `${heading}\n\n${requestCard(request)}`, withKeyboard(ukRequestButtons(request))),
     ),
   );
@@ -94,19 +104,8 @@ async function photoAttachments(filenames: string[]): Promise<AttachmentRequest[
   return uploadPhotosToMax(api, filenames);
 }
 
-async function voterIds(requestId: number, excludeUserId?: number): Promise<bigint[] | null> {
-  const queryParams: Record<string, string | number> = { requestId };
-  if (excludeUserId) {
-    queryParams.excludeUserId = excludeUserId;
-  }
-  const votes = await request('GET', 'votes', undefined, queryParams);
-  try {
-    const answer = (votes as any[]).map((vote: any) => vote.user.maxUserId);
-    return answer;
-  } catch (error) {
-    console.error('Неправильный формат данных:', error);
-    return null;
-  }
+async function voterIds(requestId: number, excludeUserId?: number): Promise<string[]> {
+  return voterMaxIds(requestId, excludeUserId);
 }
 
 function subscribe(): void {
@@ -119,15 +118,13 @@ function subscribe(): void {
     const emergency = request.priority === 'EMERGENCY';
     if (request.house.chatId) {
       const note = emergency ? '' : '\n\nНажмите «Подробнее», чтобы поддержать заявку.';
-      const images = await photoAttachments(request.photos.map((p: any) => p.filename));
+      const images = await photoAttachments(request.photos.map((p) => p.filename));
       const message = await sendToChat(
         request.house.chatId,
         `${chatHeading(request)}\n\n${requestCard(request)}${note}`,
         { attachments: [...images, keyboard(chatDetailsButtons(request.id))] },
       );
-      if (message) {
-        await prisma.request.update({ where: { id: request.id }, data: { chatMessageId: message.body.mid } }); // там уже что-то создано с названием updateMessage
-      }
+      if (message) await setRequestChatMessage(request.id, message.body.mid);
     }
     if (emergency) await notifyEmployees(request, '🚨 Поступила аварийная заявка');
   });
@@ -212,9 +209,7 @@ function subscribe(): void {
     if (!announcement || !announcement.house.chatId) return;
     const images = await photoAttachments(announcement.photos.map((p) => p.filename));
     const message = await sendToChat(announcement.house.chatId, announcementCard(announcement), { attachments: images });
-    if (message) {
-      await prisma.announcement.update({ where: { id: announcement.id }, data: { chatMessageId: message.body.mid } });
-    }
+    if (message) await setAnnouncementChatMessage(announcement.id, message.body.mid);
   });
 
   events.on('announcement.updated', async ({ announcementId }) => {
@@ -231,9 +226,7 @@ function subscribe(): void {
     if (!news || !news.house.chatId) return;
     const images = await photoAttachments(news.photos.map((p) => p.filename));
     const message = await sendToChat(news.house.chatId, newsCard(news), { attachments: images });
-    if (message) {
-      await prisma.news.update({ where: { id: news.id }, data: { chatMessageId: message.body.mid } });
-    }
+    if (message) await setNewsChatMessage(news.id, message.body.mid);
   });
 
   events.on('news.updated', async ({ newsId }) => {
@@ -264,7 +257,7 @@ function subscribe(): void {
     if (!request) return;
     let chatLine = '';
     if (api) {
-      const house = await prisma.house.findUnique({ where: { id: request.houseId } });
+      const house = await getHouse(request.houseId);
       if (house?.chatId) {
         try {
           const chat = await api.getChat(Number(house.chatId));

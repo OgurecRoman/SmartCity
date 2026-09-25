@@ -2,8 +2,8 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
-import { buildRequestDocument } from '../services/documents.js';
-import { getRequest, getRequestDetailed, hasVoted, type RequestWithRelations } from '../services/requests.js';
+import { getRequest, getRequestDocument, hasVoted } from '../lib/api.js';
+import type { RequestWithRelations } from '../types/index.js';
 import type { BotContext } from './context.js';
 import { MD, panelButton, requestCard, residentRequestButtons, ukRequestButtons, withKeyboard, type ButtonRows } from './ui.js';
 
@@ -49,12 +49,12 @@ export async function sendRequestList(
 }
 
 export async function sendRequestDocument(ctx: BotContext, requestId: number): Promise<void> {
-  const request = await getRequestDetailed(requestId);
+  const request = await getRequest(requestId);
   if (!request) {
     await ctx.reply('Заявка не найдена.');
     return;
   }
-  const document = buildRequestDocument(request);
+  const document = await getRequestDocument(requestId);
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'smartcity-'));
   const filePath = path.join(dir, document.fileName);
   try {

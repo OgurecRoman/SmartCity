@@ -1,9 +1,9 @@
 import { defineScenario, transition } from '@maxhub/max-bot-api';
-import { isAppError } from '../../lib/errors.js';
-import { createNews } from '../../services/news.js';
-import type { BotContext } from '../context.js';
-import { ack, payloadOf, textOf } from '../helpers.js';
-import { btn, panelButton, withKeyboard, type ButtonRows } from '../ui.js';
+import type { BotContext } from '../controllers/context.js';
+import { ack, payloadOf, textOf } from '../controllers/helpers.js';
+import { btn, panelButton, withKeyboard, type ButtonRows } from '../controllers/ui.js';
+import { createNews } from '../lib/api.js';
+import { isAppError } from '../lib/errors.js';
 import { SCENARIO_TIMEOUT_MS, cancelIntercept, handlePhotoInput } from './common.js';
 
 export interface CreateNewsData {

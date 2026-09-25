@@ -7,8 +7,7 @@ import dictionariesRouter from './dictionaries.js';
 import housesRouter from './houses.js';
 import meRouter from './me.js';
 import membershipRouter from './membership.js';
-import userRouter from './user.js';
-import voteRouter from './votes.js';
+import botRouter from './bot.js';
 import newsRouter from './news.js';
 import requestsRouter from './requests.js';
 import residentsRouter from './residents.js';
@@ -16,6 +15,8 @@ import residentsRouter from './residents.js';
 export const apiRouter = Router();
 
 apiRouter.use(dictionariesRouter);
+// Бот не умеет подписывать MaxInitData — его ручки живут до authenticate и защищены X-Bot-Token.
+apiRouter.use('/bot', botRouter);
 
 apiRouter.use(authenticate);
 
@@ -28,5 +29,3 @@ apiRouter.use(newsRouter);
 apiRouter.use(residentsRouter);
 apiRouter.use(camerasRouter);
 apiRouter.use(membershipRouter);
-apiRouter.use(userRouter);
-apiRouter.use(voteRouter);

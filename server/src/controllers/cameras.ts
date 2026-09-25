@@ -1,18 +1,14 @@
 import type { Request, Response } from 'express';
-import { z } from 'zod';
 import { errors } from '../lib/errors.js';
 import { listCamerasOfHouse } from '../services/cameras.js';
 import { isEmployee } from '../services/users.js';
 import { serializeCamera } from '../routes/serialize.js';
-import { parseQuery } from '../routes/validation.js';
-
-const listQuerySchema = z.object({
-  houseId: z.coerce.number().int().positive().optional(),
-});
+import { listCamerasQuerySchema } from '../validation/cameras.js';
+import { parseQuery } from '../validation/parse.js';
 
 export async function list(req: Request, res: Response) {
   const user = req.user!;
-  const query = parseQuery(listQuerySchema, req);
+  const query = parseQuery(listCamerasQuerySchema, req);
 
   let houseId: number;
   if (isEmployee(user)) {

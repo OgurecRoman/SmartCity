@@ -1,10 +1,9 @@
 import http from 'node:http';
-import { createBot, prepareBot } from './bot/index.js';
-import { startOutboxConsumer, stopOutboxConsumer } from './bot/outboxConsumer.js';
 import { assertConfig, config } from './config.js';
-import { prisma } from './lib/db.js';
+import { createBot, prepareBot } from './controllers/index.js';
+import { startOutboxConsumer, stopOutboxConsumer } from './controllers/outboxConsumer.js';
 import { log } from './lib/logger.js';
-import './lib/bigint.js';
+import { ping } from './lib/network.js';
 
 async function main(): Promise<void> {
   assertConfig();
@@ -13,8 +12,9 @@ async function main(): Promise<void> {
     return;
   }
 
-  await prisma.$connect();
-  log.info('База данных подключена (бот)');
+  // Бэкенд может подняться позже — это не повод падать: пока он недоступен, пользователи получают заглушку.
+  if (await ping()) log.info(`Бэкенд доступен: ${config.backend.apiUrl}`);
+  else log.warn(`Бэкенд не отвечает (${config.backend.apiUrl}) — бот запускается, но будет отвечать заглушкой, пока сервер не поднимется`);
 
   const bot = createBot();
   await prepareBot(bot);
@@ -30,7 +30,7 @@ async function main(): Promise<void> {
     await new Promise<void>((resolve) => webhookServer!.listen(config.bot.webhookPort, () => resolve()));
     log.info(`Вебхук бота слушает порт ${config.bot.webhookPort} (внешний адрес: ${config.bot.webhookDomain}${config.bot.webhookPath})`);
   } else {
-    bot.start({ mode: 'polling' }).catch((error) => {
+    bot.start({ mode: 'polling' }).catch((error: unknown) => {
       log.error('Long polling остановлен с ошибкой', error);
       process.exitCode = 1;
     });
@@ -47,7 +47,6 @@ async function main(): Promise<void> {
       if (config.bot.mode === 'polling') bot.stopPolling();
       else await bot.stopWebhook();
       if (webhookServer) await new Promise<void>((resolve) => webhookServer!.close(() => resolve()));
-      await prisma.$disconnect();
     } catch (error) {
       log.error('Ошибка при остановке бота', error);
     } finally {

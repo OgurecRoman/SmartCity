@@ -1,12 +1,12 @@
 import type { Bot } from '@maxhub/max-bot-api';
-import { config } from '../config.js';
-import { getLatestMembershipRequestFor } from '../../services/membership.js';
-import { isChairman, isEmployee, isOnboarded, promoteToEmployee } from '../../services/users.js';
-import type { BotContext } from '../context.js';
-import { ack, isDialog, parseIntStrict } from '../helpers.js';
+import type { BotContext } from '../controllers/context.js';
+import { ack, isDialog, parseIntStrict } from '../controllers/helpers.js';
+import { MD, TEXTS, adminMenu, residentMenu, withKeyboard } from '../controllers/ui.js';
+import { showRequestToEmployee, showRequestToResident } from '../controllers/views.js';
+import { getLatestMembershipRequestFor, promoteToEmployee } from '../lib/api.js';
+import { isAppError } from '../lib/errors.js';
+import { isChairman, isEmployee, isOnboarded } from '../lib/rules.js';
 import { onboardingScenario } from '../scenarios/onboarding.js';
-import { MD, TEXTS, adminMenu, residentMenu, withKeyboard } from '../ui.js';
-import { showRequestToEmployee, showRequestToResident } from '../views.js';
 
 export async function reportMembershipStatus(ctx: BotContext): Promise<boolean> {
   const latest = await getLatestMembershipRequestFor(ctx.dbUser.id);
@@ -110,16 +110,19 @@ export function registerCommonHandlers(bot: Bot<BotContext>): void {
   bot.command(/^uk_login(?:\s+(\S+))?$/, async (ctx) => {
     if (!isDialog(ctx)) return;
     const code = ctx.match?.[1];
-    if (!config.uk.accessCode) {
-      await ctx.reply('Вход для сотрудников УК по коду отключён (UK_ACCESS_CODE не задан).');
-      return;
-    }
-    if (!code || code !== config.uk.accessCode) {
+    if (!code) {
       await ctx.reply('Неверный код. Формат: /uk_login <код>');
       return;
     }
+    // Код проверяет сервер (UK_ACCESS_CODE), бот его не знает.
+    try {
+      ctx.dbUser = await promoteToEmployee(ctx.dbUser.id, code);
+    } catch (error) {
+      if (!isAppError(error)) throw error;
+      await ctx.reply(error.message);
+      return;
+    }
     ctx.scenario.cancel();
-    ctx.dbUser = await promoteToEmployee(ctx.dbUser.id);
     await ctx.reply(`Права сотрудника УК выданы.\n\n${TEXTS.welcomeAdmin}`, withKeyboard(adminMenu()));
   });
 }

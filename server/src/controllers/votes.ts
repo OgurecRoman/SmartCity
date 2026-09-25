@@ -1,12 +1,7 @@
 import type { Request, Response } from 'express';
-import { getVotes } from '../services/votes.js'
+import { getVotes } from '../services/votes.js';
 import { log } from '../lib/logger.js';
-import { z } from 'zod';
-
-export const getVotesSchema = z.object({
-  requestId: z.coerce.number().int().positive(),
-  excludeUserId: z.coerce.number().int().positive().optional(),
-});
+import { getVotesQuerySchema as getVotesSchema } from '../validation/bot.js';
 
 export async function getVotesController(req: Request, res: Response): Promise<void> {
   try {

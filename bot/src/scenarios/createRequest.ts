@@ -1,11 +1,11 @@
 import { defineScenario, transition } from '@maxhub/max-bot-api';
 import { config } from '../config.js';
-import { CATEGORY_LABELS, PRIORITY_LABELS, addDays, formatDate, parseRuDate } from '../../lib/labels.js';
-import type { RequestCategory, RequestPriority } from '@prisma/client';
-import { computeVotesRequired, createRequest } from '../../services/requests.js';
-import type { BotContext } from '../context.js';
-import { ack, payloadOf, textOf } from '../helpers.js';
-import { MD, btn, categoryButtons, panelButton, requestCard, withKeyboard, type ButtonRows } from '../ui.js';
+import type { BotContext } from '../controllers/context.js';
+import { ack, payloadOf, textOf } from '../controllers/helpers.js';
+import { MD, btn, categoryButtons, panelButton, requestCard, withKeyboard, type ButtonRows } from '../controllers/ui.js';
+import { computeVotesRequired, createRequest } from '../lib/api.js';
+import { CATEGORY_LABELS, PRIORITY_LABELS, addDays, formatDate, parseRuDate } from '../lib/labels.js';
+import type { RequestCategory, RequestPriority } from '../types/index.js';
 import { SCENARIO_TIMEOUT_MS, cancelIntercept, handlePhotoInput } from './common.js';
 
 export interface CreateRequestData {

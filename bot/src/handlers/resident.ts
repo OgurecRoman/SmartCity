@@ -1,17 +1,17 @@
 import type { Bot } from '@maxhub/max-bot-api';
-import { isAppError } from '../../lib/errors.js';
-import { log } from '../../lib/logger.js';
-import { deleteRequest, getRequest, hasVoted, listRequests, vote } from '../../services/requests.js';
-import { getCompany, isEmployee, isOnboarded } from '../../services/users.js';
-import type { BotContext } from '../context.js';
-import { ack, isDialog, stripButtons } from '../helpers.js';
+import type { BotContext } from '../controllers/context.js';
+import { ack, isDialog, stripButtons } from '../controllers/helpers.js';
+import { MD, TEXTS, btn, contactsCard, keyboard, panelButton, requestCard, residentRequestButtons, withKeyboard } from '../controllers/ui.js';
+import { sendRequestList } from '../controllers/views.js';
+import { deleteRequest, getCompany, getRequest, hasVoted, listRequests, vote } from '../lib/api.js';
+import { isAppError } from '../lib/errors.js';
+import { log } from '../lib/logger.js';
+import { isEmployee, isOnboarded } from '../lib/rules.js';
 import { createRequestScenario } from '../scenarios/createRequest.js';
 import { addTenantScenario } from '../scenarios/membership.js';
 import { createNewsScenario } from '../scenarios/news.js';
 import { onboardingScenario } from '../scenarios/onboarding.js';
 import { reopenRequestScenario } from '../scenarios/reopenRequest.js';
-import { MD, TEXTS, btn, contactsCard, keyboard, panelButton, requestCard, residentRequestButtons, withKeyboard } from '../ui.js';
-import { sendRequestList } from '../views.js';
 import { reportMembershipStatus } from './common.js';
 
 async function ensureOnboarded(ctx: BotContext, next: string | null): Promise<boolean> {

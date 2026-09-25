@@ -12,12 +12,15 @@ import {
   formatDateTime,
   fullName,
 } from '../lib/labels.js';
-import type { AnnouncementWithRelations } from '../services/announcements.js';
-import type { MembershipRequestWithRelations } from '../services/membership.js';
-import type { NewsWithRelations } from '../services/news.js';
-import type { RequestWithRelations } from '../services/requests.js';
-import { AUTHOR_DELETABLE_STATUSES, REOPEN_WINDOW_DAYS } from '../services/rules.js';
-import type { DbUser, ResidentRow } from '../services/users.js';
+import { AUTHOR_DELETABLE_STATUSES, REOPEN_WINDOW_DAYS } from '../lib/rules.js';
+import type {
+  AnnouncementWithRelations,
+  DbUser,
+  MembershipRequestWithRelations,
+  NewsWithRelations,
+  RequestWithRelations,
+  ResidentRow,
+} from '../types/index.js';
 
 export type ButtonRows = Button[][];
 export const btn = Keyboard.button;
@@ -121,7 +124,7 @@ export function yesNoButtons(prefix: string): ButtonRows {
 
 export function canReopenRequest(request: RequestWithRelations): boolean {
   if (request.status !== 'RESOLVED' || request.reopenedAt || !request.resolvedAt) return false;
-  const deadline = request.resolvedAt.getTime() + REOPEN_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+  const deadline = new Date(request.resolvedAt).getTime() + REOPEN_WINDOW_DAYS * 24 * 60 * 60 * 1000;
   return Date.now() <= deadline;
 }
 

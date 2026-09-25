@@ -16,10 +16,9 @@ import { addTenantScenario, rejectMembershipScenario } from '../scenarios/member
 import { createNewsScenario } from '../scenarios/news.js';
 import { onboardingScenario } from '../scenarios/onboarding.js';
 import { reopenRequestScenario } from '../scenarios/reopenRequest.js';
-import { PrismaSessionStore } from './sessionStore.js';
+import { ApiSessionStore } from './sessionStore.js';
 import { panelButton, setBotIdentity, withKeyboard } from './ui.js';
-import { DbUser } from '../types/index.js';
-import { request } from '../lib/network.js';
+import { upsertFromMax } from '../lib/api.js';
 
 export const BOT_COMMANDS = [
   { name: 'panel', description: 'Главное меню' },
@@ -52,25 +51,17 @@ export function createBot(): Bot<BotContext> {
     }
   });
 
-  bot.use(session<BotSession, BotContext>({ store: new PrismaSessionStore<BotSession>(), defaultSession: () => ({}) }));
+  bot.use(session<BotSession, BotContext>({ store: new ApiSessionStore<BotSession>(), defaultSession: () => ({}) }));
 
   bot.use(async (ctx, next) => {
     const maxUser = maxUserOf(ctx.update);
     if (maxUser && !maxUser.is_bot) {
-      const options = {
-        maxUserId: maxUser.user_id.toString(),
+      ctx.dbUser = await upsertFromMax({
+        maxUserId: maxUser.user_id,
         firstName: maxUser.first_name || maxUser.name || 'Житель',
         lastName: maxUser.last_name ?? null,
         username: maxUser.username ?? null,
-      };
-      const userData = await request('POST', 'user/upsert', options);
-      try {
-        ctx.dbUser = userData as DbUser;
-      } catch (error) {
-        console.error('Неправильный формат данных:', error);
-        await ctx.reply('Произошла ошибка при сохранении данных. Попробуйте позже.');
-        return;
-      }
+      });
     }
     return next();
   });

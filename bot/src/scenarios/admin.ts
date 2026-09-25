@@ -1,25 +1,23 @@
 import { defineScenario, transition } from '@maxhub/max-bot-api';
-import { prisma } from '../../lib/db.js';
-import { isAppError } from '../../lib/errors.js';
-import { fullName } from '../../lib/labels.js';
-import { createAnnouncement } from '../../services/announcements.js';
-import { buildRequestDocument } from '../../services/documents.js';
-import { sendDelegationEmail } from '../../services/mailer.js';
-import { changeStatus, getRequest, getRequestDetailed } from '../../services/requests.js';
+import type { BotContext } from '../controllers/context.js';
+import { ack, payloadOf, textOf } from '../controllers/helpers.js';
+import { MD, btn, esc, houseButtons, keyboard, mdName, panelButton, requestCard, ukRequestButtons, withKeyboard, yesNoButtons } from '../controllers/ui.js';
 import {
   appointChairman,
   assignResidentToHouse,
+  changeStatus,
+  createAnnouncement,
   detachResident,
   dismissChairman,
   getHouse,
+  getRequest,
   getUserByMaxId,
-  isChairman,
   listHouses,
   listOrganizations,
-} from '../../services/users.js';
-import type { BotContext } from '../context.js';
-import { ack, payloadOf, textOf } from '../helpers.js';
-import { MD, btn, esc, houseButtons, keyboard, mdName, panelButton, requestCard, ukRequestButtons, withKeyboard, yesNoButtons } from '../ui.js';
+} from '../lib/api.js';
+import { isAppError } from '../lib/errors.js';
+import { fullName } from '../lib/labels.js';
+import { isChairman } from '../lib/rules.js';
 import { SCENARIO_TIMEOUT_MS, cancelIntercept, handlePhotoInput } from './common.js';
 
 export interface ManageOwnerData {
@@ -407,21 +405,19 @@ export const delegateScenario = defineScenario<BotContext, DelegateData>()<Deleg
       }
       const organizationId = Number(match[1]);
       try {
-        const updated = await changeStatus(data.requestId, 'DELEGATED', { byUserId: ctx.dbUser.id, organizationId });
-        const detailed = await getRequestDetailed(data.requestId);
-        const organization = await prisma.responsibleOrganization.findUnique({ where: { id: organizationId } });
-        let mailNote = '';
-        if (detailed && organization) {
-          const result = await sendDelegationEmail(updated, organization, buildRequestDocument(detailed));
-          mailNote = result.to
-            ? result.simulated
-              ? `Письмо на ${result.to} записано в лог сервера (SMTP не настроен — отправка имитируется).`
-              : `Заявка отправлена на почту ответственного: ${result.to}.`
+        // Письмо в организацию отправляет сервер вместе со сменой статуса и возвращает результат.
+        const { request: updated, mail } = await changeStatus(data.requestId, 'DELEGATED', { byUserId: ctx.dbUser.id, organizationId });
+        const organizationName = updated.delegatedTo?.name ?? String(organizationId);
+        const mailNote = !mail
+          ? ''
+          : mail.to
+            ? mail.simulated
+              ? `Письмо на ${mail.to} записано в лог сервера (SMTP не настроен — отправка имитируется).`
+              : `Заявка отправлена на почту ответственного: ${mail.to}.`
             : 'У организации не указан email — письмо не отправлено.';
-        }
-        await ack(ctx, { message: { text: `Организация: ${organization?.name ?? organizationId}` } });
-        await ctx.reply(`➡️ Заявка №${data.requestId} передана в «${organization?.name}». ${mailNote}`, withKeyboard(panelButton()));
-        await refreshCard(ctx, data.requestId, data.cardMid, `➡️ Передана в организацию: ${esc(organization?.name ?? '')}`);
+        await ack(ctx, { message: { text: `Организация: ${organizationName}` } });
+        await ctx.reply(`➡️ Заявка №${data.requestId} передана в «${organizationName}». ${mailNote}`, withKeyboard(panelButton()));
+        await refreshCard(ctx, data.requestId, data.cardMid, `➡️ Передана в организацию: ${esc(organizationName)}`);
       } catch (error) {
         if (!isAppError(error)) throw error;
         await ack(ctx, { notification: error.message });
@@ -562,7 +558,7 @@ export const resolveScenario = defineScenario<BotContext, ResolveData>()<Resolve
         return transition.stay();
       }
       try {
-        const request = await changeStatus(data.requestId, 'RESOLVED', {
+        const { request } = await changeStatus(data.requestId, 'RESOLVED', {
           byUserId: ctx.dbUser.id,
           resolutionNote: data.note,
           resolvedByName: data.responsibleName,

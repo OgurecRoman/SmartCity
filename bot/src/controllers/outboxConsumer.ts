@@ -1,22 +1,23 @@
 import { config } from '../config.js';
+import { ackOutbox, listOutbox } from '../lib/api.js';
 import { events, type AppEvents } from '../lib/events.js';
-import { prisma } from '../lib/db.js';
 import { log } from '../lib/logger.js';
 
 let running = false;
 
+/** Забирает накопившиеся события из NotificationOutbox (через бэкенд), рассылает уведомления и подтверждает обработку. */
 export async function drainOutboxOnce(): Promise<void> {
   if (running) return;
   running = true;
   try {
-    const rows = await prisma.notificationOutbox.findMany({ orderBy: { id: 'asc' }, take: 50 });
+    const rows = await listOutbox(50);
     for (const row of rows) {
       try {
         await events.dispatch(row.event as keyof AppEvents, row.payload as AppEvents[keyof AppEvents]);
       } catch (error) {
         log.error(`Ошибка диспетчеризации события ${row.event}`, error);
       }
-      await prisma.notificationOutbox.delete({ where: { id: row.id } }).catch(() => {});
+      await ackOutbox(row.id).catch(() => {});
     }
   } catch (error) {
     log.error('Ошибка обработки очереди уведомлений', error);

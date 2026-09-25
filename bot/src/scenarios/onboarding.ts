@@ -1,11 +1,10 @@
 import { defineScenario, transition } from '@maxhub/max-bot-api';
-import { checkApartment } from '../../services/rules.js';
-import { submitMembershipRequest } from '../../services/membership.js';
-import { apartmentDataOf, getHouse, listHouses } from '../../services/users.js';
-import { isAppError } from '../../lib/errors.js';
-import type { BotContext } from '../context.js';
-import { ack, payloadOf, textOf } from '../helpers.js';
-import { MD, btn, esc, houseButtons, mdName, panelButton, withKeyboard } from '../ui.js';
+import type { BotContext } from '../controllers/context.js';
+import { ack, payloadOf, textOf } from '../controllers/helpers.js';
+import { MD, btn, esc, houseButtons, mdName, panelButton, withKeyboard } from '../controllers/ui.js';
+import { getHouse, listHouses, submitMembershipRequest } from '../lib/api.js';
+import { isAppError } from '../lib/errors.js';
+import { apartmentDataOf, checkApartment } from '../lib/rules.js';
 import { SCENARIO_TIMEOUT_MS, cancelIntercept } from './common.js';
 
 export interface OnboardingData {

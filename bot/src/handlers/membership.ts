@@ -1,11 +1,11 @@
 import type { Bot } from '@maxhub/max-bot-api';
-import { isAppError } from '../../lib/errors.js';
-import { approveMembershipRequest, listPendingMembershipRequests } from '../../services/membership.js';
-import { isChairman, isEmployee } from '../../services/users.js';
-import type { BotContext } from '../context.js';
-import { ack, isDialog } from '../helpers.js';
+import type { BotContext } from '../controllers/context.js';
+import { ack, isDialog } from '../controllers/helpers.js';
+import { MD, membershipCard, membershipReviewButtons, panelButton, withKeyboard } from '../controllers/ui.js';
+import { approveMembershipRequest, listPendingMembershipRequests } from '../lib/api.js';
+import { isAppError } from '../lib/errors.js';
+import { isChairman, isEmployee } from '../lib/rules.js';
 import { rejectMembershipScenario } from '../scenarios/membership.js';
-import { MD, membershipCard, membershipReviewButtons, panelButton, withKeyboard } from '../ui.js';
 
 async function guardReview(ctx: BotContext): Promise<boolean> {
   if (!isDialog(ctx)) return false;
@@ -18,7 +18,7 @@ async function guardReview(ctx: BotContext): Promise<boolean> {
 async function showQueue(ctx: BotContext): Promise<void> {
   if (!(await guardReview(ctx))) return;
   await ack(ctx);
-  const list = await listPendingMembershipRequests(ctx.dbUser);
+  const list = await listPendingMembershipRequests(ctx.dbUser.id);
   if (list.length === 0) {
     await ctx.reply('Заявок на вступление нет.', withKeyboard(panelButton()));
     return;
@@ -36,7 +36,7 @@ export function registerMembershipHandlers(bot: Bot<BotContext>): void {
     if (!(await guardReview(ctx))) return;
     const requestId = Number(ctx.match?.[1]);
     try {
-      await approveMembershipRequest(requestId, ctx.dbUser);
+      await approveMembershipRequest(requestId, ctx.dbUser.id);
       await ack(ctx, { message: { text: `✅ Заявка №${requestId} подтверждена. Заявителю отправлена ссылка на чат дома.`, attachments: [] } });
     } catch (error) {
       if (!isAppError(error)) throw error;

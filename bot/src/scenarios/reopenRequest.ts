@@ -1,9 +1,9 @@
 import { defineScenario, transition } from '@maxhub/max-bot-api';
-import { isAppError } from '../../lib/errors.js';
-import { reopenRequest } from '../../services/requests.js';
-import type { BotContext } from '../context.js';
-import { ack, payloadOf, textOf } from '../helpers.js';
-import { MD, btn, panelButton, requestCard, withKeyboard, type ButtonRows } from '../ui.js';
+import type { BotContext } from '../controllers/context.js';
+import { ack, payloadOf, textOf } from '../controllers/helpers.js';
+import { MD, btn, panelButton, requestCard, withKeyboard, type ButtonRows } from '../controllers/ui.js';
+import { reopenRequest } from '../lib/api.js';
+import { isAppError } from '../lib/errors.js';
 import { SCENARIO_TIMEOUT_MS, cancelIntercept, handlePhotoInput } from './common.js';
 
 export interface ReopenRequestData {

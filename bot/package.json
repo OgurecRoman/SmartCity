@@ -1,16 +1,16 @@
 {
-  "name": "smartcity-server",
+  "name": "smartcity-bot",
   "version": "0.1.0",
   "private": true,
-  "description": "SmartCity: чат-бот MAX и API для заявок жителей многоквартирного дома",
-  "main": "dist/server.js",
+  "description": "SmartCity: чат-бот MAX для заявок жителей многоквартирного дома (ходит в бэкенд по HTTP)",
+  "main": "dist/bot-worker.js",
   "type": "module",
   "scripts": {
     "dev": "cross-env NODE_EXTRA_CA_CERTS=certs/russian_trusted_ca.pem tsx watch src/bot-worker.ts",
     "build": "tsc -p tsconfig.json",
     "start": "cross-env NODE_EXTRA_CA_CERTS=certs/russian_trusted_ca.pem node dist/bot-worker.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "simulate": "tsx scripts/simulate-bot.ts"
+    "simulate": "tsx src/scripts/simulate-bot.ts"
   },
   "engines": {
     "node": ">=20.19.0"
@@ -18,17 +18,11 @@
   "license": "MIT",
   "dependencies": {
     "@maxhub/max-bot-api": "^0.3.1",
-    "@types/node": "^20.17.0",
-    "dotenv": "^18.0.0",
-    "multer": "^2.4.0",
-    "nodemailer": "^10.0.10",
-    "zod": "^4.6.5"
+    "dotenv": "^18.0.0"
   },
   "devDependencies": {
-    "@types/multer": "^2.2.0",    
-    "@types/nodemailer": "^8.0.2",
+    "@types/node": "^20.17.0",
     "cross-env": "^10.1.0",
-    "esbuild": "^0.28.2",
     "tsx": "^4.23.13",
     "typescript": "^5.7.2"
   }
