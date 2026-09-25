@@ -6,10 +6,7 @@ meta:
 
 build:
   skip: false
-  additionalCommands:
-    - cd bot
-    - npm ci
-    - npm run build
+  additionalCommands: npm run build
   artifacts:
     bot/*: /
 

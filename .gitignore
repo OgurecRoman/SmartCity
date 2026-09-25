@@ -1,16 +1,5 @@
-node_modules/
-
-/generated/prisma
-
-# секреты
+node_modules
+dist/
 .env
-server/.env
-
-# генерируемое
-server/src/generated/
-server/dist/
-server/_old/
-.idea/
-.agents/
-.windsurf/
+*.log
 .DS_Store
