@@ -8,8 +8,8 @@ server/.env
 
 # генерируемое
 server/src/generated/
-server/dist/
 server/_old/
+dist
 .idea/
 .agents/
 .windsurf/
