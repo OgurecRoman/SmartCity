@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { photoUpload } from '../lib/upload.js';
 import * as newsController from '../controllers/news.js';
 
 const router = Router();
@@ -14,7 +15,7 @@ const router = Router();
  *     tags: [Новости]
  */
 router.get('/news', newsController.list);
-router.post('/news', newsController.create);
+router.post('/news', photoUpload.array('photos'), newsController.create);
 
 /**
  * @swagger

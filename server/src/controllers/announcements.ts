@@ -1,14 +1,14 @@
 import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { errors } from '../lib/errors.js';
-import { createAnnouncement, deleteAnnouncement, listAnnouncements, updateAnnouncement } from '../services/announcements.js';
+import { countAnnouncements, createAnnouncement, deleteAnnouncement, listAnnouncements, updateAnnouncement } from '../services/announcements.js';
 import { isChairman, isEmployee } from '../services/users.js';
 import { serializeAnnouncement } from '../routes/serialize.js';
 import { idParam, parseBody, parseQuery } from '../routes/validation.js';
 
 const listQuerySchema = z.object({
   houseId: z.coerce.number().int().positive().optional(),
-  limit: z.coerce.number().int().min(1).max(200).default(50),
+  limit: z.coerce.number().int().min(1).max(200).default(5),
   offset: z.coerce.number().int().min(0).default(0),
 });
 
@@ -23,8 +23,11 @@ export async function list(req: Request, res: Response) {
     houseId = user.houseId;
   }
 
-  const announcements = await listAnnouncements({ houseId, limit: query.limit, offset: query.offset });
-  res.json(announcements.map(serializeAnnouncement));
+  const [announcements, total] = await Promise.all([
+    listAnnouncements({ houseId, limit: query.limit, offset: query.offset }),
+    countAnnouncements({ houseId }),
+  ]);
+  res.json({ items: announcements.map(serializeAnnouncement), total });
 }
 
 const createSchema = z.object({

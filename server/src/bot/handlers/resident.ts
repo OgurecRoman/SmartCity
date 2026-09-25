@@ -9,7 +9,8 @@ import { createRequestScenario } from '../scenarios/createRequest.js';
 import { addTenantScenario } from '../scenarios/membership.js';
 import { createNewsScenario } from '../scenarios/news.js';
 import { onboardingScenario } from '../scenarios/onboarding.js';
-import { TEXTS, btn, contactsCard, keyboard, panelButton, requestCard, residentRequestButtons, withKeyboard } from '../ui.js';
+import { reopenRequestScenario } from '../scenarios/reopenRequest.js';
+import { MD, TEXTS, btn, contactsCard, keyboard, panelButton, requestCard, residentRequestButtons, withKeyboard } from '../ui.js';
 import { sendRequestList } from '../views.js';
 import { reportMembershipStatus } from './common.js';
 
@@ -101,7 +102,7 @@ export function registerResidentHandlers(bot: Bot<BotContext>): void {
       const note = submitted
         ? '\n\n✅ Заявка была подписана! Собрано нужное число подписей — заявка передана в УК.'
         : '\n\n✅ Заявка была подписана!';
-      await ack(ctx, { message: { text: requestCard(request) + note, attachments: [keyboard(panelButton())] } });
+      await ack(ctx, { message: { text: requestCard(request) + note, attachments: [keyboard(panelButton())], ...MD } });
     } catch (error) {
       if (!isAppError(error)) throw error;
       await ack(ctx, { notification: error.message });
@@ -133,7 +134,7 @@ export function registerResidentHandlers(bot: Bot<BotContext>): void {
       await ctx.api.sendMessageToUser(
         Number(ctx.dbUser.maxUserId),
         requestCard(request) + (voted ? '\n\n✅ Вы поддержали эту заявку' : ''),
-        withKeyboard([...residentRequestButtons(request, ctx.dbUser, voted), ...panelButton()]),
+        { ...withKeyboard([...residentRequestButtons(request, ctx.dbUser, voted), ...panelButton()]), ...MD },
       );
       await ack(ctx, { notification: 'Отправил заявку вам в личные сообщения' });
     } catch (error) {
@@ -171,7 +172,17 @@ export function registerResidentHandlers(bot: Bot<BotContext>): void {
       return;
     }
     await ack(ctx, {
-      message: { text: requestCard(request), attachments: [keyboard([...residentRequestButtons(request, ctx.dbUser, false), ...panelButton()])] },
+      message: {
+        text: requestCard(request),
+        attachments: [keyboard([...residentRequestButtons(request, ctx.dbUser, false), ...panelButton()])],
+        ...MD,
+      },
     });
+  });
+
+  bot.action(/^req:reopen:(\d+)$/, async (ctx) => {
+    if (!isDialog(ctx)) return;
+    await ack(ctx);
+    await ctx.scenario.start(reopenRequestScenario, { requestId: Number(ctx.match?.[1]) });
   });
 }

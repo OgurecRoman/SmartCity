@@ -1,4 +1,5 @@
 import { CATEGORY_LABELS, PRIORITY_LABELS, RESIDENT_TYPE_LABELS, ROLE_LABELS, STATUS_LABELS, fullName } from '../lib/labels.js';
+import { photoUrlPath } from '../lib/photoStorage.js';
 import type { AnnouncementWithRelations } from '../services/announcements.js';
 import type { CameraWithHouse } from '../services/cameras.js';
 import type { MembershipRequestWithRelations } from '../services/membership.js';
@@ -6,6 +7,10 @@ import type { NewsWithRelations } from '../services/news.js';
 import type { RequestDetailed, RequestWithRelations } from '../services/requests.js';
 import { checkApartment, type Entrance } from '../services/rules.js';
 import { apartmentDataOf, type DbUser, type ResidentRow } from '../services/users.js';
+
+function photoUrlsOf(photos: { filename: string }[]): string[] {
+  return photos.map((photo) => photoUrlPath(photo.filename));
+}
 
 type HouseRow = {
   id: number;
@@ -102,10 +107,16 @@ export function serializeRequest(request: RequestWithRelations, extra: { hasVote
     deadline: request.deadline,
     submittedAt: request.submittedAt,
     resolvedAt: request.resolvedAt,
+    resolutionNote: request.resolutionNote,
+    resolvedByName: request.resolvedByName,
+    reopenedAt: request.reopenedAt,
+    rating: request.rating,
     delegatedAt: request.delegatedAt,
     delegatedTo: request.delegatedTo,
     house: { id: request.house.id, address: request.house.address },
     author: { id: request.author.id, name: fullName(request.author), apartment: request.author.apartment },
+    photoUrls: photoUrlsOf(request.photos.filter((p) => !p.isResult)),
+    resultPhotoUrls: photoUrlsOf(request.photos.filter((p) => p.isResult)),
     isMine: extra.viewerId !== undefined ? request.authorId === extra.viewerId : undefined,
     hasVoted: extra.hasVoted,
     canVote:
@@ -146,6 +157,7 @@ export function serializeAnnouncement(announcement: AnnouncementWithRelations) {
     title: announcement.title,
     description: announcement.description,
     author: { id: announcement.author.id, name: fullName(announcement.author), role: announcement.author.role },
+    photoUrls: photoUrlsOf(announcement.photos),
     createdAt: announcement.createdAt,
     updatedAt: announcement.updatedAt,
   };
@@ -160,6 +172,7 @@ export function serializeNews(news: NewsWithRelations, extra: { viewerId?: numbe
     description: news.description,
     contact: news.contact,
     author: { id: news.author.id, name: fullName(news.author), role: news.author.role },
+    photoUrls: photoUrlsOf(news.photos),
     isMine: extra.viewerId !== undefined ? news.authorId === extra.viewerId : undefined,
     createdAt: news.createdAt,
     updatedAt: news.updatedAt,

@@ -3,15 +3,17 @@ import { prisma } from '../lib/db.js';
 import { errors } from '../lib/errors.js';
 import { events } from '../lib/events.js';
 import { CATEGORY_LABELS, STATUS_LABELS, addDays } from '../lib/labels.js';
+import { deletePhotoFile } from '../lib/photoStorage.js';
 import { Prisma } from '@prisma/client';
 import type { RequestCategory, RequestPriority, RequestStatus } from '@prisma/client';
-import { AUTHOR_DELETABLE_STATUSES, canTransition, votesRequiredFor } from './rules.js';
+import { AUTHOR_DELETABLE_STATUSES, REOPEN_WINDOW_DAYS, canTransition, votesRequiredFor } from './rules.js';
 import { countResidents } from './users.js';
 
 export const requestInclude = {
   author: { select: { id: true, firstName: true, lastName: true, apartment: true, maxUserId: true } },
   house: { select: { id: true, address: true, chatId: true, votePercent: true } },
   delegatedTo: { select: { id: true, name: true, email: true, phone: true } },
+  photos: { select: { filename: true, isResult: true }, orderBy: { id: 'asc' } },
 } satisfies Prisma.RequestInclude;
 
 export const requestDetailedInclude = {
@@ -55,6 +57,7 @@ export interface CreateRequestInput {
   title?: string | null;
   priority?: RequestPriority;
   deadline?: Date | null;
+  photos?: string[];
 }
 
 export async function createRequest(input: CreateRequestInput): Promise<RequestWithRelations> {
@@ -94,6 +97,7 @@ export async function createRequest(input: CreateRequestInput): Promise<RequestW
           comment: emergency ? 'Аварийная заявка передана в УК без сбора подписей' : null,
         },
       },
+      photos: input.photos?.length ? { create: input.photos.map((filename) => ({ filename })) } : undefined,
     },
     include: requestInclude,
   });
@@ -203,6 +207,9 @@ export interface ChangeStatusInput {
   byUserId: number | null;
   comment?: string | null;
   organizationId?: number | null;
+  photos?: string[];
+  resolutionNote?: string;
+  resolvedByName?: string;
 }
 
 export async function changeStatus(
@@ -240,6 +247,20 @@ export async function changeStatus(
   }
   if (newStatus === 'SUBMITTED') data.submittedAt = new Date();
   if (newStatus === 'RESOLVED' || newStatus === 'REJECTED') data.resolvedAt = new Date();
+  if (newStatus === 'RESOLVED') {
+    const note = input.resolutionNote?.trim();
+    const responsible = input.resolvedByName?.trim();
+    if (!note) throw errors.badRequest('Опишите, что именно было сделано');
+    if (!responsible) throw errors.badRequest('Укажите ФИО ответственного за выполнение');
+    if (request.reopenedAt && !input.photos?.length) {
+      throw errors.badRequest('Эту заявку уже возвращал житель — при повторном закрытии обязательно приложите фото результата');
+    }
+    data.resolutionNote = note;
+    data.resolvedByName = responsible;
+  }
+  if (input.photos?.length) {
+    data.photos = { create: input.photos.map((filename) => ({ filename, isResult: true })) };
+  }
 
   const updated = await prisma.request.update({ where: { id: requestId }, data, include: requestInclude });
   events.emit('request.status_changed', {
@@ -252,14 +273,129 @@ export async function changeStatus(
   return updated;
 }
 
-export async function deleteRequest(requestId: number, userId: number): Promise<void> {
+export interface ReopenRequestInput {
+  userId: number;
+  reason: string;
+  photos: string[];
+}
+
+export async function reopenRequest(requestId: number, input: ReopenRequestInput): Promise<RequestWithRelations> {
+  const request = await prisma.request.findUnique({ where: { id: requestId }, include: { photos: true } });
+  if (!request) throw errors.notFound('Заявка не найдена');
+  if (request.authorId !== input.userId) throw errors.forbidden('Вернуть заявку может только её автор');
+  if (request.status !== 'RESOLVED') throw errors.conflict('Вернуть можно только заявку в статусе «Сделано»', 'invalid_transition');
+  if (request.reopenedAt) throw errors.conflict('Эту заявку уже возвращали — повторный возврат недоступен', 'reopen_limit');
+  const deadline = request.resolvedAt ? request.resolvedAt.getTime() + REOPEN_WINDOW_DAYS * 24 * 60 * 60 * 1000 : 0;
+  if (Date.now() > deadline) {
+    throw errors.conflict(`Заявку можно вернуть только в течение ${REOPEN_WINDOW_DAYS} дней после закрытия`, 'reopen_window_expired');
+  }
+
+  const reason = input.reason.trim();
+  if (reason.length < 5) throw errors.badRequest('Опишите, почему заявка не выполнена (минимум 5 символов)');
+  if (input.photos.length === 0) throw errors.badRequest('Приложите хотя бы одно фото, подтверждающее, что проблема не устранена');
+
+  const oldResultPhotos = request.photos.filter((photo) => photo.isResult);
+
+  const updated = await prisma.$transaction(async (tx) => {
+    if (oldResultPhotos.length > 0) {
+      await tx.photo.deleteMany({ where: { id: { in: oldResultPhotos.map((photo) => photo.id) } } });
+    }
+    return tx.request.update({
+      where: { id: requestId },
+      data: {
+        status: 'SUBMITTED',
+        reopenedAt: new Date(),
+        resolvedAt: null,
+        resolutionNote: null,
+        resolvedByName: null,
+        statusHistory: { create: { oldStatus: 'RESOLVED', newStatus: 'SUBMITTED', comment: reason, changedById: input.userId } },
+        photos: { create: input.photos.map((filename) => ({ filename, isResult: false })) },
+      },
+      include: requestInclude,
+    });
+  });
+
+  await Promise.all(oldResultPhotos.map((photo) => deletePhotoFile(photo.filename)));
+  events.emit('request.reopened', { requestId, reason, photos: input.photos });
+  return updated;
+}
+
+export interface RateRequestInput {
+  userId: number;
+  rating: number;
+}
+
+export async function rateRequest(requestId: number, input: RateRequestInput): Promise<RequestWithRelations> {
   const request = await prisma.request.findUnique({ where: { id: requestId } });
+  if (!request) throw errors.notFound('Заявка не найдена');
+  if (request.authorId !== input.userId) throw errors.forbidden('Оценить заявку может только её автор');
+  if (request.status !== 'RESOLVED') throw errors.conflict('Оценить можно только заявку в статусе «Сделано»');
+  if (!Number.isInteger(input.rating) || input.rating < 1 || input.rating > 5) {
+    throw errors.badRequest('Оценка должна быть целым числом от 1 до 5');
+  }
+  return prisma.request.update({
+    where: { id: requestId },
+    data: { rating: input.rating, ratedAt: new Date() },
+    include: requestInclude,
+  });
+}
+
+export async function getCompanyRating(companyId: number): Promise<{ average: number | null; count: number }> {
+  const result = await prisma.request.aggregate({
+    where: { house: { companyId }, rating: { not: null } },
+    _avg: { rating: true },
+    _count: { rating: true },
+  });
+  return { average: result._avg.rating, count: result._count.rating };
+}
+
+export interface CompanyMetrics {
+  avgReactionMinutes: number | null;
+  noReopenRate: number | null;
+}
+
+export async function getCompanyMetrics(companyId: number): Promise<CompanyMetrics> {
+  const histories = await prisma.statusHistory.findMany({
+    where: { request: { house: { companyId } } },
+    orderBy: [{ requestId: 'asc' }, { changedAt: 'asc' }],
+    select: { requestId: true, oldStatus: true, newStatus: true, changedAt: true },
+  });
+
+  const submittedAtByRequest = new Map<number, Date>();
+  const reactionMinutes: number[] = [];
+  for (const entry of histories) {
+    if (entry.newStatus === 'SUBMITTED') {
+      submittedAtByRequest.set(entry.requestId, entry.changedAt);
+    } else if (entry.oldStatus === 'SUBMITTED') {
+      const submittedAt = submittedAtByRequest.get(entry.requestId);
+      if (submittedAt) {
+        reactionMinutes.push((entry.changedAt.getTime() - submittedAt.getTime()) / 60_000);
+        submittedAtByRequest.delete(entry.requestId);
+      }
+    }
+  }
+  const avgReactionMinutes = reactionMinutes.length
+    ? reactionMinutes.reduce((sum, value) => sum + value, 0) / reactionMinutes.length
+    : null;
+
+  const [everResolvedCount, resolvedWithoutReopenCount] = await Promise.all([
+    prisma.request.count({ where: { house: { companyId }, OR: [{ resolvedAt: { not: null } }, { reopenedAt: { not: null } }] } }),
+    prisma.request.count({ where: { house: { companyId }, resolvedAt: { not: null }, reopenedAt: null } }),
+  ]);
+  const noReopenRate = everResolvedCount > 0 ? (resolvedWithoutReopenCount / everResolvedCount) * 100 : null;
+
+  return { avgReactionMinutes, noReopenRate };
+}
+
+export async function deleteRequest(requestId: number, userId: number): Promise<void> {
+  const request = await prisma.request.findUnique({ where: { id: requestId }, include: { photos: { select: { filename: true } } } });
   if (!request) throw errors.notFound('Заявка не найдена');
   if (request.authorId !== userId) throw errors.forbidden('Удалить заявку может только её автор');
   if (!AUTHOR_DELETABLE_STATUSES.includes(request.status)) {
     throw errors.conflict('Заявка уже передана в УК, удалить её нельзя');
   }
   await prisma.request.delete({ where: { id: requestId } });
+  await Promise.all(request.photos.map((photo) => deletePhotoFile(photo.filename)));
   events.emit('request.deleted', {
     requestId,
     houseId: request.houseId,
@@ -278,20 +414,30 @@ export interface ListFilter {
   offset?: number;
 }
 
-export async function listRequests(filter: ListFilter): Promise<RequestWithRelations[]> {
+type RequestFilterFields = Pick<ListFilter, 'houseId' | 'authorId' | 'supportedByUserId' | 'statuses' | 'categories'>;
+
+function buildRequestWhere(filter: RequestFilterFields): Prisma.RequestWhereInput {
   const where: Prisma.RequestWhereInput = {};
   if (filter.houseId !== undefined) where.houseId = filter.houseId;
   if (filter.authorId !== undefined) where.authorId = filter.authorId;
   if (filter.supportedByUserId !== undefined) where.votes = { some: { userId: filter.supportedByUserId } };
   if (filter.statuses && filter.statuses.length > 0) where.status = { in: filter.statuses };
   if (filter.categories && filter.categories.length > 0) where.category = { in: filter.categories };
+  return where;
+}
+
+export async function listRequests(filter: ListFilter): Promise<RequestWithRelations[]> {
   return prisma.request.findMany({
-    where,
+    where: buildRequestWhere(filter),
     include: requestInclude,
     orderBy: [{ createdAt: 'desc' }],
     take: Math.min(Math.max(filter.limit ?? 50, 1), 200),
     skip: Math.max(filter.offset ?? 0, 0),
   });
+}
+
+export async function countRequests(filter: RequestFilterFields): Promise<number> {
+  return prisma.request.count({ where: buildRequestWhere(filter) });
 }
 
 export async function expireOverdue(now = new Date()): Promise<number[]> {

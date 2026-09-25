@@ -64,10 +64,32 @@ export async function getLatestMembershipRequestFor(applicantId: number): Promis
   });
 }
 
-export async function listPendingMembershipRequests(reviewer: Pick<DbUser, 'role' | 'houseId'>): Promise<MembershipRequestWithRelations[]> {
+function buildPendingMembershipWhere(reviewer: Pick<DbUser, 'role' | 'houseId'>): Prisma.MembershipRequestWhereInput {
   const where: Prisma.MembershipRequestWhereInput = { status: 'PENDING' };
   if (reviewer.role === 'CHAIRMAN') where.houseId = reviewer.houseId ?? -1;
-  return prisma.membershipRequest.findMany({ where, include: membershipRequestInclude, orderBy: { createdAt: 'asc' } });
+  return where;
+}
+
+export interface ListPendingOptions {
+  limit?: number;
+  offset?: number;
+}
+
+export async function listPendingMembershipRequests(
+  reviewer: Pick<DbUser, 'role' | 'houseId'>,
+  options: ListPendingOptions = {},
+): Promise<MembershipRequestWithRelations[]> {
+  return prisma.membershipRequest.findMany({
+    where: buildPendingMembershipWhere(reviewer),
+    include: membershipRequestInclude,
+    orderBy: { createdAt: 'asc' },
+    take: options.limit !== undefined ? Math.min(Math.max(options.limit, 1), 200) : undefined,
+    skip: options.offset !== undefined ? Math.max(options.offset, 0) : undefined,
+  });
+}
+
+export async function countPendingMembershipRequests(reviewer: Pick<DbUser, 'role' | 'houseId'>): Promise<number> {
+  return prisma.membershipRequest.count({ where: buildPendingMembershipWhere(reviewer) });
 }
 
 export async function approveMembershipRequest(id: number, reviewer: DbUser): Promise<MembershipRequestWithRelations> {

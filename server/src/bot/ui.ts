@@ -1,4 +1,4 @@
-import { Keyboard } from '@maxhub/max-bot-api';
+import { Keyboard, fmt } from '@maxhub/max-bot-api';
 import type { AttachmentRequest, Button } from '@maxhub/max-bot-api/types';
 import { config } from '../config.js';
 import {
@@ -16,11 +16,27 @@ import type { AnnouncementWithRelations } from '../services/announcements.js';
 import type { MembershipRequestWithRelations } from '../services/membership.js';
 import type { NewsWithRelations } from '../services/news.js';
 import type { RequestWithRelations } from '../services/requests.js';
-import { AUTHOR_DELETABLE_STATUSES } from '../services/rules.js';
+import { AUTHOR_DELETABLE_STATUSES, REOPEN_WINDOW_DAYS } from '../services/rules.js';
 import type { DbUser, ResidentRow } from '../services/users.js';
 
 export type ButtonRows = Button[][];
 export const btn = Keyboard.button;
+
+/** Флаг для extra/body сообщений, содержащих markdown-разметку (см. mdName/mdStatus/esc ниже). */
+export const MD = { format: 'markdown' as const };
+
+/** Экранирует произвольный (в т.ч. пользовательский) текст перед вставкой в markdown-сообщение. */
+export const esc = fmt.escape;
+
+/** Имя человека — курсивом. */
+export function mdName(name: string): string {
+  return fmt.italic(fmt.escape(name));
+}
+
+/** Метка статуса — полужирным. */
+export function mdStatus(label: string): string {
+  return fmt.bold(fmt.escape(label));
+}
 
 let botUsername = config.bot.username;
 
@@ -103,6 +119,12 @@ export function yesNoButtons(prefix: string): ButtonRows {
   return [[btn.callback('Да', `${prefix}:yes`), btn.callback('Нет', `${prefix}:no`)]];
 }
 
+export function canReopenRequest(request: RequestWithRelations): boolean {
+  if (request.status !== 'RESOLVED' || request.reopenedAt || !request.resolvedAt) return false;
+  const deadline = request.resolvedAt.getTime() + REOPEN_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+  return Date.now() <= deadline;
+}
+
 export function residentRequestButtons(request: RequestWithRelations, viewer: DbUser, viewerHasVoted: boolean): ButtonRows {
   const rows: ButtonRows = [];
   const isAuthor = request.authorId === viewer.id;
@@ -111,6 +133,9 @@ export function residentRequestButtons(request: RequestWithRelations, viewer: Db
   }
   if (isAuthor && AUTHOR_DELETABLE_STATUSES.includes(request.status)) {
     rows.push([btn.callback('🗑 Удалить', `req:delete:${request.id}`)]);
+  }
+  if (isAuthor && canReopenRequest(request)) {
+    rows.push([btn.callback('🔄 Не сделано, вернуть', `req:reopen:${request.id}`)]);
   }
   const app = openAppButton('📱 Открыть в приложении', `request_${request.id}`);
   if (app) rows.push([app]);
@@ -154,10 +179,10 @@ export function requestCard(request: RequestWithRelations): string {
   const emoji = request.priority === 'EMERGENCY' ? '🚨' : '📋';
   lines.push(`${emoji} Заявка №${request.id} · ${CATEGORY_LABELS[request.category]}`);
   if (request.priority === 'EMERGENCY') lines.push(`Приоритет: ${PRIORITY_LABELS.EMERGENCY}`);
-  lines.push(`Автор: ${fullName(request.author)}${request.author.apartment ? `, кв. ${request.author.apartment}` : ''}`);
-  lines.push(`Дом: ${request.house.address}`);
+  lines.push(`Автор: ${mdName(fullName(request.author))}${request.author.apartment ? `, кв. ${request.author.apartment}` : ''}`);
+  lines.push(`Дом: ${esc(request.house.address)}`);
   lines.push('');
-  lines.push(request.description);
+  lines.push(esc(request.description));
   lines.push('');
   if (request.priority !== 'EMERGENCY') {
     if (request.status === 'VOTING') {
@@ -166,24 +191,29 @@ export function requestCard(request: RequestWithRelations): string {
     lines.push(`Необходимое количество подписей: ${request.votesRequired}`);
     lines.push(`Поддержали: ${request.votesCount}`);
   }
-  if (request.delegatedTo) lines.push(`Передана в: ${request.delegatedTo.name}`);
-  lines.push(`Статус: ${STATUS_EMOJI[request.status]} ${STATUS_LABELS[request.status]}`);
+  if (request.delegatedTo) lines.push(`Передана в: ${esc(request.delegatedTo.name)}`);
+  if (request.status === 'RESOLVED' && request.resolutionNote) {
+    lines.push(`Выполнено: ${esc(request.resolutionNote)}`);
+    if (request.resolvedByName) lines.push(`Ответственный: ${mdName(request.resolvedByName)}`);
+  }
+  if (request.reopenedAt) lines.push('🔄 Была возвращена автором — проблема не была устранена');
+  lines.push(`Статус: ${STATUS_EMOJI[request.status]} ${mdStatus(STATUS_LABELS[request.status])}`);
   lines.push(`Создана: ${formatDateTime(request.createdAt)}`);
   return lines.join('\n');
 }
 
 export function requestShortLine(request: RequestWithRelations): string {
-  return `${STATUS_EMOJI[request.status]} №${request.id} · ${CATEGORY_LABELS[request.category]} · ${STATUS_LABELS[request.status]}`;
+  return `${STATUS_EMOJI[request.status]} №${request.id} · ${CATEGORY_LABELS[request.category]} · ${mdStatus(STATUS_LABELS[request.status])}`;
 }
 
 export function announcementCard(announcement: AnnouncementWithRelations): string {
   const lines = [
-    `📢 ${announcement.title}`,
+    `📢 ${esc(announcement.title)}`,
     '',
-    announcement.description,
+    esc(announcement.description),
     '',
-    `Дом: ${announcement.house.address}`,
-    `От: ${fullName(announcement.author)}`,
+    `Дом: ${esc(announcement.house.address)}`,
+    `От: ${mdName(fullName(announcement.author))}`,
     `Опубликовано: ${formatDateTime(announcement.createdAt)}`,
   ];
   return lines.join('\n');
@@ -191,13 +221,13 @@ export function announcementCard(announcement: AnnouncementWithRelations): strin
 
 export function newsCard(news: NewsWithRelations): string {
   const lines = [
-    `🎉 ${news.title}`,
+    `🎉 ${esc(news.title)}`,
     '',
-    news.description,
+    esc(news.description),
     '',
-    `Дом: ${news.house.address}`,
-    `От: ${fullName(news.author)}`,
-    `Связаться: ${news.contact}`,
+    `Дом: ${esc(news.house.address)}`,
+    `От: ${mdName(fullName(news.author))}`,
+    `Связаться: ${esc(news.contact)}`,
   ];
   return lines.join('\n');
 }
@@ -205,9 +235,9 @@ export function newsCard(news: NewsWithRelations): string {
 export function membershipCard(request: MembershipRequestWithRelations): string {
   const lines = [
     `🆕 Заявка на вступление №${request.id}`,
-    `ФИО: ${request.fullName}`,
-    `Дом: ${request.house.address}`,
-    `Квартира: ${request.apartment}`,
+    `ФИО: ${mdName(request.fullName)}`,
+    `Дом: ${esc(request.house.address)}`,
+    `Квартира: ${esc(request.apartment)}`,
     `MAX ID заявителя: ${request.applicant.maxUserId}`,
     `Подана: ${formatDateTime(request.createdAt)}`,
   ];
@@ -223,8 +253,8 @@ export function residentsCards(house: { address: string }, residents: ResidentRo
     const name = r.verifiedFullName ?? fullName(r);
     const verified = r.verifiedFullName ? '' : ' (ФИО не подтверждено)';
     const type = r.residentType ? ` · ${RESIDENT_TYPE_LABELS[r.residentType]}` : '';
-    const nick = r.username ? `@${r.username}` : 'без ника';
-    return `Кв. ${r.apartment ?? '—'} — ${name}${verified}${type}\n${nick} · MAX ID ${r.maxUserId}`;
+    const nick = r.username ? `@${esc(r.username)}` : 'без ника';
+    return `Кв. ${r.apartment ?? '—'} — ${mdName(name)}${verified}${type}\n${nick} · MAX ID ${r.maxUserId}`;
   });
 
   const perMessage = 15;
@@ -233,7 +263,7 @@ export function residentsCards(house: { address: string }, residents: ResidentRo
     chunks.push(lines.slice(i, i + perMessage).join('\n\n'));
   }
   if (chunks.length === 0) return chunks;
-  chunks[0] = `👥 Жители дома «${house.address}» (${residents.length})\n\n${chunks[0]}`;
+  chunks[0] = `👥 Жители дома «${esc(house.address)}» (${residents.length})\n\n${chunks[0]}`;
   return chunks;
 }
 
@@ -258,7 +288,7 @@ export const TEXTS = {
     'Здесь можно создать заявку (шумные соседи, сломанный лифт, ремонт подъезда, авария), поддержать заявки соседей ' +
     'и следить за статусом: от сбора подписей до выполнения.\n\n' +
     'Для начала расскажите, где вы живёте — заявку проверит председатель ТСЖ или УК.',
-  welcomeBack: (name: string) => `С возвращением, ${name}! Что делаем?`,
+  welcomeBack: (name: string) => `С возвращением, ${mdName(name)}! Что делаем?`,
   welcomeAdmin:
     'Вы сотрудник управляющей компании. Что умеет бот:\n' +
     '• присылает вам заявки, собравшие нужное число подписей, и аварийные заявки;\n' +

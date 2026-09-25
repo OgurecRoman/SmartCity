@@ -72,14 +72,20 @@ export interface AnswerOptions {
 
   notification?: string;
 
-  message?: { text: string; attachments?: AttachmentRequest[] };
+  message?: { text: string; attachments?: AttachmentRequest[]; format?: 'markdown' };
 }
 
 export async function ack(ctx: BotContext, options: AnswerOptions = {}): Promise<void> {
   if (!ctx.has('message_callback')) return;
   const body: Record<string, unknown> = {};
   if (options.notification) body.notification = options.notification;
-  if (options.message) body.message = { text: options.message.text, attachments: options.message.attachments ?? [] };
+  if (options.message) {
+    body.message = {
+      text: options.message.text,
+      attachments: options.message.attachments ?? [],
+      ...(options.message.format ? { format: options.message.format } : {}),
+    };
+  }
   try {
     await ctx.answerOnCallback(body as Parameters<typeof ctx.answerOnCallback>[0]);
   } catch (error) {

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { requireEmployee } from '../auth/middleware.js';
 import * as housesController from '../controllers/houses.js';
 
 const router = Router();
@@ -18,12 +19,12 @@ router.post('/houses', housesController.create);
 
 /**
  * @swagger
- * /api/houses/lookup:
+ * /api/houses/{id}:
  *   get:
- *     summary: Получить дом по координатам
+ *     summary: Получить дом по id
  *     tags: [Дома]
  */
-router.get('/houses/lookup', housesController.lookup);
+router.patch('/houses/:id', requireEmployee, housesController.updateVotePercent);
 router.get('/geo/search', housesController.searchGeo);
 
 export default router;

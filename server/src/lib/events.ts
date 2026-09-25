@@ -1,5 +1,5 @@
-import { EventEmitter } from 'node:events';
 import type { RequestStatus } from '@prisma/client';
+import { prisma } from './db.js';
 import { log } from './logger.js';
 
 export interface AppEvents {
@@ -15,6 +15,7 @@ export interface AppEvents {
   };
   'request.deleted': { requestId: number; houseId: number; chatMessageId: string | null; title: string };
   'request.expired': { requestId: number };
+  'request.reopened': { requestId: number; reason: string; photos: string[] };
   'announcement.created': { announcementId: number };
   'announcement.updated': { announcementId: number };
   'announcement.deleted': { announcementId: number; houseId: number; chatMessageId: string | null; title: string };
@@ -29,17 +30,37 @@ export interface AppEvents {
 
 type Handler<K extends keyof AppEvents> = (payload: AppEvents[K]) => Promise<void> | void;
 
-const emitter = new EventEmitter();
+const handlers = new Map<keyof AppEvents, Handler<keyof AppEvents>[]>();
+
+async function enqueue<K extends keyof AppEvents>(name: K, payload: AppEvents[K]): Promise<void> {
+  try {
+    await prisma.notificationOutbox.create({ data: { event: name, payload: payload as object } });
+  } catch (error) {
+    log.error(`Не удалось поставить событие ${name} в очередь уведомлений`, error);
+  }
+}
 
 export const events = {
+  // Регистрирует обработчик — вызывается только через dispatch(), из очереди в БД (см. bot/outboxConsumer.ts).
   on<K extends keyof AppEvents>(name: K, handler: Handler<K>): void {
-    emitter.on(name, (payload: AppEvents[K]) => {
-      Promise.resolve()
-        .then(() => handler(payload))
-        .catch((error) => log.error(`Обработчик события ${name} завершился с ошибкой`, error));
-    });
+    const list = (handlers.get(name) ?? []) as Handler<K>[];
+    list.push(handler);
+    handlers.set(name, list as Handler<keyof AppEvents>[]);
   },
+  // Публикует событие: кладёт его в NotificationOutbox, чтобы процесс бота забрал его опросом.
+  // Не вызывает обработчики напрямую — сервисы и бот-процесс могут быть разными процессами.
   emit<K extends keyof AppEvents>(name: K, payload: AppEvents[K]): void {
-    emitter.emit(name, payload);
+    void enqueue(name, payload);
+  },
+  // Прогоняет зарегистрированные обработчики для одного события — вызывается только поллером очереди.
+  async dispatch<K extends keyof AppEvents>(name: K, payload: AppEvents[K]): Promise<void> {
+    const list = (handlers.get(name) ?? []) as Handler<K>[];
+    for (const handler of list) {
+      try {
+        await handler(payload);
+      } catch (error) {
+        log.error(`Обработчик события ${name} завершился с ошибкой`, error);
+      }
+    }
   },
 };

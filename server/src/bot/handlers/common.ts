@@ -5,7 +5,7 @@ import { isChairman, isEmployee, isOnboarded, promoteToEmployee } from '../../se
 import type { BotContext } from '../context.js';
 import { ack, isDialog, parseIntStrict } from '../helpers.js';
 import { onboardingScenario } from '../scenarios/onboarding.js';
-import { TEXTS, adminMenu, residentMenu, withKeyboard } from '../ui.js';
+import { MD, TEXTS, adminMenu, residentMenu, withKeyboard } from '../ui.js';
 import { showRequestToEmployee, showRequestToResident } from '../views.js';
 
 export async function reportMembershipStatus(ctx: BotContext): Promise<boolean> {
@@ -64,7 +64,7 @@ export async function handleStart(ctx: BotContext, payload: string | null): Prom
     return;
   }
   if (isOnboarded(user)) {
-    await ctx.reply(TEXTS.welcomeBack(user.firstName), withKeyboard(residentMenu(isChairman(user), user.residentType === 'OWNER')));
+    await ctx.reply(TEXTS.welcomeBack(user.firstName), { ...withKeyboard(residentMenu(isChairman(user), user.residentType === 'OWNER')), ...MD });
     return;
   }
   if (await reportMembershipStatus(ctx)) return;

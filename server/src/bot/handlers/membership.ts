@@ -5,7 +5,7 @@ import { isChairman, isEmployee } from '../../services/users.js';
 import type { BotContext } from '../context.js';
 import { ack, isDialog } from '../helpers.js';
 import { rejectMembershipScenario } from '../scenarios/membership.js';
-import { membershipCard, membershipReviewButtons, panelButton, withKeyboard } from '../ui.js';
+import { MD, membershipCard, membershipReviewButtons, panelButton, withKeyboard } from '../ui.js';
 
 async function guardReview(ctx: BotContext): Promise<boolean> {
   if (!isDialog(ctx)) return false;
@@ -24,7 +24,7 @@ async function showQueue(ctx: BotContext): Promise<void> {
     return;
   }
   for (const request of list) {
-    await ctx.reply(membershipCard(request), withKeyboard(membershipReviewButtons(request.id)));
+    await ctx.reply(membershipCard(request), { ...withKeyboard(membershipReviewButtons(request.id)), ...MD });
   }
 }
 

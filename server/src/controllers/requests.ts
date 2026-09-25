@@ -3,15 +3,19 @@ import { z } from 'zod';
 import { errors } from '../lib/errors.js';
 import { CATEGORY_LABELS, STATUS_LABELS, parseRuDate } from '../lib/labels.js';
 import { prisma } from '../lib/db.js';
+import { saveUploadedPhotos } from '../lib/upload.js';
 import { buildRequestDocument } from '../services/documents.js';
 import { sendDelegationEmail } from '../services/mailer.js';
 import {
   changeStatus,
+  countRequests,
   createRequest,
   deleteRequest,
   getRequestDetailed,
   hasVoted,
   listRequests,
+  rateRequest,
+  reopenRequest,
   unvote,
   vote,
   votedRequestIds,
@@ -29,7 +33,7 @@ const listQuerySchema = z.object({
   status: z.string().optional(),
   category: z.string().optional(),
   houseId: z.coerce.number().int().positive().optional(),
-  limit: z.coerce.number().int().min(1).max(200).default(50),
+  limit: z.coerce.number().int().min(1).max(200).default(5),
   offset: z.coerce.number().int().min(0).default(0),
 });
 
@@ -58,17 +62,22 @@ export async function list(req: Request, res: Response) {
     houseId = user.houseId;
   }
 
-  const requests = await listRequests({
+  const filter = {
     houseId,
     authorId: query.filter === 'mine' ? user.id : undefined,
     supportedByUserId: query.filter === 'supported' ? user.id : undefined,
     statuses: statuses as (keyof typeof STATUS_LABELS)[] | undefined,
     categories: categories as (keyof typeof CATEGORY_LABELS)[] | undefined,
-    limit: query.limit,
-    offset: query.offset,
-  });
+  };
+  const [requests, total] = await Promise.all([
+    listRequests({ ...filter, limit: query.limit, offset: query.offset }),
+    countRequests(filter),
+  ]);
   const voted = await votedRequestIds(user.id, requests.map((request) => request.id));
-  res.json(requests.map((request) => serializeRequest(request, { hasVoted: voted.has(request.id), viewerId: user.id })));
+  res.json({
+    items: requests.map((request) => serializeRequest(request, { hasVoted: voted.has(request.id), viewerId: user.id })),
+    total,
+  });
 }
 
 const createSchema = z.object({
@@ -89,6 +98,7 @@ export async function create(req: Request, res: Response) {
     deadline = parseRuDate(input.deadline) ?? new Date(input.deadline);
     if (Number.isNaN(deadline.getTime())) throw errors.badRequest('Некорректная дата в поле deadline');
   }
+  const photos = await saveUploadedPhotos(req.files as Express.Multer.File[] | undefined);
   const request = await createRequest({
     authorId: user.id,
     category: input.category as keyof typeof CATEGORY_LABELS,
@@ -96,6 +106,7 @@ export async function create(req: Request, res: Response) {
     title: input.title ?? null,
     priority: input.priority,
     deadline,
+    photos,
   });
   res.status(201).json(serializeRequest(request, { hasVoted: false, viewerId: user.id }));
 }
@@ -126,6 +137,29 @@ export async function unvoteFor(req: Request, res: Response) {
   res.json(serializeRequest(request, { hasVoted: false, viewerId: user.id }));
 }
 
+const reopenSchema = z.object({
+  reason: z.string().trim().min(5).max(1000),
+});
+
+export async function reopen(req: Request, res: Response) {
+  const user = req.user!;
+  const input = parseBody(reopenSchema, req);
+  const photos = await saveUploadedPhotos(req.files as Express.Multer.File[] | undefined);
+  const request = await reopenRequest(idParam(req), { userId: user.id, reason: input.reason, photos });
+  res.json(serializeRequest(request, { viewerId: user.id }));
+}
+
+const rateSchema = z.object({
+  rating: z.coerce.number().int().min(1).max(5),
+});
+
+export async function rate(req: Request, res: Response) {
+  const user = req.user!;
+  const input = parseBody(rateSchema, req);
+  const request = await rateRequest(idParam(req), { userId: user.id, rating: input.rating });
+  res.json(serializeRequest(request, { viewerId: user.id }));
+}
+
 export async function document(req: Request, res: Response) {
   const user = req.user!;
   const request = await getRequestDetailed(idParam(req));
@@ -140,17 +174,23 @@ export async function document(req: Request, res: Response) {
 const statusSchema = z.object({
   status: z.enum(UK_SETTABLE_STATUSES as unknown as [string, ...string[]]),
   comment: z.string().trim().max(1000).optional(),
-  organizationId: z.number().int().positive().optional(),
+  organizationId: z.coerce.number().int().positive().optional(),
+  resolutionNote: z.string().trim().max(2000).optional(),
+  resolvedByName: z.string().trim().max(150).optional(),
 });
 
 export async function updateStatus(req: Request, res: Response) {
   const user = req.user!;
   const input = parseBody(statusSchema, req);
   const requestId = idParam(req);
+  const photos = await saveUploadedPhotos(req.files as Express.Multer.File[] | undefined);
   const request = await changeStatus(requestId, input.status as keyof typeof STATUS_LABELS, {
     byUserId: user.id,
     comment: input.comment ?? null,
     organizationId: input.organizationId ?? null,
+    resolutionNote: input.resolutionNote,
+    resolvedByName: input.resolvedByName,
+    photos,
   });
 
   let mail: { simulated: boolean; to: string | null } | undefined;
@@ -169,6 +209,10 @@ export async function listForUk(req: Request, res: Response) {
     ...UK_ACTIVE_STATUSES,
   ];
   const categories = parseListParam(query.category, REQUEST_CATEGORIES, 'категория') as (keyof typeof CATEGORY_LABELS)[] | undefined;
-  const requests = await listRequests({ houseId: query.houseId, statuses, categories, limit: query.limit, offset: query.offset });
-  res.json(requests.map((request) => serializeRequest(request, { viewerId: user.id })));
+  const filter = { houseId: query.houseId, statuses, categories };
+  const [requests, total] = await Promise.all([
+    listRequests({ ...filter, limit: query.limit, offset: query.offset }),
+    countRequests(filter),
+  ]);
+  res.json({ items: requests.map((request) => serializeRequest(request, { viewerId: user.id })), total });
 }

@@ -24,6 +24,8 @@ tags:
     description: Создать может любой житель своего дома; изменить или удалить — автор или УК
   - name: cameras
     description: Только подтверждённым жителям своего дома; сотрудник УК — по houseId для любого дома
+  - name: membership
+    description: Рассмотрение заявок на вступление — сотрудник УК (любой дом) или председатель ТСЖ (свой дом)
   - name: uk
     description: Только для сотрудников УК (role = UK_EMPLOYEE)
 
@@ -167,6 +169,7 @@ components:
             id: { type: integer }
             name: { type: string }
             role: { type: string, enum: [RESIDENT, UK_EMPLOYEE, CHAIRMAN] }
+        photoUrls: { type: array, items: { type: string }, description: 'Ссылки на приложенные фото (относительные, /uploads/photos/…); добавляются только в боте' }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
     CreateAnnouncement:
@@ -198,6 +201,7 @@ components:
             name: { type: string }
             role: { type: string, enum: [RESIDENT, UK_EMPLOYEE, CHAIRMAN] }
         isMine: { type: boolean }
+        photoUrls: { type: array, items: { type: string }, description: 'Ссылки на приложенные фото (относительные, /uploads/photos/…)' }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
     CreateNews:
@@ -207,6 +211,12 @@ components:
         title: { type: string, minLength: 3, maxLength: 120 }
         description: { type: string, minLength: 5, maxLength: 2000 }
         contact: { type: string, minLength: 3, maxLength: 200 }
+    CreateNewsMultipart:
+      allOf:
+        - $ref: '#/components/schemas/CreateNews'
+        - type: object
+          properties:
+            photos: { type: array, items: { type: string, format: binary }, maxItems: 5, description: До 5 файлов jpg/png/webp/gif, каждый до 8 МБ }
     UpdateNews:
       type: object
       properties:
@@ -254,6 +264,10 @@ components:
         deadline: { type: [string, 'null'], format: date-time, description: Срок сбора подписей }
         submittedAt: { type: [string, 'null'], format: date-time }
         resolvedAt: { type: [string, 'null'], format: date-time }
+        resolutionNote: { type: [string, 'null'], description: 'Что именно было сделано — обязательно при закрытии заявки (status = RESOLVED); очищается при возврате (POST /reopen)' }
+        resolvedByName: { type: [string, 'null'], description: 'ФИО ответственного за выполнение — обязательно при закрытии заявки; очищается при возврате' }
+        reopenedAt: { type: [string, 'null'], format: date-time, description: 'Когда заявку вернул автор (POST /reopen) — заявку можно вернуть только один раз' }
+        rating: { type: [integer, 'null'], minimum: 1, maximum: 5, description: 'Оценка автора заявки за работу УК (1–5) — доступна только когда status = RESOLVED, можно менять' }
         delegatedAt: { type: [string, 'null'], format: date-time }
         delegatedTo:
           type: [object, 'null']
@@ -276,6 +290,8 @@ components:
         isMine: { type: boolean }
         hasVoted: { type: boolean }
         canVote: { type: boolean, description: Текущий пользователь может поддержать заявку }
+        photoUrls: { type: array, items: { type: string }, description: 'Фото проблемы, приложенные при создании заявки (относительные ссылки, /uploads/photos/…)' }
+        resultPhotoUrls: { type: array, items: { type: string }, description: 'Фото результата работы, которые УК прикладывает при закрытии заявки (RESOLVED), в боте или в мини-приложении' }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
     RequestDetailed:
@@ -323,6 +339,12 @@ components:
         title: { type: string, maxLength: 120, description: Если не задан — формируется из категории и описания }
         priority: { $ref: '#/components/schemas/RequestPriority' }
         deadline: { type: string, description: 'Срок сбора подписей: ISO 8601 или ДД.ММ.ГГГГ. По умолчанию +14 дней. Для аварийных игнорируется' }
+    CreateRequestMultipart:
+      allOf:
+        - $ref: '#/components/schemas/CreateRequest'
+        - type: object
+          properties:
+            photos: { type: array, items: { type: string, format: binary }, maxItems: 5, description: До 5 файлов jpg/png/webp/gif, каждый до 8 МБ }
     ChangeStatus:
       type: object
       required: [status]
@@ -330,6 +352,20 @@ components:
         status: { type: string, enum: [IN_PROGRESS, DELEGATED, RESOLVED, REJECTED] }
         comment: { type: string, maxLength: 1000 }
         organizationId: { type: integer, description: Обязателен для DELEGATED }
+        resolutionNote: { type: string, maxLength: 2000, description: Обязательно для RESOLVED — что именно было сделано }
+        resolvedByName: { type: string, maxLength: 150, description: Обязательно для RESOLVED — ФИО ответственного за выполнение }
+    ChangeStatusMultipart:
+      allOf:
+        - $ref: '#/components/schemas/ChangeStatus'
+        - type: object
+          properties:
+            photos: { type: array, items: { type: string, format: binary }, maxItems: 5, description: 'До 5 файлов jpg/png/webp/gif, каждый до 8 МБ — фото результата, только для RESOLVED' }
+    ReopenRequest:
+      type: object
+      required: [reason, photos]
+      properties:
+        reason: { type: string, minLength: 5, maxLength: 1000, description: Почему автор считает, что проблема не устранена }
+        photos: { type: array, items: { type: string, format: binary }, minItems: 1, maxItems: 5, description: Обязательно хотя бы одно фото-подтверждение, до 5 файлов jpg/png/webp/gif по 8 МБ }
     SubmitMembership:
       type: object
       required: [houseId, apartment, fullName]
@@ -343,6 +379,34 @@ components:
         houseId: { type: integer, description: 'Дом, выбранный на карте (POST /api/houses) или из списка' }
         apartment: { type: string, maxLength: 10, examples: ['27', '15а'] }
         fullName: { type: string, minLength: 3, maxLength: 150, description: ФИО заявителя — увидит проверяющий }
+    MembershipRequest:
+      type: object
+      properties:
+        id: { type: integer }
+        houseId: { type: integer }
+        houseAddress: { type: string }
+        apartment: { type: string }
+        fullName: { type: string }
+        status: { type: string, enum: [PENDING, APPROVED, REJECTED] }
+        rejectReason: { type: [string, 'null'] }
+        applicant:
+          type: object
+          properties:
+            id: { type: integer }
+            maxUserId: { type: string }
+            name: { type: string }
+        reviewedBy:
+          oneOf:
+            - type: object
+              properties: { id: { type: integer }, name: { type: string } }
+            - type: 'null'
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    RejectMembership:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 3, maxLength: 500 }
   responses:
     Unauthorized:
       description: Нет или неверный initData
@@ -454,6 +518,24 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '404': { description: В точке нет жилого дома с адресом (code = building_not_found), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
+  /api/houses/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    patch:
+      tags: [uk]
+      summary: Изменить порог подписей дома (сотрудник УК)
+      description: |
+        Применяется сразу: у заявок, которые уже собирают подписи (VOTING), нужное число подписей
+        пересчитывается на лету при следующем голосе — задним числом ничего не фиксируется.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [votePercent], properties: { votePercent: { type: integer, minimum: 0, maximum: 100 } } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/House' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /api/houses/lookup:
     get:
       tags: [catalogs]
@@ -477,7 +559,7 @@ paths:
   /api/company:
     get:
       tags: [catalogs]
-      summary: Контакты управляющей компании
+      summary: Контакты и рейтинг управляющей компании
       responses:
         '200':
           description: OK
@@ -492,6 +574,18 @@ paths:
                   email: { type: [string, 'null'] }
                   address: { type: [string, 'null'] }
                   workingHours: { type: [string, 'null'] }
+                  rating:
+                    type: object
+                    description: Средняя оценка по всем заявкам компании, где житель поставил оценку (POST /requests/{id}/rate)
+                    properties:
+                      average: { type: [number, 'null'], description: 'null, если оценок ещё нет' }
+                      count: { type: integer }
+                  metrics:
+                    type: object
+                    description: Объективные показатели работы, считаются из истории статусов заявок (без участия жителей)
+                    properties:
+                      avgReactionMinutes: { type: [number, 'null'], description: 'Среднее время от передачи заявки в УК (SUBMITTED) до первой реакции УК (взять в работу/передать/закрыть/отклонить), в минутах; null, если реагировать было не на что' }
+                      noReopenRate: { type: [number, 'null'], description: 'Доля закрытых заявок, которые ни разу не вернул автор («не сделано»), в процентах (0–100); null, если ещё не было ни одной закрытой заявки' }
 
   /api/organizations:
     get:
@@ -509,18 +603,31 @@ paths:
         - { name: status, in: query, description: 'Статусы через запятую, например VOTING,SUBMITTED', schema: { type: string } }
         - { name: category, in: query, description: 'Категории через запятую, например PLUMBING,ELEVATOR', schema: { type: string } }
         - { name: houseId, in: query, description: Только для сотрудников УК, schema: { type: integer } }
-        - { name: limit, in: query, schema: { type: integer, default: 50, maximum: 200 } }
+        - { name: limit, in: query, description: 'По умолчанию 5 — для постраничной подгрузки «Показать ещё»', schema: { type: integer, default: 5, maximum: 200 } }
         - { name: offset, in: query, schema: { type: integer, default: 0 } }
       responses:
-        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Request' } } } } }
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/Request' } }
+                  total: { type: integer, description: Всего заявок по фильтру (для «Показано X из Y») }
         '400': { $ref: '#/components/responses/BadRequest' }
     post:
       tags: [requests]
       summary: Создать заявку
-      description: Аварийная заявка (priority = EMERGENCY) сразу получает статус SUBMITTED и уходит в УК без подписей.
+      description: |
+        Аварийная заявка (priority = EMERGENCY) сразу получает статус SUBMITTED и уходит в УК без подписей.
+        Фото необязательны: до 5 штук, каждая до 8 МБ, форматы jpg/png/webp/gif — отправляются полем `photos`
+        только в варианте `multipart/form-data` (JSON-запрос без фото работает как раньше).
       requestBody:
         required: true
-        content: { application/json: { schema: { $ref: '#/components/schemas/CreateRequest' } } }
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/CreateRequest' } }
+          multipart/form-data: { schema: { $ref: '#/components/schemas/CreateRequestMultipart' } }
       responses:
         '201': { description: Создана, content: { application/json: { schema: { $ref: '#/components/schemas/Request' } } } }
         '400': { $ref: '#/components/responses/BadRequest' }
@@ -573,6 +680,46 @@ paths:
         '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Request' } } } }
         '409': { $ref: '#/components/responses/Conflict' }
 
+  /api/requests/{id}/reopen:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    post:
+      tags: [requests]
+      summary: Вернуть закрытую заявку («не сделано») — только автор
+      description: |
+        Только автор заявки, только пока status = RESOLVED, только один раз на заявку и только в течение
+        7 дней после закрытия (иначе 409, code = reopen_limit / reopen_window_expired). Обязательны reason
+        (минимум 5 символов) и хотя бы одно фото, подтверждающее, что проблема не устранена. Заявка
+        возвращается в статус SUBMITTED (без повторного сбора подписей), старые resolutionNote/resolvedByName
+        и фото результата предыдущего закрытия очищаются. УК получает уведомление; при повторном закрытии
+        этой же заявки фото результата уже обязательны (см. PATCH /status).
+      requestBody:
+        required: true
+        content: { multipart/form-data: { schema: { $ref: '#/components/schemas/ReopenRequest' } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Request' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: 'Не в статусе RESOLVED, уже возвращалась (reopen_limit) или истёк срок 7 дней (reopen_window_expired)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /api/requests/{id}/rate:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    post:
+      tags: [requests]
+      summary: Оценить работу УК по заявке (1–5) — только автор
+      description: Только автор, только пока status = RESOLVED. Можно ставить повторно — оценка перезаписывается, без ограничения по времени.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [rating], properties: { rating: { type: integer, minimum: 1, maximum: 5 } } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Request' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: 'Заявка не в статусе RESOLVED', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
   /api/requests/{id}/document:
     parameters:
       - { name: id, in: path, required: true, schema: { type: integer } }
@@ -593,9 +740,13 @@ paths:
       description: |
         Допустимые переходы см. в `/api/dictionaries` → `transitions`. Для DELEGATED обязателен organizationId;
         в этом случае в организацию отправляется письмо с документом (без SMTP — имитация, отмечается в поле mail.simulated).
+        Для RESOLVED обязательны resolutionNote (что сделано) и resolvedByName (ФИО ответственного); фото
+        необязательны — отправляются полем `photos` только в варианте `multipart/form-data`.
       requestBody:
         required: true
-        content: { application/json: { schema: { $ref: '#/components/schemas/ChangeStatus' } } }
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/ChangeStatus' } }
+          multipart/form-data: { schema: { $ref: '#/components/schemas/ChangeStatusMultipart' } }
       responses:
         '200':
           description: OK
@@ -623,10 +774,18 @@ paths:
         - { name: status, in: query, schema: { type: string } }
         - { name: category, in: query, description: 'Категории через запятую, например PLUMBING,ELEVATOR', schema: { type: string } }
         - { name: houseId, in: query, schema: { type: integer } }
-        - { name: limit, in: query, schema: { type: integer, default: 50 } }
+        - { name: limit, in: query, description: 'По умолчанию 5 — для постраничной подгрузки «Показать ещё»', schema: { type: integer, default: 5, maximum: 200 } }
         - { name: offset, in: query, schema: { type: integer, default: 0 } }
       responses:
-        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Request' } } } } }
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/Request' } }
+                  total: { type: integer }
         '403': { $ref: '#/components/responses/Forbidden' }
 
   /api/announcements:
@@ -635,10 +794,18 @@ paths:
       summary: Список объявлений (житель и председатель — своего дома, сотрудник УК — по houseId или все)
       parameters:
         - { name: houseId, in: query, description: Только для сотрудников УК, schema: { type: integer } }
-        - { name: limit, in: query, schema: { type: integer, default: 50, maximum: 200 } }
+        - { name: limit, in: query, description: 'По умолчанию 5 — для постраничной подгрузки «Показать ещё»', schema: { type: integer, default: 5, maximum: 200 } }
         - { name: offset, in: query, schema: { type: integer, default: 0 } }
       responses:
-        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Announcement' } } } } }
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/Announcement' } }
+                  total: { type: integer }
         '400': { $ref: '#/components/responses/BadRequest' }
     post:
       tags: [announcements]
@@ -682,18 +849,31 @@ paths:
       summary: Список новостей дома (житель — своего дома, сотрудник УК — по houseId или все)
       parameters:
         - { name: houseId, in: query, description: Только для сотрудников УК, schema: { type: integer } }
-        - { name: limit, in: query, schema: { type: integer, default: 50, maximum: 200 } }
+        - { name: limit, in: query, description: 'По умолчанию 5 — для постраничной подгрузки «Показать ещё»', schema: { type: integer, default: 5, maximum: 200 } }
         - { name: offset, in: query, schema: { type: integer, default: 0 } }
       responses:
-        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/News' } } } } }
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/News' } }
+                  total: { type: integer }
         '400': { $ref: '#/components/responses/BadRequest' }
     post:
       tags: [news]
       summary: Опубликовать новость в своём доме
-      description: Может любой прописанный к дому житель. houseId брать не нужно — берётся дом автора.
+      description: |
+        Может любой прописанный к дому житель. houseId брать не нужно — берётся дом автора.
+        Фото необязательны: до 5 штук, каждая до 8 МБ, форматы jpg/png/webp/gif — отправляются полем `photos`
+        только в варианте `multipart/form-data` (JSON-запрос без фото работает как раньше).
       requestBody:
         required: true
-        content: { application/json: { schema: { $ref: '#/components/schemas/CreateNews' } } }
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/CreateNews' } }
+          multipart/form-data: { schema: { $ref: '#/components/schemas/CreateNewsMultipart' } }
       responses:
         '201': { description: Создано, content: { application/json: { schema: { $ref: '#/components/schemas/News' } } } }
         '400': { $ref: '#/components/responses/BadRequest' }
@@ -743,3 +923,52 @@ paths:
       responses:
         '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Camera' } } } } }
         '400': { $ref: '#/components/responses/BadRequest' }
+
+  /api/membership/requests:
+    get:
+      tags: [membership]
+      summary: Очередь заявок на вступление (сотрудник УК — все дома, председатель ТСЖ — свой дом)
+      description: То же, что команда бота /membership_queue, но с постраничной подгрузкой для мини-приложения.
+      parameters:
+        - { name: limit, in: query, description: 'По умолчанию 5 — для постраничной подгрузки «Показать ещё»', schema: { type: integer, default: 5, maximum: 200 } }
+        - { name: offset, in: query, schema: { type: integer, default: 0 } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/MembershipRequest' } }
+                  total: { type: integer }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/membership/requests/{id}/approve:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    post:
+      tags: [membership]
+      summary: Подтвердить заявку на вступление
+      description: Заявителю открывается полный доступ и отправляется приглашение в чат дома (в боте).
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/MembershipRequest' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/membership/requests/{id}/reject:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    post:
+      tags: [membership]
+      summary: Отклонить заявку на вступление
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/RejectMembership' } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/MembershipRequest' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }

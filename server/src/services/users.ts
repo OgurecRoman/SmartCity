@@ -229,6 +229,15 @@ export async function getHouse(id: number) {
   return prisma.house.findUnique({ where: { id } });
 }
 
+export async function setVotePercent(houseId: number, percent: number) {
+  if (!Number.isInteger(percent) || percent < 0 || percent > 100) {
+    throw errors.badRequest('Процент должен быть целым числом от 0 до 100');
+  }
+  const house = await prisma.house.findUnique({ where: { id: houseId } });
+  if (!house) throw errors.notFound('Дом не найден');
+  return prisma.house.update({ where: { id: houseId }, data: { votePercent: percent } });
+}
+
 export function apartmentDataOf(house: { apartmentsCount: number | null; entrances: unknown }): ApartmentData {
   return { apartmentsCount: house.apartmentsCount, entrances: Array.isArray(house.entrances) ? (house.entrances as Entrance[]) : null };
 }

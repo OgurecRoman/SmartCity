@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { requireEmployee } from '../auth/middleware.js';
+import { photoUpload } from '../lib/upload.js';
 import * as requestsController from '../controllers/requests.js';
 
 const router = Router();
@@ -15,7 +16,7 @@ const router = Router();
  *     tags: [Заявки]
  */
 router.get('/requests', requestsController.list);
-router.post('/requests', requestsController.create);
+router.post('/requests', photoUpload.array('photos'), requestsController.create);
 
 /**
  * @swagger
@@ -45,6 +46,24 @@ router.delete('/requests/:id/vote', requestsController.unvoteFor);
 
 /**
  * @swagger
+ * /api/requests/{id}/reopen:
+ *   post:
+ *     summary: Открыть заявку снова
+ *     tags: [Заявки]
+ */
+router.post('/requests/:id/reopen', photoUpload.array('photos'), requestsController.reopen);
+
+/**
+ * @swagger
+ * /api/requests/{id}/rate:
+ *   post:
+ *     summary: Проголосовать за заявку
+ *     tags: [Заявки]
+ */
+router.post('/requests/:id/rate', requestsController.rate);
+
+/**
+ * @swagger
  * /api/requests/{id}/document:
  *   get:
  *     summary: Получить составленный документ на заявку
@@ -59,7 +78,7 @@ router.get('/requests/:id/document', requestsController.document);
  *     summary: Изменить статус заявки
  *     tags: [Заявки]
  */
-router.patch('/requests/:id/status', requireEmployee, requestsController.updateStatus);
+router.patch('/requests/:id/status', requireEmployee, photoUpload.array('photos'), requestsController.updateStatus);
 
 /**
  * @swagger

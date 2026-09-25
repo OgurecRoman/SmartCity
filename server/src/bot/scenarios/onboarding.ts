@@ -5,7 +5,7 @@ import { apartmentDataOf, getHouse, listHouses } from '../../services/users.js';
 import { isAppError } from '../../lib/errors.js';
 import type { BotContext } from '../context.js';
 import { ack, payloadOf, textOf } from '../helpers.js';
-import { btn, houseButtons, panelButton, withKeyboard } from '../ui.js';
+import { MD, btn, esc, houseButtons, mdName, panelButton, withKeyboard } from '../ui.js';
 import { SCENARIO_TIMEOUT_MS, cancelIntercept } from './common.js';
 
 export interface OnboardingData {
@@ -88,9 +88,9 @@ export const onboardingScenario = defineScenario<BotContext, OnboardingData>()<S
         return transition.stay();
       }
       await ctx.reply(
-        `Дом: ${data.houseAddress}\nКвартира: ${data.apartment}\nФИО: ${fullNameValue}\n\n` +
+        `Дом: ${esc(data.houseAddress ?? '')}\nКвартира: ${esc(data.apartment ?? '')}\nФИО: ${mdName(fullNameValue)}\n\n` +
           'Отправить на подтверждение председателю ТСЖ или в УК?',
-        withKeyboard([[btn.callback('Отправить', 'onb:send'), btn.callback('Отмена', 'cancel')]]),
+        { ...withKeyboard([[btn.callback('Отправить', 'onb:send'), btn.callback('Отмена', 'cancel')]]), ...MD },
       );
       return transition.goto('confirm', { fullName: fullNameValue });
     },

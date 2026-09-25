@@ -5,7 +5,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { buildRequestDocument } from '../services/documents.js';
 import { getRequest, getRequestDetailed, hasVoted, type RequestWithRelations } from '../services/requests.js';
 import type { BotContext } from './context.js';
-import { panelButton, requestCard, residentRequestButtons, ukRequestButtons, withKeyboard, type ButtonRows } from './ui.js';
+import { MD, panelButton, requestCard, residentRequestButtons, ukRequestButtons, withKeyboard, type ButtonRows } from './ui.js';
 
 export async function showRequestToResident(ctx: BotContext, requestId: number): Promise<void> {
   const request = await getRequest(requestId);
@@ -15,7 +15,7 @@ export async function showRequestToResident(ctx: BotContext, requestId: number):
   }
   const voted = await hasVoted(request.id, ctx.dbUser.id);
   const text = requestCard(request) + (voted ? '\n\n✅ Вы поддержали эту заявку' : '');
-  await ctx.reply(text, withKeyboard([...residentRequestButtons(request, ctx.dbUser, voted), ...panelButton()]));
+  await ctx.reply(text, { ...withKeyboard([...residentRequestButtons(request, ctx.dbUser, voted), ...panelButton()]), ...MD });
 }
 
 export async function showRequestToEmployee(ctx: BotContext, requestId: number): Promise<void> {
@@ -24,7 +24,7 @@ export async function showRequestToEmployee(ctx: BotContext, requestId: number):
     await ctx.reply('Заявка не найдена — возможно, её удалили.', withKeyboard(panelButton()));
     return;
   }
-  await ctx.reply(requestCard(request), withKeyboard([...ukRequestButtons(request), ...panelButton()]));
+  await ctx.reply(requestCard(request), { ...withKeyboard([...ukRequestButtons(request), ...panelButton()]), ...MD });
 }
 
 const LIST_LIMIT = 10;
@@ -42,7 +42,7 @@ export async function sendRequestList(
   await ctx.reply(`${title} (${requests.length}):`);
   for (const request of requests.slice(0, LIST_LIMIT)) {
     const rows = buttonsFor(request);
-    await ctx.reply(requestCard(request), rows.length > 0 ? withKeyboard(rows) : undefined);
+    await ctx.reply(requestCard(request), rows.length > 0 ? { ...withKeyboard(rows), ...MD } : MD);
   }
   const tail = requests.length > LIST_LIMIT ? `Показаны первые ${LIST_LIMIT} из ${requests.length}. ` : '';
   await ctx.reply(`${tail}Что дальше?`, withKeyboard(panelButton()));

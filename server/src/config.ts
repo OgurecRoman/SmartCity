@@ -38,6 +38,7 @@ export const config = {
     webhookDomain: process.env.WEBHOOK_DOMAIN?.trim() ?? '',
     webhookPath: process.env.WEBHOOK_PATH?.trim() || '/bot/webhook',
     webhookSecret: process.env.WEBHOOK_SECRET?.trim() || undefined,
+    webhookPort: int(process.env.BOT_WEBHOOK_PORT, 3001),
     username: process.env.BOT_USERNAME?.trim().replace(/^@/, '') ?? '',
   },
   uk: {
@@ -55,6 +56,7 @@ export const config = {
   },
   jobs: {
     expireIntervalSec: int(process.env.EXPIRE_CHECK_INTERVAL_SEC, 300),
+    outboxPollIntervalSec: int(process.env.NOTIFY_POLL_INTERVAL_SEC, 3),
   },
   geo: {
 

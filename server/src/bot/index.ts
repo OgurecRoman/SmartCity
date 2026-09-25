@@ -11,11 +11,12 @@ import { registerMembershipHandlers } from './handlers/membership.js';
 import { registerResidentHandlers } from './handlers/resident.js';
 import { ack, isDialog, maxUserOf } from './helpers.js';
 import { initNotifications } from './notifications.js';
-import { announceScenario, delegateScenario, manageChairmanScenario, manageOwnerScenario, rejectScenario } from './scenarios/admin.js';
+import { announceScenario, delegateScenario, manageChairmanScenario, manageOwnerScenario, rejectScenario, resolveScenario } from './scenarios/admin.js';
 import { createRequestScenario } from './scenarios/createRequest.js';
 import { addTenantScenario, rejectMembershipScenario } from './scenarios/membership.js';
 import { createNewsScenario } from './scenarios/news.js';
 import { onboardingScenario } from './scenarios/onboarding.js';
+import { reopenRequestScenario } from './scenarios/reopenRequest.js';
 import { PrismaSessionStore } from './sessionStore.js';
 import { panelButton, setBotIdentity, withKeyboard } from './ui.js';
 
@@ -75,8 +76,10 @@ export function createBot(): Bot<BotContext> {
     .register(announceScenario)
     .register(delegateScenario)
     .register(rejectScenario)
+    .register(resolveScenario)
     .register(rejectMembershipScenario)
-    .register(addTenantScenario);
+    .register(addTenantScenario)
+    .register(reopenRequestScenario);
 
   bot.use(scenarios.controllerMiddleware());
   registerCommonHandlers(bot);

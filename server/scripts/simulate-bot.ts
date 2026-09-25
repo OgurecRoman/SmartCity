@@ -2,6 +2,7 @@ import '../src/lib/bigint.js';
 import type { Update, User as MaxUser } from '@maxhub/max-bot-api/types';
 import { createBot } from '../src/bot/index.js';
 import { initNotifications } from '../src/bot/notifications.js';
+import { drainOutboxOnce } from '../src/bot/outboxConsumer.js';
 import { setBotIdentity } from '../src/bot/ui.js';
 import { prisma } from '../src/lib/db.js';
 
@@ -67,7 +68,12 @@ setBotIdentity('smartcity_demo_bot');
 initNotifications(bot.api);
 
 const handle = (bot as unknown as { handleUpdate: (update: Update) => Promise<void> }).handleUpdate;
-const settle = () => new Promise((resolve) => setTimeout(resolve, 150));
+const settle = async () => {
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  // В реальном запуске события уходят в NotificationOutbox и их забирает отдельный процесс бота
+  // (src/bot-worker.ts). Здесь всё в одном процессе, поэтому вычитываем очередь вручную после каждого шага.
+  await drainOutboxOnce();
+};
 
 function user(id: number, firstName: string, lastName: string): MaxUser {
   return { user_id: id, first_name: firstName, last_name: lastName, name: `${firstName} ${lastName}`, username: null, is_bot: false, last_activity_time: 0 };
@@ -137,6 +143,7 @@ async function main() {
   const kirill = user(5000003, 'Кирилл', 'Подписов');
 
   await prisma.botSession.deleteMany({});
+  await prisma.notificationOutbox.deleteMany({});
   await prisma.request.deleteMany({ where: { author: { maxUserId: { in: [5000001n, 5000002n, 5000003n] } } } });
   await prisma.announcement.deleteMany({ where: { author: { maxUserId: { in: [5000001n, 5000002n, 5000003n] } } } });
   await prisma.news.deleteMany({ where: { author: { maxUserId: { in: [5000001n, 5000002n, 5000003n] } } } });
@@ -159,6 +166,7 @@ async function main() {
   await msg(anna, 'Прорвало трубу в подвале первого подъезда, вода течёт третий день.');
   await cb(anna, 'cr:prio:NORMAL');
   await cb(anna, 'cr:skip');
+  await cb(anna, 'cr:photos:done');
   await cb(anna, 'cr:send');
   const requestId = await latestRequestId(anna.user_id);
   out(`   (создана заявка №${requestId})`);
@@ -187,12 +195,17 @@ async function main() {
   await cb(admin, 'dlg:org:2');
   await cb(admin, `uk:doc:${requestId}`);
   await cb(admin, `uk:resolve:${requestId}`);
+  await msg(admin, 'Заменили аварийный участок трубы в подвале первого подъезда.');
+  await msg(admin, 'Сидоров Пётр Иванович');
+  await cb(admin, 'resolve:photos:done');
+  await cb(admin, 'resolve:send');
 
   section('Аварийная заявка');
   await msg(anna, '/create');
   await cb(anna, 'cr:cat:ELEVATOR');
   await msg(anna, 'Застрял лифт во втором подъезде между 5 и 6 этажами.');
   await cb(anna, 'cr:prio:EMERGENCY');
+  await cb(anna, 'cr:photos:done');
   await cb(anna, 'cr:send');
   const emergencyId = await latestRequestId(anna.user_id);
 
@@ -207,6 +220,7 @@ async function main() {
   await cb(olga, 'cr:prio:NORMAL');
   await msg(olga, '01.01.2020');
   await msg(olga, '31.12.2026');
+  await cb(olga, 'cr:photos:done');
   await cb(olga, 'cr:edit');
   await cb(olga, 'cancel');
   await msg(olga, '/my');
@@ -223,6 +237,7 @@ async function main() {
   await cb(admin, 'ann:house:1');
   await msg(admin, 'Отключение горячей воды');
   await msg(admin, 'Плановое отключение воды 25.09 с 10:00 до 14:00.');
+  await cb(admin, 'ann:photos:done');
   await cb(admin, 'ann:yes');
   await cb(admin, 'menu:add_owner');
   await msg(admin, '5000009');
@@ -243,6 +258,7 @@ async function main() {
   await cb(anna, 'menu:announce');
   await msg(anna, 'Собрание жильцов');
   await msg(anna, 'Собрание состоится 30.09 в 19:00 у подъезда №1.');
+  await cb(anna, 'ann:photos:done');
   await cb(anna, 'ann:yes');
 
   section('УК снимает председателя ТСЖ');
