@@ -24,7 +24,7 @@ export function createApp() {
   });
 
   app.get('/health', (_req, res) => {
-    res.json({ status: 'ok', bot: config.bot.enabled ? config.bot.mode : 'disabled', time: new Date().toISOString() });
+    res.json({ status: 'ok', service: 'backend', time: new Date().toISOString() });
   });
 
   app.use('/api', apiRouter);

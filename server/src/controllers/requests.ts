@@ -6,20 +6,7 @@ import { prisma } from '../lib/db.js';
 import { saveUploadedPhotos } from '../lib/upload.js';
 import { buildRequestDocument } from '../services/documents.js';
 import { sendDelegationEmail } from '../services/mailer.js';
-import {
-  changeStatus,
-  countRequests,
-  createRequest,
-  deleteRequest,
-  getRequestDetailed,
-  hasVoted,
-  listRequests,
-  rateRequest,
-  reopenRequest,
-  unvote,
-  vote,
-  votedRequestIds,
-} from '../services/requests.js';
+import * as requestsService from '../services/requests.js';
 import { UK_ACTIVE_STATUSES, UK_SETTABLE_STATUSES } from '../services/rules.js';
 import { isEmployee } from '../services/users.js';
 import { serializeRequest, serializeRequestDetailed } from '../routes/serialize.js';
@@ -70,10 +57,10 @@ export async function list(req: Request, res: Response) {
     categories: categories as (keyof typeof CATEGORY_LABELS)[] | undefined,
   };
   const [requests, total] = await Promise.all([
-    listRequests({ ...filter, limit: query.limit, offset: query.offset }),
-    countRequests(filter),
+    requestsService.listRequests({ ...filter, limit: query.limit, offset: query.offset }),
+    requestsService.countRequests(filter),
   ]);
-  const voted = await votedRequestIds(user.id, requests.map((request) => request.id));
+  const voted = await requestsService.votedRequestIds(user.id, requests.map((request) => request.id));
   res.json({
     items: requests.map((request) => serializeRequest(request, { hasVoted: voted.has(request.id), viewerId: user.id })),
     total,
@@ -99,7 +86,7 @@ export async function create(req: Request, res: Response) {
     if (Number.isNaN(deadline.getTime())) throw errors.badRequest('Некорректная дата в поле deadline');
   }
   const photos = await saveUploadedPhotos(req.files as Express.Multer.File[] | undefined);
-  const request = await createRequest({
+  const request = await requestsService.createRequest({
     authorId: user.id,
     category: input.category as keyof typeof CATEGORY_LABELS,
     description: input.description,
@@ -113,27 +100,27 @@ export async function create(req: Request, res: Response) {
 
 export async function get(req: Request, res: Response) {
   const user = req.user!;
-  const request = await getRequestDetailed(idParam(req));
+  const request = await requestsService.getRequestDetailed(idParam(req));
   if (!request) throw errors.notFound('Заявка не найдена');
   if (!isEmployee(user) && request.houseId !== user.houseId) throw errors.forbidden('Заявка другого дома');
-  const voted = await hasVoted(request.id, user.id);
+  const voted = await requestsService.hasVoted(request.id, user.id);
   res.json(serializeRequestDetailed(request, { hasVoted: voted, viewerId: user.id }));
 }
 
 export async function remove(req: Request, res: Response) {
-  await deleteRequest(idParam(req), req.user!.id);
+  await requestsService.deleteRequest(idParam(req), req.user!.id);
   res.status(204).end();
 }
 
 export async function voteFor(req: Request, res: Response) {
   const user = req.user!;
-  const { request, submitted } = await vote(idParam(req), user.id);
+  const { request, submitted } = await requestsService.vote(idParam(req), user.id);
   res.json({ ...serializeRequest(request, { hasVoted: true, viewerId: user.id }), submitted });
 }
 
 export async function unvoteFor(req: Request, res: Response) {
   const user = req.user!;
-  const request = await unvote(idParam(req), user.id);
+  const request = await requestsService.unvote(idParam(req), user.id);
   res.json(serializeRequest(request, { hasVoted: false, viewerId: user.id }));
 }
 
@@ -145,7 +132,7 @@ export async function reopen(req: Request, res: Response) {
   const user = req.user!;
   const input = parseBody(reopenSchema, req);
   const photos = await saveUploadedPhotos(req.files as Express.Multer.File[] | undefined);
-  const request = await reopenRequest(idParam(req), { userId: user.id, reason: input.reason, photos });
+  const request = await requestsService.reopenRequest(idParam(req), { userId: user.id, reason: input.reason, photos });
   res.json(serializeRequest(request, { viewerId: user.id }));
 }
 
@@ -156,13 +143,13 @@ const rateSchema = z.object({
 export async function rate(req: Request, res: Response) {
   const user = req.user!;
   const input = parseBody(rateSchema, req);
-  const request = await rateRequest(idParam(req), { userId: user.id, rating: input.rating });
+  const request = await requestsService.rateRequest(idParam(req), { userId: user.id, rating: input.rating });
   res.json(serializeRequest(request, { viewerId: user.id }));
 }
 
 export async function document(req: Request, res: Response) {
   const user = req.user!;
-  const request = await getRequestDetailed(idParam(req));
+  const request = await requestsService.getRequestDetailed(idParam(req));
   if (!request) throw errors.notFound('Заявка не найдена');
   if (!isEmployee(user) && request.authorId !== user.id) throw errors.forbidden('Документ доступен автору и сотрудникам УК');
   const doc = buildRequestDocument(request);
@@ -184,7 +171,7 @@ export async function updateStatus(req: Request, res: Response) {
   const input = parseBody(statusSchema, req);
   const requestId = idParam(req);
   const photos = await saveUploadedPhotos(req.files as Express.Multer.File[] | undefined);
-  const request = await changeStatus(requestId, input.status as keyof typeof STATUS_LABELS, {
+  const request = await requestsService.changeStatus(requestId, input.status as keyof typeof STATUS_LABELS, {
     byUserId: user.id,
     comment: input.comment ?? null,
     organizationId: input.organizationId ?? null,
@@ -195,10 +182,15 @@ export async function updateStatus(req: Request, res: Response) {
 
   let mail: { simulated: boolean; to: string | null } | undefined;
   if (input.status === 'DELEGATED' && request.delegatedTo) {
-    const detailed = await getRequestDetailed(requestId);
+    const detailed = await requestsService.getRequestDetailed(requestId);
     const organization = await prisma.responsibleOrganization.findUnique({ where: { id: request.delegatedTo.id } });
     if (detailed && organization) mail = await sendDelegationEmail(request, organization, buildRequestDocument(detailed));
   }
+  res.json({ ...serializeRequest(request, { viewerId: user.id }), mail });
+}
+
+export async function updateMessage(req: Request, res: Response) {
+  await requestsService.updateMessage();
   res.json({ ...serializeRequest(request, { viewerId: user.id }), mail });
 }
 
@@ -211,8 +203,8 @@ export async function listForUk(req: Request, res: Response) {
   const categories = parseListParam(query.category, REQUEST_CATEGORIES, 'категория') as (keyof typeof CATEGORY_LABELS)[] | undefined;
   const filter = { houseId: query.houseId, statuses, categories };
   const [requests, total] = await Promise.all([
-    listRequests({ ...filter, limit: query.limit, offset: query.offset }),
-    countRequests(filter),
+    requestsService.listRequests({ ...filter, limit: query.limit, offset: query.offset }),
+    requestsService.countRequests(filter),
   ]);
   res.json({ items: requests.map((request) => serializeRequest(request, { viewerId: user.id })), total });
 }

@@ -440,6 +440,10 @@ export async function countRequests(filter: RequestFilterFields): Promise<number
   return prisma.request.count({ where: buildRequestWhere(filter) });
 }
 
+export async function updateMessage(id: number, messageId: string): Promise<void> {
+  await prisma.request.update({ where: { id: id }, data: { chatMessageId: messageId } });
+}
+
 export async function expireOverdue(now = new Date()): Promise<number[]> {
   const overdue = await prisma.request.findMany({
     where: { status: 'VOTING', deadline: { lt: now } },

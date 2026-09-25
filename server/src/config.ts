@@ -32,14 +32,7 @@ export const config = {
   databaseUrl: process.env.DATABASE_URL ?? '',
   corsOrigin: process.env.CORS_ORIGIN?.trim() || '*',
   bot: {
-    token: botToken,
-    enabled: bool(process.env.BOT_ENABLED, true) && botToken.length > 0,
-    mode: (process.env.BOT_MODE?.trim() === 'webhook' ? 'webhook' : 'polling') as 'polling' | 'webhook',
-    webhookDomain: process.env.WEBHOOK_DOMAIN?.trim() ?? '',
-    webhookPath: process.env.WEBHOOK_PATH?.trim() || '/bot/webhook',
-    webhookSecret: process.env.WEBHOOK_SECRET?.trim() || undefined,
-    webhookPort: int(process.env.BOT_WEBHOOK_PORT, 3001),
-    username: process.env.BOT_USERNAME?.trim().replace(/^@/, '') ?? '',
+    token: botToken
   },
   uk: {
     accessCode: process.env.UK_ACCESS_CODE?.trim() ?? '',
@@ -79,8 +72,5 @@ export const config = {
 export function assertConfig(): void {
   if (!config.databaseUrl) {
     throw new Error('DATABASE_URL не задан. Скопируйте .env.example в .env и заполните.');
-  }
-  if (config.bot.enabled && config.bot.mode === 'webhook' && !config.bot.webhookDomain) {
-    throw new Error('BOT_MODE=webhook требует WEBHOOK_DOMAIN (публичный HTTPS-адрес сервера).');
   }
 }
