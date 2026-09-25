@@ -1,0 +1,24 @@
+meta:
+  environment: nodejs
+  toolchain:
+    name: npm
+    version: "20"
+
+build:
+  skip: false
+  additionalCommands:
+    - cd bot
+    - npm ci
+    - npm run build
+  artifacts:
+    bot/*: /
+
+run:
+  scriptName: null
+  scriptArguments: null
+  nodeArguments: null
+  command: node dist/index.js
+  persistenceMount: /data
+  containerPort: "80"
+  singleton: true
+  zeroDowntime: false
