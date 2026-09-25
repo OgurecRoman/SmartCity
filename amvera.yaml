@@ -1,0 +1,18 @@
+meta:
+  environment: node
+  toolchain:
+    name: node
+    version: 20
+
+build:
+  artifactsPath: .
+  run: |
+    cd bot
+    npm ci
+    npm run build
+
+run:
+  persistenceMount: /data
+  command: npm run start
+  env:
+    NODE_ENV: production
