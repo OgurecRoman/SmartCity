@@ -24,6 +24,12 @@ async function send<T>(method: Method, pathWithQuery: string, init: RequestInit)
   let response: Response;
   try {
     response = await fetch(url, { method, ...init });
+    const text = await response.text();
+    console.log(`🔍 Response from ${url}:`);
+    console.log(`   Status: ${response.status}`);
+    console.log(`   Content-Type: ${response.headers.get('content-type')}`);
+    console.log(`   Body (first 500 chars): ${text.slice(0, 500)}`);
+
   } catch (error) {
     log.warn(`Бэкенд недоступен (${method} ${url})`, error);
     throw new BackendUnavailableError();
