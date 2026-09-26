@@ -36,7 +36,7 @@ async function main(): Promise<void> {
     log.info('Бот получает обновления через long polling');
   }
 
-  startOutboxConsumer();
+  // startOutboxConsumer();
   log.info('Обработка очереди уведомлений запущена');
 
   const shutdown = async (signal: string) => {

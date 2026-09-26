@@ -326,7 +326,10 @@ export async function deleteSession(req: Request, res: Response) {
 
 export async function listOutbox(req: Request, res: Response) {
   const query = parseQuery(outboxQuerySchema, req);
-  res.json(await prisma.notificationOutbox.findMany({ orderBy: { id: 'asc' }, take: query.limit }));
+  console.log('/bot/outbox', query);
+  const notifications = await prisma.notificationOutbox.findMany({ orderBy: { id: 'asc' }, take: query.limit })
+  console.log('/bot/outbox', notifications);
+  res.json(notifications);
 }
 
 export async function ackOutbox(req: Request, res: Response) {
