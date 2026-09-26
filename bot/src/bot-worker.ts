@@ -3,7 +3,7 @@ import { assertConfig, config } from './config.js';
 import { createBot, prepareBot } from './controllers/index.js';
 import { startOutboxConsumer, stopOutboxConsumer } from './controllers/outboxConsumer.js';
 import { log } from './lib/logger.js';
-import { ping } from './lib/network.js';
+// import { ping } from './lib/network.js';
 
 async function main(): Promise<void> {
   assertConfig();
@@ -12,9 +12,8 @@ async function main(): Promise<void> {
     return;
   }
 
-  // Бэкенд может подняться позже — это не повод падать: пока он недоступен, пользователи получают заглушку.
-  if (await ping()) log.info(`Бэкенд доступен: ${config.backend.apiUrl}`);
-  else log.warn(`Бэкенд не отвечает (${config.backend.apiUrl}) — бот запускается, но будет отвечать заглушкой, пока сервер не поднимется`);
+  // if (await ping()) log.info(`Бэкенд доступен: ${config.backend.apiUrl}`);
+  // else log.warn(`Бэкенд не отвечает (${config.backend.apiUrl}) — бот запускается, но будет отвечать заглушкой, пока сервер не поднимется`);
 
   const bot = createBot();
   await prepareBot(bot);

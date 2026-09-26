@@ -1,4 +1,5 @@
-import { ModerationDecision, Moderator } from './types.js';
+import { error } from 'node:console';
+import { ModerationDecision, Moderator } from '../ai/types.js';
 
 export interface AiModeratorOptions {
   apiKey: string;
@@ -270,3 +271,38 @@ function normalizeDecision(raw: Record<string, unknown>): ModerationDecision {
     raw,
   };
 }
+
+function createModerator(): Moderator {
+  const apiKey = process.env.OPENAI_API_KEY?.trim();
+
+  const baseUrl = (
+    process.env.MODERATION_BASE_URL?.trim() || 'https://api.openai.com/v1'
+  ).replace(/\/+$/, '');
+
+  const model =
+    process.env.MODERATION_MODEL?.trim() || 'gpt-4o-mini';
+
+  const timeoutMs = Number(process.env.MODERATION_TIMEOUT_MS ?? 20000);
+
+  const failStrategy =
+    process.env.MODERATION_FAIL_STRATEGY === 'block' ? 'block' : 'allow';
+
+  const jsonMode = process.env.MODERATION_JSON_MODE !== 'false';
+
+  if (!apiKey) {
+    throw error('⚠️ OPENAI_API_KEY не задан');
+  }
+
+  console.log(`ℹ️ AI-модерация: ${baseUrl}, model=${model}`);
+
+  return new AiModerator({
+    apiKey,
+    baseUrl,
+    model,
+    timeoutMs,
+    failStrategy,
+    jsonMode,
+  });
+}
+
+export const moderator = createModerator();

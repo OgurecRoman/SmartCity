@@ -6,6 +6,8 @@ import { bindHouseChat, getHouse, getHouseByChat, listHouses, unbindHouseChat } 
 import { fullName } from '../lib/labels.js';
 import { log } from '../lib/logger.js';
 import { isEmployee } from '../lib/rules.js';
+import { moderator } from '../lib/aiModerator.js';
+import { ModerationDecision } from '../ai/types.js';
 
 async function sendBindPrompt(ctx: BotContext): Promise<void> {
   const houses = await listHouses();
@@ -75,6 +77,33 @@ export function registerChatHandlers(bot: Bot<BotContext>): void {
         'Чтобы создавать заявки и поддерживать заявки соседей, откройте диалог с ботом и пройдите короткую регистрацию.',
       { ...(link ? withKeyboard([[btn.link('Открыть бота', link)]]) : {}), ...MD },
     );
+  });
+
+  bot.on('message_created', async (ctx) => {
+    const decision = await await moderator.moderate(ctx.update.message.body.text!, ctx.update.message.sender?.first_name!);
+
+    const labels: Record<ModerationDecision['action'], string> = {
+      allow: '✅ allow',
+      warn: '⚠️ warn',
+      block: '🚫 block',
+    };
+
+    const categories = decision.categories.length
+      ? decision.categories.join(', ')
+      : '-';
+
+    await ctx.reply(`🤖 ${labels[decision.action]} | confidence=${decision.confidence.toFixed(2)}
+     | categories=${categories}\nПричина: ${decision.reason}`)
+
+    if (decision.action === 'block') {
+      await ctx.reply('🚫 Пользователь заблокирован модератором.\n');
+    }
+
+    if (decision.action === 'warn') {
+      await ctx.reply(`⚠️ Предупреждение.`);
+    }
+
+    await ctx.reply('✅ Сообщение разрешено.\n');
   });
 
   bot.on('bot_removed', async (ctx) => {
