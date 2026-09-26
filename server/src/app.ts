@@ -1,4 +1,6 @@
 import path from 'node:path';
+// Express 4 не ловит ошибки из async-контроллеров — без этого патча любой throw errors.* роняет процесс.
+import 'express-async-errors';
 import cors from 'cors';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { MulterError } from 'multer';
@@ -24,7 +26,7 @@ export function createApp() {
   });
 
   app.get('/health', (_req, res) => {
-    res.json({ status: 'ok', bot: config.bot.enabled ? config.bot.mode : 'disabled', time: new Date().toISOString() });
+    res.json({ status: 'ok', service: 'backend', time: new Date().toISOString() });
   });
 
   app.use('/api', apiRouter);

@@ -1,20 +1,14 @@
 import type { Request, Response } from 'express';
-import { z } from 'zod';
 import { errors } from '../lib/errors.js';
 import { countAnnouncements, createAnnouncement, deleteAnnouncement, listAnnouncements, updateAnnouncement } from '../services/announcements.js';
 import { isChairman, isEmployee } from '../services/users.js';
 import { serializeAnnouncement } from '../routes/serialize.js';
-import { idParam, parseBody, parseQuery } from '../routes/validation.js';
-
-const listQuerySchema = z.object({
-  houseId: z.coerce.number().int().positive().optional(),
-  limit: z.coerce.number().int().min(1).max(200).default(5),
-  offset: z.coerce.number().int().min(0).default(0),
-});
+import { createAnnouncementSchema, listAnnouncementsQuerySchema, updateAnnouncementSchema } from '../validation/announcements.js';
+import { idParam, parseBody, parseQuery } from '../validation/parse.js';
 
 export async function list(req: Request, res: Response) {
   const user = req.user!;
-  const query = parseQuery(listQuerySchema, req);
+  const query = parseQuery(listAnnouncementsQuerySchema, req);
 
   let houseId: number | undefined;
   if (isEmployee(user)) houseId = query.houseId;
@@ -30,15 +24,9 @@ export async function list(req: Request, res: Response) {
   res.json({ items: announcements.map(serializeAnnouncement), total });
 }
 
-const createSchema = z.object({
-  houseId: z.number().int().positive().optional(),
-  title: z.string().trim().min(3).max(120),
-  description: z.string().trim().min(5).max(2000),
-});
-
 export async function create(req: Request, res: Response) {
   const user = req.user!;
-  const input = parseBody(createSchema, req);
+  const input = parseBody(createAnnouncementSchema, req);
 
   let houseId: number;
   if (isEmployee(user)) {
@@ -58,14 +46,9 @@ export async function create(req: Request, res: Response) {
   res.status(201).json(serializeAnnouncement(announcement));
 }
 
-const updateSchema = z.object({
-  title: z.string().trim().min(3).max(120).optional(),
-  description: z.string().trim().min(5).max(2000).optional(),
-});
-
 export async function update(req: Request, res: Response) {
   const user = req.user!;
-  const input = parseBody(updateSchema, req);
+  const input = parseBody(updateAnnouncementSchema, req);
   const announcement = await updateAnnouncement(idParam(req), user, input);
   res.json(serializeAnnouncement(announcement));
 }

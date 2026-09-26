@@ -1,19 +1,14 @@
 import type { Request, Response } from 'express';
-import { z } from 'zod';
 import { searchAddress } from '../services/geo.js';
 import { findOrCreateHouseAt, listHouses, lookupHouseAt, setVotePercent } from '../services/users.js';
 import { serializeHouse } from '../routes/serialize.js';
-import { idParam, parseBody, parseQuery } from '../routes/validation.js';
+import { geoSearchQuerySchema, pointSchema, votePercentSchema } from '../validation/houses.js';
+import { idParam, parseBody, parseQuery } from '../validation/parse.js';
 
 export async function list(_req: Request, res: Response) {
   const houses = await listHouses();
   res.json(houses.map((house: any) => serializeHouse(house, { residentsCount: house._count.residents })));
 }
-
-const pointSchema = z.object({
-  lat: z.coerce.number().min(-90).max(90),
-  lng: z.coerce.number().min(-180).max(180),
-});
 
 export async function lookup(req: Request, res: Response) {
   const { lat, lng } = parseQuery(pointSchema, req);
@@ -28,13 +23,9 @@ export async function create(req: Request, res: Response) {
 }
 
 export async function searchGeo(req: Request, res: Response) {
-  const { q } = parseQuery(z.object({ q: z.string().trim().min(3).max(200) }), req);
+  const { q } = parseQuery(geoSearchQuerySchema, req);
   res.json(await searchAddress(q));
 }
-
-const votePercentSchema = z.object({
-  votePercent: z.coerce.number().int().min(0).max(100),
-});
 
 export async function updateVotePercent(req: Request, res: Response) {
   const { votePercent } = parseBody(votePercentSchema, req);

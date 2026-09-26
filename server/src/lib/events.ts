@@ -29,30 +29,29 @@ export interface AppEvents {
 }
 
 type Handler<K extends keyof AppEvents> = (payload: AppEvents[K]) => Promise<void> | void;
-
 const handlers = new Map<keyof AppEvents, Handler<keyof AppEvents>[]>();
 
 async function enqueue<K extends keyof AppEvents>(name: K, payload: AppEvents[K]): Promise<void> {
   try {
-    await prisma.notificationOutbox.create({ data: { event: name, payload: payload as object } });
+    await prisma.notificationOutbox.create({ 
+      data: { event: name, payload: payload as object } 
+    });
   } catch (error) {
     log.error(`Не удалось поставить событие ${name} в очередь уведомлений`, error);
   }
 }
 
 export const events = {
-  // Регистрирует обработчик — вызывается только через dispatch(), из очереди в БД (см. bot/outboxConsumer.ts).
   on<K extends keyof AppEvents>(name: K, handler: Handler<K>): void {
     const list = (handlers.get(name) ?? []) as Handler<K>[];
     list.push(handler);
     handlers.set(name, list as Handler<keyof AppEvents>[]);
   },
-  // Публикует событие: кладёт его в NotificationOutbox, чтобы процесс бота забрал его опросом.
-  // Не вызывает обработчики напрямую — сервисы и бот-процесс могут быть разными процессами.
+  
   emit<K extends keyof AppEvents>(name: K, payload: AppEvents[K]): void {
     void enqueue(name, payload);
   },
-  // Прогоняет зарегистрированные обработчики для одного события — вызывается только поллером очереди.
+
   async dispatch<K extends keyof AppEvents>(name: K, payload: AppEvents[K]): Promise<void> {
     const list = (handlers.get(name) ?? []) as Handler<K>[];
     for (const handler of list) {
