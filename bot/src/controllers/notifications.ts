@@ -23,6 +23,7 @@ import {
   announcementCard,
   chatDetailsButtons,
   esc,
+  hashtagLine,
   keyboard,
   MD,
   mdName,
@@ -167,7 +168,7 @@ function subscribe(): void {
     await sendDm(request.author.maxUserId, `${line}\n\n${requestCard(request)}`, extra);
     const voters = await voterIds(request.id, request.authorId);
     await Promise.all(voters.map((id) => sendDm(id, `${line}\nТема: ${esc(request.title)}`, extra)));
-    if (request.house.chatId) await sendToChat(request.house.chatId, `${line}\nТема: ${esc(request.title)}`, extra);
+    if (request.house.chatId) await sendToChat(request.house.chatId, `${line}\nТема: ${esc(request.title)}\n${hashtagLine('request')}`, extra);
     await refreshChatMessage(request);
   });
 
@@ -187,7 +188,7 @@ function subscribe(): void {
       ),
     );
     if (request.house.chatId) {
-      await sendToChat(request.house.chatId, `${heading}\nТема: ${esc(request.title)}`, { attachments: images });
+      await sendToChat(request.house.chatId, `${heading}\nТема: ${esc(request.title)}\n${hashtagLine('request')}`, { attachments: images });
     }
     await refreshChatMessage(request, '🔄 Возвращена автором — проблема не устранена.');
   });

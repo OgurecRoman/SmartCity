@@ -1,8 +1,20 @@
 import type { Request, Response } from 'express';
 import { searchAddress } from '../services/geo.js';
-import { findOrCreateHouseAt, listHouses, lookupHouseAt, setVotePercent } from '../services/users.js';
-import { serializeHouse } from '../routes/serialize.js';
-import { geoSearchQuerySchema, pointSchema, votePercentSchema } from '../validation/houses.js';
+import { errors } from '../lib/errors.js';
+import {
+  appointChairman,
+  deleteHouse,
+  detachResident,
+  dismissChairman,
+  findOrCreateHouseAt,
+  getChairmanOf,
+  getUserById,
+  listHouses,
+  lookupHouseAt,
+  setVotePercent,
+} from '../services/users.js';
+import { serializeHouse, serializeUser } from '../routes/serialize.js';
+import { chairmanSchema, geoSearchQuerySchema, pointSchema, votePercentSchema } from '../validation/houses.js';
 import { idParam, parseBody, parseQuery } from '../validation/parse.js';
 
 export async function list(_req: Request, res: Response) {
@@ -25,6 +37,30 @@ export async function create(req: Request, res: Response) {
 export async function searchGeo(req: Request, res: Response) {
   const { q } = parseQuery(geoSearchQuerySchema, req);
   res.json(await searchAddress(q));
+}
+
+export async function remove(req: Request, res: Response) {
+  await deleteHouse(idParam(req));
+  res.status(204).end();
+}
+
+export async function setChairman(req: Request, res: Response) {
+  const { userId } = parseBody(chairmanSchema, req);
+  const target = await getUserById(userId);
+  if (!target) throw errors.notFound('Пользователь не найден');
+  res.json(serializeUser(await appointChairman(target.maxUserId, idParam(req))));
+}
+
+export async function unsetChairman(req: Request, res: Response) {
+  const chairman = await getChairmanOf(idParam(req));
+  if (!chairman) throw errors.notFound('У этого дома нет председателя ТСЖ');
+  res.json(serializeUser(await dismissChairman(chairman.maxUserId)));
+}
+
+export async function removeResident(req: Request, res: Response) {
+  const target = await getUserById(idParam(req, 'userId'));
+  if (!target) throw errors.notFound('Пользователь не найден');
+  res.json(serializeUser(await detachResident(target.maxUserId, idParam(req))));
 }
 
 export async function updateVotePercent(req: Request, res: Response) {

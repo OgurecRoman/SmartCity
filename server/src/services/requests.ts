@@ -7,7 +7,7 @@ import { deletePhotoFile } from '../lib/photoStorage.js';
 import { Prisma } from '@prisma/client';
 import type { RequestCategory, RequestPriority, RequestStatus } from '@prisma/client';
 import { AUTHOR_DELETABLE_STATUSES, REOPEN_WINDOW_DAYS, canTransition, votesRequiredFor } from './rules.js';
-import { countResidents } from './users.js';
+import { countResidents, isMemberOfHouse, resolveHouseFor } from './users.js';
 
 export const requestInclude = {
   author: { select: { id: true, firstName: true, lastName: true, apartment: true, maxUserId: true } },
@@ -52,6 +52,8 @@ function makeTitle(category: RequestCategory, description: string): string {
 
 export interface CreateRequestInput {
   authorId: number;
+  /** Один из домов автора; по умолчанию — активный. */
+  houseId?: number;
   category: RequestCategory;
   description: string;
   title?: string | null;
@@ -63,7 +65,8 @@ export interface CreateRequestInput {
 export async function createRequest(input: CreateRequestInput): Promise<RequestWithRelations> {
   const author = await prisma.user.findUnique({ where: { id: input.authorId } });
   if (!author) throw errors.notFound('Пользователь не найден');
-  if (!author.houseId || !author.onboardedAt) throw errors.badRequest('Сначала дождитесь подтверждения от председателя ТСЖ или УК', 'onboarding_required');
+  if (author.role === 'UK_EMPLOYEE') throw errors.forbidden('Сотрудники УК не создают заявки');
+  const houseId = await resolveHouseFor(author, input.houseId);
 
   const description = input.description.trim();
   if (description.length < 5) throw errors.badRequest('Опишите проблему подробнее (минимум 5 символов)');
@@ -71,7 +74,7 @@ export async function createRequest(input: CreateRequestInput): Promise<RequestW
 
   const priority: RequestPriority = input.priority ?? 'NORMAL';
   const emergency = priority === 'EMERGENCY';
-  const votesRequired = emergency ? 0 : await computeVotesRequired(author.houseId);
+  const votesRequired = emergency ? 0 : await computeVotesRequired(houseId);
   const deadline = emergency ? null : (input.deadline ?? addDays(new Date(), config.votes.defaultDeadlineDays));
   if (deadline && deadline.getTime() < Date.now()) throw errors.badRequest('Срок сбора подписей уже прошёл');
   const status: RequestStatus = emergency ? 'SUBMITTED' : 'VOTING';
@@ -79,7 +82,7 @@ export async function createRequest(input: CreateRequestInput): Promise<RequestW
 
   const request = await prisma.request.create({
     data: {
-      houseId: author.houseId,
+      houseId,
       authorId: author.id,
       title,
       description,
@@ -142,9 +145,11 @@ export async function vote(requestId: number, userId: number): Promise<{ request
   ]);
   if (!request) throw errors.notFound('Заявка не найдена');
   if (!user) throw errors.notFound('Пользователь не найден');
-  if (!user.houseId || !user.onboardedAt) throw errors.badRequest('Сначала укажите дом и квартиру', 'onboarding_required');
   if (request.status !== 'VOTING') throw errors.conflict(`Сбор подписей завершён: ${STATUS_LABELS[request.status]}`);
-  if (user.houseId !== request.houseId) throw errors.forbidden('Поддержать заявку могут только жители этого дома');
+  if (!(await isMemberOfHouse(userId, request.houseId))) {
+    if (!user.houseId || !user.onboardedAt) throw errors.badRequest('Сначала укажите дом и квартиру', 'onboarding_required');
+    throw errors.forbidden('Поддержать заявку могут только жители этого дома');
+  }
   if (request.authorId === userId) throw errors.conflict('Автор не может подписать свою заявку');
 
   const votesRequired = await computeVotesRequired(request.houseId);

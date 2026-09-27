@@ -11,6 +11,7 @@ export const listRequestsQuerySchema = z.object({
 });
 
 export const createRequestSchema = z.object({
+  houseId: z.coerce.number().int().positive().optional(),
   category: z.enum(REQUEST_CATEGORIES),
   description: z.string().trim().min(5).max(2000),
   title: z.string().trim().max(120).optional(),

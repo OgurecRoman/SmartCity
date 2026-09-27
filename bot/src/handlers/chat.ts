@@ -1,11 +1,11 @@
 import type { Bot } from '@maxhub/max-bot-api';
 import type { BotContext } from '../controllers/context.js';
 import { ack, isDialog } from '../controllers/helpers.js';
-import { esc, MD, TEXTS, botDeepLink, btn, getBotUsername, houseButtons, mdName, withKeyboard } from '../controllers/ui.js';
-import { bindHouseChat, getHouse, getHouseByChat, listHouses, unbindHouseChat } from '../lib/api.js';
+import { chatGuideText, esc, MD, TEXTS, botDeepLink, btn, getBotUsername, houseButtons, mdName, withKeyboard } from '../controllers/ui.js';
+import { bindHouseChat, getCompany, getHouse, getHouseByChat, listHouses, unbindHouseChat } from '../lib/api.js';
 import { fullName } from '../lib/labels.js';
 import { log } from '../lib/logger.js';
-import { isEmployee } from '../lib/rules.js';
+import { isChairman, isEmployee } from '../lib/rules.js';
 import { moderator } from '../lib/aiModerator.js';
 import { ModerationDecision } from '../types/ai.js';
 
@@ -18,15 +18,32 @@ async function sendBindPrompt(ctx: BotContext): Promise<void> {
   await ctx.reply('К какому дому привязать этот чат?', withKeyboard(houseButtons(houses, 'bind', false)));
 }
 
+/** Отправляет в групповой чат памятку (хештеги, команды, контакты УК) и закрепляет её. Закрепить может только бот-администратор. */
+async function sendChatGuide(ctx: BotContext, chatId: number, house: { address: string } | null): Promise<void> {
+  const company = await getCompany();
+  const message = await ctx.api.sendMessageToChat(chatId, chatGuideText(company, house, botDeepLink('join')), MD);
+  try {
+    await ctx.api.pinMessage(chatId, message.body.mid, { notify: false });
+  } catch (error) {
+    log.warn(`Не удалось закрепить памятку в чате ${chatId}`, error);
+    await ctx.api.sendMessageToChat(
+      chatId,
+      `Не получилось закрепить памятку: назначьте бота администратором чата и отправьте «@${getBotUsername()} /pin» — закреплю.`,
+    );
+  }
+}
+
 export function registerChatHandlers(bot: Bot<BotContext>): void {
   bot.on('bot_added', async (ctx) => {
     if (ctx.update.is_channel) return;
+    // Памятку закрепляем сразу при добавлении; после /bind она отправится заново уже с адресом дома.
+    await sendChatGuide(ctx, ctx.update.chat_id, null);
     if (isEmployee(ctx.dbUser)) {
-      await ctx.reply('Привет! Я бот «Умный дом». Привяжите этот чат к дому, чтобы жители получали уведомления о заявках.');
+      await ctx.reply('Привяжите этот чат к дому, чтобы жители получали уведомления о заявках.');
       await sendBindPrompt(ctx);
       return;
     }
-    await ctx.reply('Привет! Я бот «Умный дом»: присылаю в чат дома уведомления о заявках жителей.\n' + TEXTS.bindHint());
+    await ctx.reply(TEXTS.bindHint());
   });
 
   bot.command('bind', async (ctx) => {
@@ -61,8 +78,22 @@ export function registerChatHandlers(bot: Bot<BotContext>): void {
     }
     await bindHouseChat(house.id, BigInt(chatId), title);
     await ack(ctx, { message: { text: `✅ Группа успешно привязана к дому «${house.address}».` } });
-    const link = botDeepLink('join');
-    await ctx.reply(TEXTS.groupInstructions(link), link ? withKeyboard([[btn.link('Открыть бота', link)]]) : undefined);
+    await sendChatGuide(ctx, chatId, house);
+  });
+
+  // Повторно отправить и закрепить памятку (например, после того как бота сделали администратором чата).
+  bot.command('pin', async (ctx) => {
+    if (isDialog(ctx)) {
+      await ctx.reply('Команда /pin работает в групповом чате дома: отправьте там «@' + getBotUsername() + ' /pin».');
+      return;
+    }
+    if (!isEmployee(ctx.dbUser) && !isChairman(ctx.dbUser)) {
+      await ctx.reply('Закрепить памятку может сотрудник УК или председатель ТСЖ.');
+      return;
+    }
+    const chatId = ctx.chatId;
+    if (!chatId) return;
+    await sendChatGuide(ctx, chatId, await getHouseByChat(BigInt(chatId)));
   });
 
   bot.on('user_added', async (ctx) => {

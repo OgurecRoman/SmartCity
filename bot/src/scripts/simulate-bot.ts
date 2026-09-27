@@ -4,11 +4,12 @@ import { initNotifications } from '../controllers/notifications.js';
 import { drainOutboxOnce } from '../controllers/outboxConsumer.js';
 import { setBotIdentity } from '../controllers/ui.js';
 import { config } from '../config.js';
-import { getLatestMembershipRequestFor, getUserByMaxId, listRequests } from '../lib/api.js';
+import { bindHouseChat, getHouse, getLatestMembershipRequestFor, getUserByMaxId, listRequests, unbindHouseChat } from '../lib/api.js';
 import { ping, request } from '../lib/network.js';
 
 const BOT_ID = 1;
 const RESIDENT_IDS = ['5000001', '5000002', '5000003'];
+let restoreHouseChat: () => Promise<void> = async () => {};
 let midCounter = 0;
 const out = (line: string) => console.log(line);
 
@@ -64,6 +65,10 @@ api.uploadFile = async ({ source }: { source: string }) => {
   return { toJson: () => ({ type: 'file', payload: { token: 'fake-token' } }) };
 };
 api.setMyCommands = async () => ({ success: true });
+api.pinMessage = async (chatId: number, messageId: string) => {
+  out(`   🤖 pin ${messageId} in chat ${chatId}`);
+  return { success: true };
+};
 
 bot.botInfo = { user_id: BOT_ID, first_name: 'SmartCity', name: 'SmartCity', username: 'smartcity_demo_bot', is_bot: true, last_activity_time: 0 };
 setBotIdentity('smartcity_demo_bot');
@@ -150,7 +155,13 @@ async function main() {
   const olga = user(5000002, 'Ольга', 'Соседова');
   const kirill = user(5000003, 'Кирилл', 'Подписов');
 
+  // Прогон привязывает дом 1 к фейковой группе 8001 — запоминаем настоящую привязку, чтобы вернуть её в конце.
+  const house1Before = await getHouse(1);
   await request('POST', 'bot/dev/reset', { maxUserIds: RESIDENT_IDS, unbindChatOfHouseIds: [1] });
+  restoreHouseChat = async () => {
+    if (house1Before?.chatId && house1Before.chatId !== String(GROUP)) await bindHouseChat(1, house1Before.chatId, house1Before.chatTitle);
+    else await unbindHouseChat(GROUP);
+  };
 
   section('УК привязывает чат дома');
   await botAdded(admin, GROUP);
@@ -233,6 +244,14 @@ async function main() {
   await msg(anna, '/contacts');
   await cb(anna, 'uk:new');
 
+  section('Житель публикует новость соседям');
+  await cb(anna, 'menu:news_new');
+  await msg(anna, 'Субботник во дворе');
+  await msg(anna, 'В субботу в 11:00 убираем двор, инвентарь выдадим у первого подъезда.');
+  await msg(anna, '+7 900 000-00-01');
+  await cb(anna, 'news:photos:done');
+  await cb(anna, 'news:yes');
+
   section('УК: объявление в дом и добавление владельца');
   await cb(admin, 'menu:announce');
   await cb(admin, 'ann:house:1');
@@ -270,7 +289,9 @@ async function main() {
   out('\n✅ Прогон завершён без необработанных ошибок');
 }
 
-main().catch((error) => {
-  console.error('❌ Прогон упал:', error);
-  process.exitCode = 1;
-});
+main()
+  .catch((error) => {
+    console.error('❌ Прогон упал:', error);
+    process.exitCode = 1;
+  })
+  .finally(() => restoreHouseChat().catch((error) => console.error('Не удалось вернуть привязку чата дома 1:', error)));

@@ -6,7 +6,7 @@ import type { MembershipRequestWithRelations } from '../services/membership.js';
 import type { NewsWithRelations } from '../services/news.js';
 import type { RequestDetailed, RequestWithRelations } from '../services/requests.js';
 import { checkApartment, type Entrance } from '../services/rules.js';
-import { apartmentDataOf, type DbUser, type ResidentRow } from '../services/users.js';
+import { apartmentDataOf, type DbUser, type ResidentRow, type UserHouseRow } from '../services/users.js';
 
 function photoUrlsOf(photos: { filename: string }[]): string[] {
   return photos.map((photo) => photoUrlPath(photo.filename));
@@ -23,6 +23,23 @@ type HouseRow = {
   dataSource: string | null;
   chatId: bigint | null;
 };
+
+/** Дом из списка домов жителя (подтверждённый) либо ожидающая заявка на вступление. */
+export function serializeUserHouse(
+  row: { houseId: number; apartment: string | null; residentType: UserHouseRow['residentType'] | null; house: { id: number; address: string } },
+  extra: { active: boolean; status: 'APPROVED' | 'PENDING'; membershipRequestId?: number },
+) {
+  return {
+    houseId: row.houseId,
+    address: row.house.address,
+    apartment: row.apartment,
+    residentType: row.residentType,
+    residentTypeLabel: row.residentType ? RESIDENT_TYPE_LABELS[row.residentType] : null,
+    status: extra.status,
+    active: extra.active,
+    membershipRequestId: extra.membershipRequestId ?? null,
+  };
+}
 
 export function serializeHouse(house: HouseRow, extra: { residentsCount?: number } = {}) {
   return {

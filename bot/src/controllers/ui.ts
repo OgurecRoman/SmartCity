@@ -35,6 +35,18 @@ export function mdStatus(label: string): string {
   return fmt.bold(fmt.escape(label));
 }
 
+export const HASHTAGS = {
+  request: '#заявка',
+  announcement: '#объявление',
+  news: '#новость',
+  membership: '#вступление',
+} as const;
+
+/** Хештег типа сущности внизу карточки — по нему удобно искать в чате дома. Не с начала строки, чтобы markdown не принял `#` за заголовок. */
+export function hashtagLine(kind: keyof typeof HASHTAGS): string {
+  return `🏷 ${HASHTAGS[kind]}`;
+}
+
 let botUsername = config.bot.username;
 
 export function setBotIdentity(username: string | null | undefined): void {
@@ -196,6 +208,7 @@ export function requestCard(request: RequestWithRelations): string {
   if (request.reopenedAt) lines.push('🔄 Была возвращена автором — проблема не была устранена');
   lines.push(`Статус: ${STATUS_EMOJI[request.status]} ${mdStatus(STATUS_LABELS[request.status])}`);
   lines.push(`Создана: ${formatDateTime(request.createdAt)}`);
+  lines.push(hashtagLine('request'));
   return lines.join('\n');
 }
 
@@ -212,6 +225,7 @@ export function announcementCard(announcement: AnnouncementWithRelations): strin
     `Дом: ${esc(announcement.house.address)}`,
     `От: ${mdName(fullName(announcement.author))}`,
     `Опубликовано: ${formatDateTime(announcement.createdAt)}`,
+    hashtagLine('announcement'),
   ];
   return lines.join('\n');
 }
@@ -225,6 +239,7 @@ export function newsCard(news: NewsWithRelations): string {
     `Дом: ${esc(news.house.address)}`,
     `От: ${mdName(fullName(news.author))}`,
     `Связаться: ${esc(news.contact)}`,
+    hashtagLine('news'),
   ];
   return lines.join('\n');
 }
@@ -237,6 +252,7 @@ export function membershipCard(request: MembershipRequestWithRelations): string 
     `Квартира: ${esc(request.apartment)}`,
     `MAX ID заявителя: ${request.applicant.maxUserId}`,
     `Подана: ${formatDateTime(request.createdAt)}`,
+    hashtagLine('membership'),
   ];
   return lines.join('\n');
 }
@@ -276,6 +292,34 @@ export function contactsCard(company: {
   if (company.email) lines.push(`✉️ Email: ${company.email}`);
   if (company.address) lines.push(`📍 Адрес: ${company.address}`);
   if (company.workingHours) lines.push(`🕘 Часы работы: ${company.workingHours}`);
+  return lines.join('\n');
+}
+
+/** Памятка для группового чата дома (закрепляется ботом): что он присылает, хештеги для поиска, команды, контакты УК. Markdown. */
+export function chatGuideText(
+  company: { name: string; phone: string; email: string | null; address: string | null; workingHours: string | null } | null,
+  house: { address: string } | null,
+  botLink: string | null,
+): string {
+  const lines: string[] = [];
+  lines.push(house ? `📌 ${fmt.bold(`Памятка чата дома «${esc(house.address)}»`)}` : `📌 ${fmt.bold('Памятка чата дома')}`);
+  lines.push('Я бот «Умный дом»: присылаю сюда заявки жителей и смену их статусов, объявления УК и новости соседей.');
+  lines.push('');
+  lines.push(`🔎 ${fmt.bold('Поиск по хештегам')} (нажмите на тег или введите его в поиск чата):`);
+  lines.push(`${HASHTAGS.request} — заявки жителей и что с ними происходит`);
+  lines.push(`${HASHTAGS.announcement} — объявления УК и председателя ТСЖ`);
+  lines.push(`${HASHTAGS.news} — новости от соседей`);
+  lines.push('');
+  lines.push(`🤖 ${fmt.bold('Открыть бота')}`);
+  if (botLink) lines.push(`${botLink}`);
+  if (company) {
+    lines.push('');
+    lines.push(`📞 ${fmt.bold('Управляющая компания')}: ${esc(company.name)}`);
+    lines.push(`Телефон: ${esc(company.phone)}`);
+    if (company.email) lines.push(`Email: ${esc(company.email)}`);
+    if (company.address) lines.push(`Адрес: ${esc(company.address)}`);
+    if (company.workingHours) lines.push(`Часы работы: ${esc(company.workingHours)}`);
+  }
   return lines.join('\n');
 }
 
@@ -333,9 +377,5 @@ export const TEXTS = {
     '/announce — объявление жителям дома\n' +
     '/bind — (в групповом чате, с упоминанием бота) привязать чат к дому\n' +
     '/cancel — отменить текущее действие',
-  groupInstructions: (link: string | null) =>
-    'Я буду присылать сюда уведомления о новых заявках и смене их статусов.\n' +
-    'Чтобы создавать и поддерживать заявки, откройте диалог с ботом' +
-    (link ? `: ${link}` : ' и нажмите «Начать».'),
   onboardingRequired: 'Сначала укажите дом и квартиру — это займёт минуту.',
 };

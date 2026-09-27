@@ -1,98 +1,123 @@
-import { describe, expect, it } from 'vitest';
-import { parseFlats, parseNominatim, parseOverpass, type OverpassElement } from './geo.js';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { findBuildingAt, searchAddress } from './geo.js';
 
-const rect = (lat: number, lon: number, dLat = 0.0002, dLon = 0.0006) => [
-  { lat: lat - dLat, lon: lon - dLon },
-  { lat: lat - dLat, lon: lon + dLon },
-  { lat: lat + dLat, lon: lon + dLon },
-  { lat: lat + dLat, lon: lon - dLon },
-  { lat: lat - dLat, lon: lon - dLon },
-];
-const elements: OverpassElement[] = [
-  {
-    type: 'way',
-    id: 61424311,
-    geometry: rect(55.8285919, 49.0850117),
-    nodes: [1, 2, 3, 4, 5],
-    tags: { building: 'apartments', 'addr:street': 'Волгоградская улица', 'addr:housenumber': '5', 'building:flats': '80', 'building:levels': '5' },
-  },
-  {
-    type: 'way',
-    id: 61424423,
-    geometry: rect(55.8288311, 49.0855945),
-    nodes: [9],
-    tags: { building: 'apartments', 'addr:street': 'Волгоградская улица', 'addr:housenumber': '7', 'building:flats': '80' },
-  },
-  { type: 'node', id: 1, tags: { entrance: 'staircase', ref: '1', 'addr:flats': '1-20' } },
-  { type: 'node', id: 2, tags: { entrance: 'staircase', ref: '2', 'addr:flats': '21-40' } },
-  { type: 'node', id: 3, tags: { entrance: 'staircase', ref: '2', 'addr:flats': '21-40' } },
-  { type: 'node', id: 4, tags: { entrance: 'staircase', ref: '3', 'addr:flats': '41-60' } },
-  { type: 'node', id: 9, tags: { entrance: 'staircase', ref: '1', 'addr:flats': '1-40' } },
-];
+vi.mock('../config.js', () => ({
+    config: {
+        geo: {
+            yandexApiKey: 'test-yandex-api-key',
+            yandexGeocoderUrl: 'https://geocode-maps.yandex.ru/1.x/',
+        },
+    },
+}));
 
-describe('parseOverpass', () => {
-  it('берёт здание, внутри которого точка, число квартир и подъезды без дублей', () => {
+const mockFetch = vi.fn();
+global.fetch = mockFetch;
 
-    const building = parseOverpass(elements, 55.82875, 49.08555);
-    expect(building).toMatchObject({
-      externalId: 'osm:way/61424311',
-      source: 'osm',
-      address: 'Волгоградская улица, 5',
-      apartmentsCount: 80,
+describe('findBuildingAt (Яндекс.Геокодер)', () => {
+    beforeEach(() => {
+        mockFetch.mockReset();
     });
-    expect(building?.lat).toBeCloseTo(55.8285919, 5);
-    expect(building?.lng).toBeCloseTo(49.0850117, 5);
-    expect(building?.entrances).toEqual([
-      { number: '1', from: 1, to: 20 },
-      { number: '2', from: 21, to: 40 },
-      { number: '3', from: 41, to: 60 },
-    ]);
-  });
 
-  it('если нажали рядом с домами — берёт ближайший по центру', () => {
-    expect(parseOverpass(elements, 55.82890, 49.08640)?.address).toBe('Волгоградская улица, 7');
-    expect(parseOverpass(elements, 55.82850, 49.08420)?.address).toBe('Волгоградская улица, 5');
-  });
+    it('находит здание по координатам и формирует правильный адрес', async () => {
+        // Имитируем успешный ответ от Яндекс.Геокодера
+        mockFetch.mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({
+                response: {
+                    GeoObjectCollection: {
+                        featureMember: [
+                            {
+                                GeoObject: {
+                                    name: '5',
+                                    description: 'г Казань, Волгоградская улица',
+                                    Point: { pos: '49.0850117 55.8285919' }, // Формат Яндекса: "долгота широта"
+                                },
+                            },
+                        ],
+                    },
+                },
+            }),
+        });
 
-  it('возвращает null без зданий и null-число квартир без тега building:flats', () => {
-    expect(parseOverpass([], 55.8, 49.1)).toBeNull();
-    const noFlats: OverpassElement[] = [{ type: 'way', id: 7, geometry: rect(55.8, 49.1), tags: { building: 'yes', 'addr:housenumber': '3' } }];
-    expect(parseOverpass(noFlats, 55.8, 49.1)).toMatchObject({ address: 'дом 3', apartmentsCount: null, entrances: [] });
-  });
+        const building = await findBuildingAt(55.8285919, 49.0850117);
+
+        expect(building).not.toBeNull();
+        expect(building).toMatchObject({
+            source: 'yandex',
+            address: 'г Казань, Волгоградская улица, 5',
+            apartmentsCount: null, // Яндекс не отдает количество квартир
+            entrances: [],         // Яндекс не отдает подъезды
+        });
+        expect(building?.lat).toBeCloseTo(55.8285919, 5);
+        expect(building?.lng).toBeCloseTo(49.0850117, 5);
+        expect(building?.externalId).toContain('yandex:');
+    });
+
+    it('возвращает null, если Яндекс ничего не нашел по координатам', async () => {
+        mockFetch.mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({
+                response: {
+                    GeoObjectCollection: {
+                        featureMember: [], // Пустой ответ
+                    },
+                },
+            }),
+        });
+
+        const building = await findBuildingAt(0, 0);
+        expect(building).toBeNull();
+    });
+
+    it('выдает ошибку, если Яндекс вернул статус не 200', async () => {
+        mockFetch.mockResolvedValueOnce({
+            ok: false,
+            status: 403,
+        });
+
+        await expect(findBuildingAt(55, 49)).rejects.toThrow('Яндекс.Геокодер ответил 403');
+    });
 });
 
-describe('parseFlats', () => {
-  it('разбирает диапазоны и одиночные номера', () => {
-    expect(parseFlats('1-20', '1')).toEqual([{ number: '1', from: 1, to: 20 }]);
-    expect(parseFlats('1-20;21-40', '2')).toHaveLength(2);
-    expect(parseFlats('25', undefined)).toEqual([{ number: '', from: 25, to: 25 }]);
-    expect(parseFlats('n/a', '1')).toEqual([]);
-  });
-});
-
-describe('parseNominatim', () => {
-  it('берёт адрес и число квартир из ответа обратного геокодирования', () => {
-    const place = {
-      osm_type: 'way',
-      osm_id: 61424311,
-      lat: '55.8286213',
-      lon: '49.0849988',
-      address: { road: 'Волгоградская улица', house_number: '5', city: 'Казань' },
-      extratags: { 'building:flats': '80', 'building:levels': '5' },
-    };
-    expect(parseNominatim(place)).toEqual({
-      externalId: 'osm:way/61424311',
-      source: 'osm',
-      address: 'Волгоградская улица, 5',
-      lat: 55.8286213,
-      lng: 49.0849988,
-      apartmentsCount: 80,
-      entrances: [],
+describe('searchAddress (Яндекс.Геокодер)', () => {
+    beforeEach(() => {
+        mockFetch.mockReset();
     });
-  });
 
-  it('возвращает null без номера дома или при ошибке', () => {
-    expect(parseNominatim({ error: 'Unable to geocode' })).toBeNull();
-    expect(parseNominatim({ osm_type: 'way', osm_id: 1, address: { road: 'Парковая' } })).toBeNull();
-  });
+    it('ищет адрес по строке и возвращает массив результатов', async () => {
+        mockFetch.mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({
+                response: {
+                    GeoObjectCollection: {
+                        featureMember: [
+                            {
+                                GeoObject: {
+                                    name: '1',
+                                    description: 'г Москва, ул Тверская',
+                                    Point: { pos: '37.6116 55.7580' },
+                                },
+                            },
+                        ],
+                    },
+                },
+            }),
+        });
+
+        const results = await searchAddress('Москва, ул Тверская, 1');
+
+        expect(results).toHaveLength(1);
+        expect(results[0]).toMatchObject({
+            label: 'г Москва, ул Тверская, 1',
+            lat: 55.7580,
+            lng: 37.6116,
+        });
+    });
+
+    it('возвращает пустой массив для слишком короткого запроса (меньше 3 символов)', async () => {
+        const results = await searchAddress('аб');
+
+        expect(results).toEqual([]);
+        expect(mockFetch).not.toHaveBeenCalled();
+    });
 });

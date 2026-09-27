@@ -2,7 +2,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/db.js';
 import { errors } from '../lib/errors.js';
 import { events } from '../lib/events.js';
-import { apartmentDataOf, canActOnHouse, type DbUser } from './users.js';
+import { apartmentDataOf, canActOnHouse, isMemberOfHouse, joinHouse, type DbUser } from './users.js';
 import { checkApartment } from './rules.js';
 
 export const membershipRequestInclude = {
@@ -32,20 +32,16 @@ export async function submitMembershipRequest(input: SubmitMembershipInput): Pro
   const fullName = input.fullName.trim();
   if (fullName.length < 3 || fullName.length > 150) throw errors.badRequest('Укажите ФИО (от 3 до 150 символов)');
 
+  if (await isMemberOfHouse(input.applicantId, house.id)) throw errors.conflict('Вы уже житель этого дома', 'already_member');
   const pending = await prisma.membershipRequest.findFirst({
-    where: { applicantId: input.applicantId, status: 'PENDING' },
+    where: { applicantId: input.applicantId, houseId: house.id, status: 'PENDING' },
   });
-  if (pending) throw errors.conflict('У вас уже есть заявка на рассмотрении', 'membership_pending');
+  if (pending) throw errors.conflict('У вас уже есть заявка в этот дом на рассмотрении', 'membership_pending');
 
-  const request = await prisma.$transaction(async (tx) => {
-    await tx.user.update({
-      where: { id: input.applicantId },
-      data: { houseId: house.id, apartment, residentType: 'OWNER', onboardedAt: null },
-    });
-    return tx.membershipRequest.create({
-      data: { applicantId: input.applicantId, houseId: house.id, apartment, fullName, status: 'PENDING' },
-      include: membershipRequestInclude,
-    });
+  // Пользователя не трогаем до одобрения: у него могут быть другие (уже подтверждённые) дома.
+  const request = await prisma.membershipRequest.create({
+    data: { applicantId: input.applicantId, houseId: house.id, apartment, fullName, status: 'PENDING' },
+    include: membershipRequestInclude,
   });
 
   events.emit('membership.requested', { requestId: request.id });
@@ -98,16 +94,17 @@ export async function approveMembershipRequest(id: number, reviewer: DbUser): Pr
   if (request.status !== 'PENDING') throw errors.conflict('Заявка уже рассмотрена');
   if (!canActOnHouse(reviewer, request.houseId)) throw errors.forbidden('Подтвердить заявку может председатель ТСЖ этого дома или сотрудник УК');
 
-  const updated = await prisma.$transaction(async (tx) => {
-    await tx.user.update({
-      where: { id: request.applicantId },
-      data: { onboardedAt: new Date(), verifiedFullName: request.fullName },
-    });
-    return tx.membershipRequest.update({
-      where: { id },
-      data: { status: 'APPROVED', reviewedById: reviewer.id },
-      include: membershipRequestInclude,
-    });
+  await joinHouse({
+    userId: request.applicantId,
+    houseId: request.houseId,
+    apartment: request.apartment,
+    residentType: 'OWNER',
+    verifiedFullName: request.fullName,
+  });
+  const updated = await prisma.membershipRequest.update({
+    where: { id },
+    data: { status: 'APPROVED', reviewedById: reviewer.id },
+    include: membershipRequestInclude,
   });
 
   events.emit('membership.approved', { requestId: id });
@@ -123,16 +120,10 @@ export async function rejectMembershipRequest(id: number, reviewer: DbUser, reas
   const trimmedReason = reason.trim();
   if (trimmedReason.length < 3) throw errors.badRequest('Укажите причину отказа (от 3 символов)');
 
-  const updated = await prisma.$transaction(async (tx) => {
-    await tx.user.update({
-      where: { id: request.applicantId },
-      data: { houseId: null, apartment: null, residentType: null },
-    });
-    return tx.membershipRequest.update({
-      where: { id },
-      data: { status: 'REJECTED', reviewedById: reviewer.id, rejectReason: trimmedReason },
-      include: membershipRequestInclude,
-    });
+  const updated = await prisma.membershipRequest.update({
+    where: { id },
+    data: { status: 'REJECTED', reviewedById: reviewer.id, rejectReason: trimmedReason },
+    include: membershipRequestInclude,
   });
 
   events.emit('membership.rejected', { requestId: id });

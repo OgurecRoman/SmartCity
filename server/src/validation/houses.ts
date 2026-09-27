@@ -12,3 +12,7 @@ export const geoSearchQuerySchema = z.object({
 export const votePercentSchema = z.object({
   votePercent: z.coerce.number().int().min(0).max(100),
 });
+
+export const chairmanSchema = z.object({
+  userId: z.coerce.number().int().positive(),
+});
