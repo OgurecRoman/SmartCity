@@ -109,6 +109,22 @@ components:
                 status: { type: string, enum: [PENDING, REJECTED] }
                 rejectReason: { type: [string, 'null'] }
                 createdAt: { type: string, format: date-time }
+        houses:
+          type: array
+          description: Все дома жителя (подтверждённые и ожидающие подтверждения). Поля house/apartment/residentType выше — активный дом
+          items: { $ref: '#/components/schemas/UserHouse' }
+    UserHouse:
+      type: object
+      description: Дом из списка домов жителя. У жителя может быть несколько домов; один из них активный — с ним работают бот и запросы без houseId
+      properties:
+        houseId: { type: integer }
+        address: { type: string }
+        apartment: { type: [string, 'null'] }
+        residentType: { oneOf: [{ $ref: '#/components/schemas/ResidentType' }, { type: 'null' }] }
+        residentTypeLabel: { type: [string, 'null'] }
+        status: { type: string, enum: [APPROVED, PENDING], description: PENDING — заявка на вступление в этот дом ещё не рассмотрена }
+        active: { type: boolean }
+        membershipRequestId: { type: [integer, 'null'], description: id ожидающей заявки на вступление (для PENDING) }
     Entrance:
       type: object
       description: Подъезд и диапазон квартир в нём
@@ -474,10 +490,12 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
     patch:
       tags: [profile]
-      summary: Подать заявку на вступление (дом, квартира, ФИО)
+      summary: Подать заявку на вступление в дом (первый или дополнительный)
       description: |
-        Не даёт доступ сразу — создаёт заявку со статусом PENDING (см. User.membership) и отправляет её на
-        подтверждение. 409 с code = membership_pending, если у заявителя уже есть заявка на рассмотрении.
+        Не даёт доступ сразу — создаёт заявку со статусом PENDING (см. User.membership / User.houses) и отправляет её на
+        подтверждение. У жителя может быть несколько домов: заявку можно подать в ещё один дом, уже подтверждённые не
+        затрагиваются. После одобрения дом появляется в User.houses; первый подтверждённый дом становится активным.
+        409 с code = membership_pending, если в этот дом уже есть заявка на рассмотрении; already_member — если дом уже в списке.
       requestBody:
         required: true
         content: { application/json: { schema: { $ref: '#/components/schemas/SubmitMembership' } } }
@@ -494,7 +512,50 @@ paths:
                     description: То же, что User.membership, но без oneOf-обёртки с null
         '400': { description: 'Ошибка валидации или квартиры нет в доме (code = apartment_not_found)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { description: 'Уже есть заявка на рассмотрении (code = membership_pending)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: 'Уже есть заявка на рассмотрении (code = membership_pending) или дом уже в списке (already_member)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /api/me/houses:
+    get:
+      tags: [profile]
+      summary: Дома жителя (подтверждённые и ожидающие подтверждения)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/UserHouse' } }
+
+  /api/me/active-house:
+    put:
+      tags: [profile]
+      summary: Переключить активный дом
+      description: |
+        Активный дом — тот, с которым работают бот и запросы без явного houseId. Переключать можно только на дом
+        из своего списка. Председатель ТСЖ привязан к своему дому — 409 с code = chairman_bound.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [houseId], properties: { houseId: { type: integer } } } } }
+      responses:
+        '200': { description: Обновлённый пользователь (с houses), content: { application/json: { schema: { $ref: '#/components/schemas/User' } } } }
+        '403': { description: Это не ваш дом, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/me/houses/{houseId}:
+    parameters:
+      - { name: houseId, in: path, required: true, schema: { type: integer } }
+    delete:
+      tags: [profile]
+      summary: Покинуть дом
+      description: |
+        Убирает дом из списка. Если он был активным — активным становится следующий дом из списка (или никакой,
+        тогда onboarded снова false). Председатель ТСЖ свой дом покинуть не может (409, code = chairman_bound).
+      responses:
+        '200': { description: Обновлённый пользователь (с houses), content: { application/json: { schema: { $ref: '#/components/schemas/User' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
 
   /api/houses:
     get:
@@ -533,6 +594,51 @@ paths:
       responses:
         '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/House' } } } }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [uk]
+      summary: Удалить дом (сотрудник УК)
+      description: Только если с домом ничего не связано — нет жителей, заявок, объявлений, новостей, заявок на вступление и камер; иначе 409 (code = house_in_use).
+      responses:
+        '204': { description: Удалён }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/houses/{id}/chairman:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    put:
+      tags: [uk]
+      summary: Назначить председателя ТСЖ дома (сотрудник УК)
+      description: Если человек ещё не житель этого дома — добавляется как владелец; дом становится его активным.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [userId], properties: { userId: { type: integer } } } } }
+      responses:
+        '200': { description: Назначенный председатель, content: { application/json: { schema: { $ref: '#/components/schemas/User' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [uk]
+      summary: Снять председателя ТСЖ дома (сотрудник УК)
+      responses:
+        '200': { description: Бывший председатель (теперь RESIDENT), content: { application/json: { schema: { $ref: '#/components/schemas/User' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { description: У дома нет председателя, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /api/houses/{id}/residents/{userId}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+      - { name: userId, in: path, required: true, schema: { type: integer } }
+    delete:
+      tags: [uk]
+      summary: Убрать жителя из дома (сотрудник УК)
+      description: Дом удаляется из списка домов жителя; если он был активным — активным становится следующий. Председателя этого дома заодно снимает с должности.
+      responses:
+        '200': { description: Обновлённый пользователь, content: { application/json: { schema: { $ref: '#/components/schemas/User' } } } }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 

@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import { errors } from '../lib/errors.js';
 import { countAnnouncements, createAnnouncement, deleteAnnouncement, listAnnouncements, updateAnnouncement } from '../services/announcements.js';
-import { isChairman, isEmployee } from '../services/users.js';
+import { isChairman, isEmployee, resolveHouseFor } from '../services/users.js';
 import { serializeAnnouncement } from '../routes/serialize.js';
 import { createAnnouncementSchema, listAnnouncementsQuerySchema, updateAnnouncementSchema } from '../validation/announcements.js';
 import { idParam, parseBody, parseQuery } from '../validation/parse.js';
@@ -10,12 +10,8 @@ export async function list(req: Request, res: Response) {
   const user = req.user!;
   const query = parseQuery(listAnnouncementsQuerySchema, req);
 
-  let houseId: number | undefined;
-  if (isEmployee(user)) houseId = query.houseId;
-  else {
-    if (!user.houseId) throw errors.badRequest('Сначала укажите дом и квартиру', 'onboarding_required');
-    houseId = user.houseId;
-  }
+  // Объявления доступны и до подтверждения — по дому из ожидающей заявки на вступление.
+  const houseId = isEmployee(user) ? query.houseId : await resolveHouseFor(user, query.houseId, { allowPending: true });
 
   const [announcements, total] = await Promise.all([
     listAnnouncements({ houseId, limit: query.limit, offset: query.offset }),

@@ -7,7 +7,7 @@ import { buildRequestDocument } from '../services/documents.js';
 import { sendDelegationEmail } from '../services/mailer.js';
 import * as requestsService from '../services/requests.js';
 import { UK_ACTIVE_STATUSES } from '../services/rules.js';
-import { isEmployee } from '../services/users.js';
+import { isEmployee, resolveHouseFor } from '../services/users.js';
 import { serializeRequest, serializeRequestDetailed } from '../routes/serialize.js';
 import { REQUEST_CATEGORIES, REQUEST_STATUSES } from '../validation/common.js';
 import { idParam, parseBody, parseQuery } from '../validation/parse.js';
@@ -35,14 +35,11 @@ export async function list(req: Request, res: Response) {
   const categories = parseListParam(query.category, REQUEST_CATEGORIES, 'категория');
   const employee = isEmployee(user);
 
+  // УК видит любой дом (или все). Житель — один из своих домов (по умолчанию активный);
+  // «мои»/«поддержанные» без houseId показываются по всем его домам.
   let houseId: number | undefined;
   if (employee) houseId = query.houseId;
-  else {
-    if (!user.houseId || !user.onboardedAt) {
-      throw errors.badRequest('Сначала дождитесь подтверждения от председателя ТСЖ или УК', 'onboarding_required');
-    }
-    houseId = user.houseId;
-  }
+  else if (query.filter === 'all' || query.houseId !== undefined) houseId = await resolveHouseFor(user, query.houseId);
 
   const filter = {
     houseId,
@@ -74,6 +71,7 @@ export async function create(req: Request, res: Response) {
   const photos = await saveUploadedPhotos(req.files as Express.Multer.File[] | undefined);
   const request = await requestsService.createRequest({
     authorId: user.id,
+    houseId: input.houseId,
     category: input.category as keyof typeof CATEGORY_LABELS,
     description: input.description,
     title: input.title ?? null,

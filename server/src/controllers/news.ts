@@ -2,7 +2,7 @@ import type { Request, Response } from 'express';
 import { errors } from '../lib/errors.js';
 import { saveUploadedPhotos } from '../lib/upload.js';
 import { countNews, createNews, deleteNews, listNews, updateNews } from '../services/news.js';
-import { isEmployee } from '../services/users.js';
+import { isEmployee, resolveHouseFor } from '../services/users.js';
 import { serializeNews } from '../routes/serialize.js';
 import { createNewsSchema, listNewsQuerySchema, updateNewsSchema } from '../validation/news.js';
 import { idParam, parseBody, parseQuery } from '../validation/parse.js';
@@ -11,12 +11,7 @@ export async function list(req: Request, res: Response) {
   const user = req.user!;
   const query = parseQuery(listNewsQuerySchema, req);
 
-  let houseId: number | undefined;
-  if (isEmployee(user)) houseId = query.houseId;
-  else {
-    if (!user.houseId) throw errors.badRequest('Сначала укажите дом и квартиру', 'onboarding_required');
-    houseId = user.houseId;
-  }
+  const houseId = isEmployee(user) ? query.houseId : await resolveHouseFor(user, query.houseId, { allowPending: true });
 
   const [news, total] = await Promise.all([
     listNews({ houseId, limit: query.limit, offset: query.offset }),
@@ -27,13 +22,12 @@ export async function list(req: Request, res: Response) {
 
 export async function create(req: Request, res: Response) {
   const user = req.user!;
-  if (!user.houseId || !user.onboardedAt) {
-    throw errors.badRequest('Сначала дождитесь подтверждения от председателя ТСЖ или УК', 'onboarding_required');
-  }
+  if (isEmployee(user)) throw errors.forbidden('Новости публикуют жители; у УК есть объявления');
   const input = parseBody(createNewsSchema, req);
+  const houseId = await resolveHouseFor(user, input.houseId);
   const photos = await saveUploadedPhotos(req.files as Express.Multer.File[] | undefined);
   const news = await createNews({
-    houseId: user.houseId,
+    houseId,
     authorId: user.id,
     title: input.title,
     description: input.description,

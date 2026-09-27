@@ -111,6 +111,22 @@ async function main() {
     },
   });
 
+  // У каждого подтверждённого жителя активный дом продублирован в списке домов (UserHouse).
+  for (const resident of [...residents, chairman]) {
+    if (!resident.houseId) continue;
+    await prisma.userHouse.upsert({
+      where: { userId_houseId: { userId: resident.id, houseId: resident.houseId } },
+      update: {},
+      create: {
+        userId: resident.id,
+        houseId: resident.houseId,
+        apartment: resident.apartment,
+        residentType: resident.residentType ?? 'OWNER',
+        verifiedFullName: resident.verifiedFullName,
+      },
+    });
+  }
+
   const requestsCount = await prisma.request.count();
   if (requestsCount === 0) {
     const residentsInHouse1 = await prisma.user.count({ where: { houseId: house1.id, role: 'RESIDENT', onboardedAt: { not: null } } });

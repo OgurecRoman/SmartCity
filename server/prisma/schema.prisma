@@ -77,6 +77,7 @@ model House {
   companyId   Int
   company     ManagementCompany @relation(fields: [companyId], references: [id])
   residents   User[]
+  userHouses  UserHouse[]
   requests    Request[]
   announcements Announcement[]
   news        News[]
@@ -109,6 +110,24 @@ model User {
   news          News[]
   membershipRequests MembershipRequest[] @relation("MembershipApplicant")
   reviewedMemberships MembershipRequest[] @relation("MembershipReviewer")
+  houses        UserHouse[]
+}
+
+// Все дома жителя. Поля User.houseId/apartment/residentType/onboardedAt — «активный» дом
+// (тот, с которым работают бот и проверки по умолчанию); переключается через API.
+model UserHouse {
+  id               Int           @id @default(autoincrement())
+  userId           Int
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  houseId          Int
+  house            House         @relation(fields: [houseId], references: [id], onDelete: Cascade)
+  apartment        String?
+  residentType     ResidentType  @default(OWNER)
+  verifiedFullName String?
+  joinedAt         DateTime      @default(now())
+
+  @@unique([userId, houseId])
+  @@index([houseId])
 }
 
 model Request {
