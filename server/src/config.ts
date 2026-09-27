@@ -53,15 +53,12 @@ export const config = {
     expireIntervalSec: int(process.env.EXPIRE_CHECK_INTERVAL_SEC, 300),
     outboxPollIntervalSec: int(process.env.NOTIFY_POLL_INTERVAL_SEC, 3),
   },
+
   geo: {
-
-    overpassUrls: (process.env.OVERPASS_URL?.trim() || 'https://overpass-api.de/api/interpreter,https://overpass.private.coffee/api/interpreter')
-      .split(',')
-      .map((url) => url.trim())
-      .filter(Boolean),
-
-    nominatimUrl: (process.env.NOMINATIM_URL?.trim() || 'https://nominatim.openstreetmap.org').replace(/\/(search|reverse)?\/?$/, ''),
+      yandexApiKey: process.env.YANDEX_GEO_API_KEY ?? '',
+      yandexGeocoderUrl: process.env.YANDEX_GEOCODER_URL ?? 'https://geocode-maps.yandex.ru/1.x/',
   },
+
   smtp: {
     host: process.env.SMTP_HOST?.trim() ?? '',
     port: int(process.env.SMTP_PORT, 587),
