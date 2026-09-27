@@ -7,7 +7,7 @@ import { fullName } from '../lib/labels.js';
 import { log } from '../lib/logger.js';
 import { isEmployee } from '../lib/rules.js';
 import { moderator } from '../lib/aiModerator.js';
-import { ModerationDecision } from '../ai/types.js';
+import { ModerationDecision } from '../types/ai.js';
 
 async function sendBindPrompt(ctx: BotContext): Promise<void> {
   const houses = await listHouses();
@@ -80,7 +80,7 @@ export function registerChatHandlers(bot: Bot<BotContext>): void {
   });
 
   bot.on('message_created', async (ctx) => {
-    const decision = await await moderator.moderate(ctx.update.message.body.text!, ctx.update.message.sender?.first_name!);
+    const decision: ModerationDecision = await moderator.moderate(ctx.update.message.body.text!, ctx.update.message.sender?.first_name!);
 
     const labels: Record<ModerationDecision['action'], string> = {
       allow: '✅ allow',
@@ -92,18 +92,23 @@ export function registerChatHandlers(bot: Bot<BotContext>): void {
       ? decision.categories.join(', ')
       : '-';
 
-    await ctx.reply(`🤖 ${labels[decision.action]} | confidence=${decision.confidence.toFixed(2)}
-     | categories=${categories}\nПричина: ${decision.reason}`)
-
     if (decision.action === 'block') {
-      await ctx.reply('🚫 Пользователь заблокирован модератором.\n');
+      await ctx.reply(`🚫 Пользователь заблокирован модератором.
+      Причина: ${decision.reason}`);
     }
 
-    if (decision.action === 'warn') {
-      await ctx.reply(`⚠️ Предупреждение.`);
+    if (decision.action === 'warn' && decision.confidence >= 0.8) {
+      await ctx.reply(`⚠️ Предупреждение.
+        Уважаемые жители, соблюдайте правила чата и уважайте друг друга.\n 
+        Не оскорбляйте других участников и не употребляйте ненормативную лексику. Нарушение порядка карается блокировкой в чате.`);
     }
 
-    await ctx.reply('✅ Сообщение разрешено.\n');
+    if (decision.action === 'allow' && decision.is_complaint_to_uk){
+      const link = botDeepLink(`join`);
+      await ctx.reply(`Хотите оставить заявку для управляющей компании?`,
+      { ...(link ? withKeyboard([[btn.link('Создать заявку', link)]]) : {}), ...MD }
+      );
+    }
   });
 
   bot.on('bot_removed', async (ctx) => {

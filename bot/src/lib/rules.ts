@@ -1,8 +1,5 @@
 import type { DbUser, RequestStatus } from '../types/index.js';
 import { pluralize } from './labels.js';
-
-// Чистые правила без обращения к БД — копия соответствующих частей server/src/services/rules.ts и users.ts.
-
 export const UK_ACTIVE_STATUSES: readonly RequestStatus[] = ['SUBMITTED', 'IN_PROGRESS', 'DELEGATED'];
 export const AUTHOR_DELETABLE_STATUSES: readonly RequestStatus[] = ['VOTING', 'EXPIRED'];
 export const REOPEN_WINDOW_DAYS = 7;

@@ -24,12 +24,6 @@ async function send<T>(method: Method, pathWithQuery: string, init: RequestInit)
   let response: Response;
   try {
     response = await fetch(url, { method, ...init });
-    const text = await response.text();
-  console.log(`🔍 Response from ${url}:`);
-  console.log(`   Status: ${response.status}`);
-  console.log(`   Content-Type: ${response.headers.get('content-type')}`);
-  console.log(`   Body (first 500 chars): ${text.slice(0, 500)}`);
-
   } catch (error) {
     log.warn(`Бэкенд недоступен (${method} ${url})`, error);
     throw new BackendUnavailableError();
@@ -44,7 +38,6 @@ async function send<T>(method: Method, pathWithQuery: string, init: RequestInit)
   return body as T;
 }
 
-/** JSON-запрос к бэкенду. Ошибки API приходят как AppError, недоступность сервера — как BackendUnavailableError. */
 export async function request<T = unknown>(method: Method, path: string, body?: unknown, query?: Query): Promise<T> {
   return send<T>(method, withQuery(path, query), {
     headers: headers(body !== undefined ? { 'Content-Type': 'application/json' } : undefined),
@@ -52,14 +45,12 @@ export async function request<T = unknown>(method: Method, path: string, body?: 
   });
 }
 
-/** Загрузка одного файла (multipart/form-data, поле `photo`). */
 export async function upload<T = unknown>(path: string, buffer: Buffer, filename: string): Promise<T> {
   const form = new FormData();
   form.append('photo', new Blob([new Uint8Array(buffer)]), filename);
   return send<T>('POST', path, { headers: headers(), body: form });
 }
 
-/** Скачивание файла, который сервер раздаёт статикой (например, /uploads/photos/<имя>). */
 export async function download(publicPath: string): Promise<Buffer> {
   const url = `${config.backend.apiUrl}${publicPath}`;
   let response: Response;
@@ -73,7 +64,6 @@ export async function download(publicPath: string): Promise<Buffer> {
   return Buffer.from(await response.arrayBuffer());
 }
 
-/** Проверка, что бэкенд отвечает (GET /health). */
 export async function ping(): Promise<boolean> {
   try {
     const response = await fetch(`${config.backend.apiUrl}/health`);

@@ -114,7 +114,6 @@ export function registerCommonHandlers(bot: Bot<BotContext>): void {
       await ctx.reply('Неверный код. Формат: /uk_login <код>');
       return;
     }
-    // Код проверяет сервер (UK_ACCESS_CODE), бот его не знает.
     try {
       ctx.dbUser = await promoteToEmployee(ctx.dbUser.id, code);
     } catch (error) {

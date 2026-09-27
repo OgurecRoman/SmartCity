@@ -42,7 +42,6 @@ let subscribed = false;
 
 type Extra = { attachments?: AttachmentRequest[] };
 
-// MAX ID и chat_id приходят от бэкенда строками (BigInt в JSON).
 async function sendDm(maxUserId: string | bigint, text: string, extra?: Extra): Promise<void> {
   if (!api) return;
   try {

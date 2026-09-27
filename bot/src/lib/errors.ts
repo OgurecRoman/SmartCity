@@ -9,7 +9,6 @@ export class AppError extends Error {
   }
 }
 
-/** Бэкенд не отвечает — пользователю показываем заглушку, а не стек ошибки. */
 export class BackendUnavailableError extends AppError {
   constructor() {
     super(503, 'backend_unavailable', 'Сервис временно недоступен. Попробуйте чуть позже.');

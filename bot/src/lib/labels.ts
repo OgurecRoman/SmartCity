@@ -53,7 +53,6 @@ export const ROLE_LABELS: Record<UserRole, string> = {
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
-// Даты от бэкенда приходят строками ISO, поэтому принимаем и Date, и string.
 export function formatDate(value: Date | string): string {
   const date = new Date(value);
   return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()}`;

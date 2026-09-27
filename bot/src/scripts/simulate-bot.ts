@@ -1,6 +1,3 @@
-// Офлайн-прогон сценариев бота: MAX API подменён заглушками, а бэкенд — настоящий.
-// Перед запуском поднимите сервер (cd server && npm run dev) и укажите BACKEND_API_URL в bot/.env.
-// Сотрудник УК (900000099) должен быть в UK_ADMIN_IDS сервера, тестовые жители 5000001–5000003 очищаются перед прогоном.
 import type { Update, User as MaxUser } from '@maxhub/max-bot-api/types';
 import { createBot } from '../controllers/index.js';
 import { initNotifications } from '../controllers/notifications.js';

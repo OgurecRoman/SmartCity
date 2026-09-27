@@ -24,19 +24,13 @@ import type {
 
 export type ButtonRows = Button[][];
 export const btn = Keyboard.button;
-
-/** Флаг для extra/body сообщений, содержащих markdown-разметку (см. mdName/mdStatus/esc ниже). */
 export const MD = { format: 'markdown' as const };
-
-/** Экранирует произвольный (в т.ч. пользовательский) текст перед вставкой в markdown-сообщение. */
 export const esc = fmt.escape;
 
-/** Имя человека — курсивом. */
 export function mdName(name: string): string {
   return fmt.italic(fmt.escape(name));
 }
 
-/** Метка статуса — полужирным. */
 export function mdStatus(label: string): string {
   return fmt.bold(fmt.escape(label));
 }

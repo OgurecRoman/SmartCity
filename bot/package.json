@@ -18,7 +18,10 @@
   "license": "MIT",
   "dependencies": {
     "@maxhub/max-bot-api": "^0.3.1",
-    "dotenv": "^18.0.0"
+    "@vercel/node": "^16.0.1",
+    "dotenv": "^18.0.0",
+    "https": "^1.0.0",
+    "openai": "^7.23.0"
   },
   "devDependencies": {
     "@types/node": "^20.17.0",

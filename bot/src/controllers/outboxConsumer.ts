@@ -5,7 +5,6 @@ import { log } from '../lib/logger.js';
 
 let running = false;
 
-/** Забирает накопившиеся события из NotificationOutbox (через бэкенд), рассылает уведомления и подтверждает обработку. */
 export async function drainOutboxOnce(): Promise<void> {
   if (running) return;
   running = true;

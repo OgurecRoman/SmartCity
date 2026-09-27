@@ -18,13 +18,10 @@ import type {
 } from '../types/index.js';
 import { download, request, upload } from './network.js';
 
-// Типизированные обёртки над ручками /api/bot/*. Имена повторяют бывшие сервисные функции сервера,
-// чтобы код хендлеров и сценариев менялся минимально.
-
 type Id = number | string | bigint;
 const s = (value: Id) => String(value);
 
-// --- Пользователи ---
+// Пользователи
 
 export interface MaxIdentity {
   maxUserId: Id;
@@ -52,7 +49,7 @@ export const dismissChairman = (maxUserId: Id) => request<DbUser>('POST', 'bot/u
 export const addTenantByOwner = (ownerId: number, maxUserId: Id, apartment: string) =>
   request<DbUser>('POST', 'bot/users/add-tenant', { ownerId, maxUserId: s(maxUserId), apartment });
 
-// --- Дома, компания, организации ---
+// Дома, компания, организации
 
 export const listHouses = () => request<HouseWithCount[]>('GET', 'bot/houses');
 export const getHouse = (id: number) => request<House | null>('GET', `bot/houses/${id}`);
@@ -66,7 +63,7 @@ export const unbindHouseChat = (chatId: Id) => request<void>('POST', 'bot/houses
 export const getCompany = () => request<Company | null>('GET', 'bot/company');
 export const listOrganizations = () => request<Organization[]>('GET', 'bot/organizations');
 
-// --- Заявки ---
+// Заявки
 
 export interface ListRequestsFilter {
   authorId?: number;
@@ -117,7 +114,7 @@ export const reopenRequest = (requestId: number, input: { userId: number; reason
 export const setRequestChatMessage = (requestId: number, messageId: string) =>
   request<void>('POST', `bot/requests/${requestId}/chat-message`, { messageId });
 
-// --- Заявки на вступление ---
+// Заявки на вступление
 
 export const getMembershipRequest = (id: number) => request<MembershipRequestWithRelations | null>('GET', `bot/membership/${id}`);
 export const getLatestMembershipRequestFor = (applicantId: number) =>
@@ -131,7 +128,7 @@ export const approveMembershipRequest = (id: number, reviewerId: number) =>
 export const rejectMembershipRequest = (id: number, reviewerId: number, reason: string) =>
   request<MembershipRequestWithRelations>('POST', `bot/membership/${id}/reject`, { reviewerId, reason });
 
-// --- Объявления и новости ---
+// Объявления и новости
 
 export interface CreateAnnouncementInput {
   houseId: number;
@@ -149,13 +146,13 @@ export const createNews = (input: CreateAnnouncementInput & { contact: string })
 export const getNews = (id: number) => request<NewsWithRelations | null>('GET', `bot/news/${id}`);
 export const setNewsChatMessage = (id: number, messageId: string) => request<void>('POST', `bot/news/${id}/chat-message`, { messageId });
 
-// --- Фото ---
+// Фото
 
 export const uploadPhoto = async (buffer: Buffer, ext: string) =>
   (await upload<{ filename: string }>('bot/photos', buffer, `photo${ext}`)).filename;
 export const downloadPhoto = (filename: string) => download(`/uploads/photos/${encodeURIComponent(filename)}`);
 
-// --- Сессии сценариев и очередь уведомлений ---
+// Сессии и очередь уведомлений
 
 export const getSession = <T>(key: string) => request<T | null>('GET', `bot/session/${encodeURIComponent(key)}`);
 export const setSession = (key: string, value: unknown) => request<void>('PUT', `bot/session/${encodeURIComponent(key)}`, value);

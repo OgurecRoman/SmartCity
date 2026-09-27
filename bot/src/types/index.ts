@@ -1,6 +1,3 @@
-// Формы ответов бэкенда (/api/bot/*). Это те же объекты, что возвращают сервисы сервера,
-// но после JSON: BigInt приходит строкой, даты — строкой ISO.
-
 export type UserRole = 'RESIDENT' | 'UK_EMPLOYEE' | 'CHAIRMAN';
 export type ResidentType = 'OWNER' | 'TENANT';
 export type RequestCategory = 'NOISE' | 'ELEVATOR' | 'PLUMBING' | 'ELECTRICITY' | 'REPAIR' | 'CLEANING' | 'SECURITY' | 'OTHER';

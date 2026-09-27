@@ -32,14 +32,13 @@ export const config = {
   },
   backend: {
     apiUrl: (process.env.BACKEND_API_URL?.trim() || 'http://localhost:3000').replace(/\/+$/, ''),
-    // Должен совпадать с BOT_API_TOKEN на сервере; если на сервере не задан — проверка отключена.
+    // Должен совпадать с BOT_API_TOKEN на сервере
     token: process.env.BOT_API_TOKEN?.trim() ?? '',
   },
   jobs: {
     outboxPollIntervalSec: int(process.env.NOTIFY_POLL_INTERVAL_SEC, 3),
   },
   votes: {
-    // Только для подсказки жителю при создании заявки; фактический срок выставляет сервер.
     defaultDeadlineDays: int(process.env.DEFAULT_DEADLINE_DAYS, 14),
   },
 } as const;

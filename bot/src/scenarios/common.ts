@@ -20,8 +20,6 @@ export type PhotoStepResult =
   | { kind: 'invalid' }
   | { kind: 'added'; photos: string[] };
 
-// Шаг сбора фото общий для заявок, новостей и объявлений: пользователь присылает одну или
-// несколько фотографий (по одной или альбомом), либо нажимает кнопку donePayload, чтобы продолжить.
 export async function handlePhotoInput(ctx: BotContext, donePayload: string, existing: string[]): Promise<PhotoStepResult> {
   const payload = payloadOf(ctx);
   if (payload === donePayload) return { kind: 'done' };

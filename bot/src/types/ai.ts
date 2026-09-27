@@ -5,6 +5,7 @@ export interface ModerationDecision {
   categories: string[];
   confidence: number;
   reason: string;
+  is_complaint_to_uk: boolean;
   raw?: unknown;
 }
 
