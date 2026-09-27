@@ -41,6 +41,18 @@ export function mdStatus(label: string): string {
   return fmt.bold(fmt.escape(label));
 }
 
+export const HASHTAGS = {
+  request: '#заявка',
+  announcement: '#объявление',
+  news: '#новость',
+  membership: '#вступление',
+} as const;
+
+/** Хештег типа сущности внизу карточки — по нему удобно искать в чате дома. Не с начала строки, чтобы markdown не принял `#` за заголовок. */
+export function hashtagLine(kind: keyof typeof HASHTAGS): string {
+  return `🏷 ${HASHTAGS[kind]}`;
+}
+
 let botUsername = config.bot.username;
 
 export function setBotIdentity(username: string | null | undefined): void {
@@ -202,6 +214,7 @@ export function requestCard(request: RequestWithRelations): string {
   if (request.reopenedAt) lines.push('🔄 Была возвращена автором — проблема не была устранена');
   lines.push(`Статус: ${STATUS_EMOJI[request.status]} ${mdStatus(STATUS_LABELS[request.status])}`);
   lines.push(`Создана: ${formatDateTime(request.createdAt)}`);
+  lines.push(hashtagLine('request'));
   return lines.join('\n');
 }
 
@@ -218,6 +231,7 @@ export function announcementCard(announcement: AnnouncementWithRelations): strin
     `Дом: ${esc(announcement.house.address)}`,
     `От: ${mdName(fullName(announcement.author))}`,
     `Опубликовано: ${formatDateTime(announcement.createdAt)}`,
+    hashtagLine('announcement'),
   ];
   return lines.join('\n');
 }
@@ -231,6 +245,7 @@ export function newsCard(news: NewsWithRelations): string {
     `Дом: ${esc(news.house.address)}`,
     `От: ${mdName(fullName(news.author))}`,
     `Связаться: ${esc(news.contact)}`,
+    hashtagLine('news'),
   ];
   return lines.join('\n');
 }
@@ -243,6 +258,7 @@ export function membershipCard(request: MembershipRequestWithRelations): string 
     `Квартира: ${esc(request.apartment)}`,
     `MAX ID заявителя: ${request.applicant.maxUserId}`,
     `Подана: ${formatDateTime(request.createdAt)}`,
+    hashtagLine('membership'),
   ];
   return lines.join('\n');
 }
