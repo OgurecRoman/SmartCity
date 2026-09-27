@@ -301,6 +301,34 @@ export function contactsCard(company: {
   return lines.join('\n');
 }
 
+/** Памятка для группового чата дома (закрепляется ботом): что он присылает, хештеги для поиска, команды, контакты УК. Markdown. */
+export function chatGuideText(
+  company: { name: string; phone: string; email: string | null; address: string | null; workingHours: string | null } | null,
+  house: { address: string } | null,
+  botLink: string | null,
+): string {
+  const lines: string[] = [];
+  lines.push(house ? `📌 ${fmt.bold(`Памятка чата дома «${esc(house.address)}»`)}` : `📌 ${fmt.bold('Памятка чата дома')}`);
+  lines.push('Я бот «Умный дом»: присылаю сюда заявки жителей и смену их статусов, объявления УК и новости соседей.');
+  lines.push('');
+  lines.push(`🔎 ${fmt.bold('Поиск по хештегам')} (нажмите на тег или введите его в поиск чата):`);
+  lines.push(`${HASHTAGS.request} — заявки жителей и что с ними происходит`);
+  lines.push(`${HASHTAGS.announcement} — объявления УК и председателя ТСЖ`);
+  lines.push(`${HASHTAGS.news} — новости от соседей`);
+  lines.push('');
+  lines.push(`🤖 ${fmt.bold('Открыть бота')}`);
+  if (botLink) lines.push(`${botLink}`);
+  if (company) {
+    lines.push('');
+    lines.push(`📞 ${fmt.bold('Управляющая компания')}: ${esc(company.name)}`);
+    lines.push(`Телефон: ${esc(company.phone)}`);
+    if (company.email) lines.push(`Email: ${esc(company.email)}`);
+    if (company.address) lines.push(`Адрес: ${esc(company.address)}`);
+    if (company.workingHours) lines.push(`Часы работы: ${esc(company.workingHours)}`);
+  }
+  return lines.join('\n');
+}
+
 export const TEXTS = {
   welcomeResident:
     'Привет! Я бот «Умный дом» — помогаю жителям решать проблемы дома вместе с управляющей компанией.\n\n' +
@@ -355,9 +383,5 @@ export const TEXTS = {
     '/announce — объявление жителям дома\n' +
     '/bind — (в групповом чате, с упоминанием бота) привязать чат к дому\n' +
     '/cancel — отменить текущее действие',
-  groupInstructions: (link: string | null) =>
-    'Я буду присылать сюда уведомления о новых заявках и смене их статусов.\n' +
-    'Чтобы создавать и поддерживать заявки, откройте диалог с ботом' +
-    (link ? `: ${link}` : ' и нажмите «Начать».'),
   onboardingRequired: 'Сначала укажите дом и квартиру — это займёт минуту.',
 };

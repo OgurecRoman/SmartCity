@@ -28,6 +28,7 @@ export const BOT_COMMANDS = [
   { name: 'contacts', description: 'Контакты УК' },
   { name: 'requests', description: 'УК: заявки в работе' },
   { name: 'bind', description: 'УК: привязать чат дома' },
+  { name: 'pin', description: 'В чате дома: закрепить памятку' },
   { name: 'id', description: 'Мой MAX ID' },
   { name: 'cancel', description: 'Отменить действие' },
   { name: 'help', description: 'Справка' },

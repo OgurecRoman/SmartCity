@@ -68,6 +68,10 @@ api.uploadFile = async ({ source }: { source: string }) => {
   return { toJson: () => ({ type: 'file', payload: { token: 'fake-token' } }) };
 };
 api.setMyCommands = async () => ({ success: true });
+api.pinMessage = async (chatId: number, messageId: string) => {
+  out(`   🤖 pin ${messageId} in chat ${chatId}`);
+  return { success: true };
+};
 
 bot.botInfo = { user_id: BOT_ID, first_name: 'SmartCity', name: 'SmartCity', username: 'smartcity_demo_bot', is_bot: true, last_activity_time: 0 };
 setBotIdentity('smartcity_demo_bot');
