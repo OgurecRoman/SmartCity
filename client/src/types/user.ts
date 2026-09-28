@@ -1,5 +1,28 @@
-export type UserRole = 'RESIDENT' | 'UK_EMPLOYEE';
+export type UserRole = 'RESIDENT' | 'UK_EMPLOYEE' | 'CHAIRMAN';
 export type ResidentType = 'OWNER' | 'TENANT';
+export type MembershipStatus = 'PENDING' | 'REJECTED';
+
+export type Membership = {
+  id: number;
+  houseId: number;
+  houseAddress: string;
+  apartment: string;
+  fullName: string;
+  status: MembershipStatus;
+  rejectReason: string | null;
+  createdAt: string;
+};
+
+export type UserHouseItem = {
+  houseId: number;
+  address: string;
+  apartment: string | null;
+  residentType: ResidentType | null;
+  residentTypeLabel: string | null;
+  status: 'APPROVED' | 'PENDING';
+  active: boolean;
+  membershipRequestId: number | null;
+};
 
 export type User = {
   id: number;
@@ -22,6 +45,9 @@ export type User = {
   entrance: string | null;
   residentType: ResidentType | null;
   residentTypeLabel: string | null;
+  verifiedFullName: string | null;
   onboarded: boolean;
+  membership: Membership | null;
+  houses?: UserHouseItem[];
   createdAt: string;
 };

@@ -1,0 +1,248 @@
+import { createBot } from '../controllers/index.js';
+import { initNotifications } from '../controllers/notifications.js';
+import { drainOutboxOnce } from '../controllers/outboxConsumer.js';
+import { setBotIdentity } from '../controllers/ui.js';
+import { config } from '../config.js';
+import { getLatestMembershipRequestFor, getUserByMaxId, listRequests } from '../lib/api.js';
+import { ping, request } from '../lib/network.js';
+const BOT_ID = 1;
+const RESIDENT_IDS = ['5000001', '5000002', '5000003'];
+let midCounter = 0;
+const out = (line) => console.log(line);
+function buttonsOf(extra) {
+    const kb = extra?.attachments?.find((a) => a.type === 'inline_keyboard');
+    if (!kb?.payload?.buttons)
+        return '';
+    return ('\n      ' +
+        kb.payload.buttons
+            .map((row) => row.map((b) => `[${b.text}${b.payload ? ` → ${b.payload}` : b.url ? ` → ${b.url}` : ''}]`).join(' '))
+            .join('\n      '));
+}
+function fakeMessage(chatId, text) {
+    midCounter += 1;
+    return {
+        sender: null,
+        recipient: { chat_id: chatId, chat_type: 'dialog', user_id: null, post_id: null },
+        timestamp: Date.now(),
+        body: { mid: `mid_${midCounter}`, seq: midCounter, text },
+    };
+}
+const bot = createBot();
+const api = bot.api;
+api.sendMessageToChat = async (chatId, text, extra) => {
+    out(`   🤖 → chat ${chatId}: ${text.replace(/\n/g, '\n      ')}${buttonsOf(extra)}`);
+    return fakeMessage(chatId, text);
+};
+api.sendMessageToUser = async (userId, text, extra) => {
+    out(`   🤖 → user ${userId}: ${text.replace(/\n/g, '\n      ')}${buttonsOf(extra)}`);
+    return fakeMessage(userId, text);
+};
+api.editMessage = async (id, extra) => {
+    out(`   🤖 edit ${id}: ${(extra.text ?? '').replace(/\n/g, '\n      ')}${buttonsOf(extra)}`);
+    return { success: true };
+};
+api.answerOnCallback = async (id, extra) => {
+    const parts = [];
+    if (extra?.notification)
+        parts.push(`notification="${extra.notification}"`);
+    if (extra?.message)
+        parts.push(`edit="${(extra.message.text ?? '').replace(/\n/g, ' | ')}"${buttonsOf(extra.message)}`);
+    out(`   🤖 answer(${id}): ${parts.join(' ') || 'ok'}`);
+    return { success: true };
+};
+api.getChat = async (id) => ({
+    chat_id: id, type: 'chat', status: 'active', title: 'Дом Волгоградская 5', icon: null, last_event_time: 0, participants_count: 3, is_public: false,
+});
+api.uploadFile = async ({ source }) => {
+    out(`   🤖 upload ${source}`);
+    return { toJson: () => ({ type: 'file', payload: { token: 'fake-token' } }) };
+};
+api.setMyCommands = async () => ({ success: true });
+bot.botInfo = { user_id: BOT_ID, first_name: 'SmartCity', name: 'SmartCity', username: 'smartcity_demo_bot', is_bot: true, last_activity_time: 0 };
+setBotIdentity('smartcity_demo_bot');
+initNotifications(bot.api);
+const handle = bot.handleUpdate;
+const settle = async () => {
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    // В реальном запуске очередь NotificationOutbox опрашивается по таймеру; здесь вычитываем её вручную после каждого шага.
+    await drainOutboxOnce();
+};
+function user(id, firstName, lastName) {
+    return { user_id: id, first_name: firstName, last_name: lastName, name: `${firstName} ${lastName}`, username: null, is_bot: false, last_activity_time: 0 };
+}
+const dm = (u) => 7000 + (u.user_id % 1000);
+const GROUP = 8001;
+async function started(u, payload) {
+    out(`👤 ${u.first_name} → /start${payload ? ` (payload=${payload})` : ''}`);
+    await handle({ update_type: 'bot_started', timestamp: Date.now(), chat_id: dm(u), user: u, payload: payload ?? null });
+    await settle();
+}
+async function msg(u, text, chatId = dm(u), chatType = 'dialog') {
+    out(`👤 ${u.first_name}${chatType === 'chat' ? ' (в группе)' : ''}: ${text}`);
+    midCounter += 1;
+    await handle({
+        update_type: 'message_created', timestamp: Date.now(),
+        message: { sender: u, recipient: { chat_id: chatId, chat_type: chatType, user_id: null, post_id: null }, timestamp: Date.now(), body: { mid: `in_${midCounter}`, seq: midCounter, text } },
+    });
+    await settle();
+}
+async function cb(u, payload, chatId = dm(u), chatType = 'dialog') {
+    out(`👤 ${u.first_name}${chatType === 'chat' ? ' (в группе)' : ''} нажал [${payload}]`);
+    midCounter += 1;
+    await handle({
+        update_type: 'message_callback', timestamp: Date.now(),
+        callback: { timestamp: Date.now(), callback_id: `cb_${midCounter}`, payload, user: u },
+        message: { sender: { ...u, user_id: BOT_ID, is_bot: true }, recipient: { chat_id: chatId, chat_type: chatType, user_id: null, post_id: null }, timestamp: Date.now(), body: { mid: `card_${midCounter}`, seq: midCounter, text: '(карточка)' } },
+    });
+    await settle();
+}
+async function botAdded(u, chatId) {
+    out(`👤 ${u.first_name} добавил бота в группу ${chatId}`);
+    await handle({ update_type: 'bot_added', timestamp: Date.now(), chat_id: chatId, user: u, is_channel: false });
+    await settle();
+}
+async function userAdded(u, chatId) {
+    out(`👤 ${u.first_name} вступил в группу ${chatId}`);
+    await handle({ update_type: 'user_added', timestamp: Date.now(), chat_id: chatId, user: u, inviter_id: null, is_channel: false });
+    await settle();
+}
+async function dbUserOf(u) {
+    const row = await getUserByMaxId(u.user_id);
+    if (!row)
+        throw new Error(`Пользователь ${u.user_id} не найден на бэкенде`);
+    return row;
+}
+async function onboard(u, apartment, reviewer) {
+    await cb(u, 'onb:house:1');
+    await msg(u, apartment);
+    await cb(u, 'onb:name:profile');
+    await cb(u, 'onb:send');
+    const membership = await getLatestMembershipRequestFor((await dbUserOf(u)).id);
+    if (!membership || membership.status !== 'PENDING')
+        throw new Error('Заявка на вступление не создана');
+    await cb(reviewer, `mem:approve:${membership.id}`);
+}
+async function latestRequestId(u) {
+    const requests = await listRequests({ authorId: (await dbUserOf(u)).id });
+    if (requests.length === 0)
+        throw new Error('Заявка не создана');
+    return Math.max(...requests.map((r) => r.id));
+}
+const section = (title) => out(`\n━━━ ${title} ━━━`);
+async function main() {
+    if (!(await ping())) {
+        throw new Error(`Бэкенд не отвечает по адресу ${config.backend.apiUrl}. Запустите сервер (cd server && npm run dev) и повторите.`);
+    }
+    const admin = user(900000099, 'Сергей', 'Управляев');
+    const anna = user(5000001, 'Пётр', 'Жильцов');
+    const olga = user(5000002, 'Ольга', 'Соседова');
+    const kirill = user(5000003, 'Кирилл', 'Подписов');
+    await request('POST', 'bot/dev/reset', { maxUserIds: RESIDENT_IDS, unbindChatOfHouseIds: [1] });
+    section('УК привязывает чат дома');
+    await botAdded(admin, GROUP);
+    await cb(admin, 'bind:1', GROUP, 'chat');
+    await userAdded(anna, GROUP);
+    section('Житель регистрируется — заявку на вступление подтверждает УК');
+    await started(anna);
+    await onboard(anna, '15', admin);
+    section('Житель создаёт заявку');
+    await cb(anna, 'menu:create');
+    await cb(anna, 'cr:cat:PLUMBING');
+    await msg(anna, 'Прорвало трубу в подвале первого подъезда, вода течёт третий день.');
+    await cb(anna, 'cr:prio:NORMAL');
+    await cb(anna, 'cr:skip');
+    await cb(anna, 'cr:photos:done');
+    await cb(anna, 'cr:send');
+    const requestId = await latestRequestId(anna);
+    out(`   (создана заявка №${requestId})`);
+    section('Собственник добавляет своего съёмщика — тот сразу пользуется ботом');
+    await msg(anna, '/add_tenant');
+    await msg(anna, String(olga.user_id));
+    await msg(anna, '16');
+    section('Съёмщик переходит по «Подробнее» к заявке и поддерживает');
+    await started(olga, `req_${requestId}`);
+    await cb(olga, `req:vote:${requestId}`);
+    await cb(olga, `req:vote:${requestId}`);
+    section('Второй сосед поддерживает — порог достигнут, заявка уходит в УК');
+    await started(kirill);
+    await onboard(kirill, '17', admin);
+    await started(kirill, `req_${requestId}`);
+    await cb(kirill, `req:vote:${requestId}`);
+    section('Сотрудник УК обрабатывает заявку');
+    await started(admin);
+    await cb(admin, 'uk:new');
+    await cb(admin, `uk:take:${requestId}`);
+    await cb(admin, `uk:delegate:${requestId}`);
+    await cb(admin, 'dlg:org:2');
+    await cb(admin, `uk:doc:${requestId}`);
+    await cb(admin, `uk:resolve:${requestId}`);
+    await msg(admin, 'Заменили аварийный участок трубы в подвале первого подъезда.');
+    await msg(admin, 'Сидоров Пётр Иванович');
+    await cb(admin, 'resolve:photos:done');
+    await cb(admin, 'resolve:send');
+    section('Аварийная заявка');
+    await msg(anna, '/create');
+    await cb(anna, 'cr:cat:ELEVATOR');
+    await msg(anna, 'Застрял лифт во втором подъезде между 5 и 6 этажами.');
+    await cb(anna, 'cr:prio:EMERGENCY');
+    await cb(anna, 'cr:photos:done');
+    await cb(anna, 'cr:send');
+    const emergencyId = await latestRequestId(anna);
+    section('УК отклоняет с комментарием');
+    await cb(admin, `uk:reject:${emergencyId}`);
+    await msg(admin, 'Дубликат заявки №' + requestId);
+    section('Житель смотрит списки, удаляет свою заявку, прочее');
+    await msg(olga, '/create');
+    await cb(olga, 'cr:cat:NOISE');
+    await msg(olga, 'Соседи сверху сверлят по ночам.');
+    await cb(olga, 'cr:prio:NORMAL');
+    await msg(olga, '01.01.2020');
+    await msg(olga, '31.12.2026');
+    await cb(olga, 'cr:photos:done');
+    await cb(olga, 'cr:edit');
+    await cb(olga, 'cancel');
+    await msg(olga, '/my');
+    await msg(anna, '/my');
+    await msg(anna, '/supported');
+    await msg(olga, '/supported');
+    await msg(anna, 'просто текст');
+    await msg(anna, '/id');
+    await msg(anna, '/contacts');
+    await cb(anna, 'uk:new');
+    section('УК: объявление в дом и добавление владельца');
+    await cb(admin, 'menu:announce');
+    await cb(admin, 'ann:house:1');
+    await msg(admin, 'Отключение горячей воды');
+    await msg(admin, 'Плановое отключение воды 25.09 с 10:00 до 14:00.');
+    await cb(admin, 'ann:photos:done');
+    await cb(admin, 'ann:yes');
+    await cb(admin, 'menu:add_owner');
+    await msg(admin, '5000009');
+    await cb(admin, 'own:house:2');
+    await cb(admin, 'own:yes');
+    await cb(admin, 'menu:remove_owner');
+    await msg(admin, '5000009');
+    await cb(admin, 'own:yes');
+    section('УК назначает жителя председателем ТСЖ');
+    await cb(admin, 'menu:appoint_chairman');
+    await msg(admin, String(anna.user_id));
+    await cb(admin, 'chair:house:1');
+    await cb(admin, 'chair:yes');
+    section('Председатель ТСЖ публикует объявление жителям своего дома');
+    await started(anna);
+    await cb(anna, 'menu:announce');
+    await msg(anna, 'Собрание жильцов');
+    await msg(anna, 'Собрание состоится 30.09 в 19:00 у подъезда №1.');
+    await cb(anna, 'ann:photos:done');
+    await cb(anna, 'ann:yes');
+    section('УК снимает председателя ТСЖ');
+    await cb(admin, 'menu:dismiss_chairman');
+    await msg(admin, String(anna.user_id));
+    await cb(admin, 'chair:yes');
+    out('\n✅ Прогон завершён без необработанных ошибок');
+}
+main().catch((error) => {
+    console.error('❌ Прогон упал:', error);
+    process.exitCode = 1;
+});
+//# sourceMappingURL=simulate-bot.js.map
