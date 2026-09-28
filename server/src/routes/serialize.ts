@@ -8,6 +8,7 @@ import type { RequestDetailed, RequestWithRelations } from '../services/requests
 import { checkApartment, type Entrance } from '../services/rules.js';
 import { apartmentDataOf, type DbUser, type ResidentRow } from '../services/users.js';
 
+
 function photoUrlsOf(photos: { filename: string }[]): string[] {
   return photos.map((photo) => photoUrlPath(photo.filename));
 }

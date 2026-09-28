@@ -1,29 +1,55 @@
 import crypto from 'node:crypto';
-import fs from 'node:fs/promises';
-import path from 'node:path';
+import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 
 export const MAX_PHOTOS_PER_ITEM = 5;
 export const MAX_PHOTO_SIZE_BYTES = 8 * 1024 * 1024;
 export const ALLOWED_PHOTO_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif'];
 
-const UPLOADS_DIR = path.resolve(import.meta.dirname, '..', '..', 'uploads', 'photos');
+const s3Client = new S3Client({
+    region: 'ru-1',
+    endpoint: 'https://s3.ru1.storage.beget.cloud',
+    credentials: {
+        accessKeyId: 'RQ1DBLURGB3CZBZZ53UH',
+        secretAccessKey: 'tEd6d37G3jmUIGtHR7WXzzxOghfZlMBoiPFrPMpt',
+    },
+    forcePathStyle: true,
+});
 
-export function photoFsPath(filename: string): string {
-  return path.join(UPLOADS_DIR, filename);
+const BUCKET = '58b38eef4985-smartcity';
+const PUBLIC_URL = 'https://58b38eef4985-smartcity.s3.ru1.storage.beget.cloud';
+
+/**
+ * Сохраняет фото в S3 в папку 'photos/', но возвращает ТОЛЬКО имя файла.
+ * Это необходимо, чтобы пройти валидацию Zod (/^[\w.-]+$/).
+ */
+export async function savePhotoBuffer(buffer: Buffer, ext: string): Promise<string> {
+    const safeExt = ALLOWED_PHOTO_EXTENSIONS.includes(ext.toLowerCase()) ? ext.toLowerCase() : '.jpg';
+    const filename = `${crypto.randomUUID()}${safeExt}`;
+    const key = `photos/${filename}`;
+
+    const contentTypeMap: Record<string, string> = {
+        '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+        '.webp': 'image/webp', '.gif': 'image/gif',
+    };
+
+    await s3Client.send(
+        new PutObjectCommand({
+            Bucket: BUCKET,
+            Key: key,
+            Body: buffer,
+            ContentType: contentTypeMap[safeExt],
+        })
+    );
+
+    // Возвращаем ТОЛЬКО имя файла для сохранения в БД
+    return filename;
 }
 
 export function photoUrlPath(filename: string): string {
-  return `/uploads/photos/${filename}`;
-}
-
-export async function savePhotoBuffer(buffer: Buffer, ext: string): Promise<string> {
-  await fs.mkdir(UPLOADS_DIR, { recursive: true });
-  const safeExt = ALLOWED_PHOTO_EXTENSIONS.includes(ext.toLowerCase()) ? ext.toLowerCase() : '.jpg';
-  const filename = `${crypto.randomUUID()}${safeExt}`;
-  await fs.writeFile(photoFsPath(filename), buffer);
-  return filename;
+    return `${PUBLIC_URL}/photos/${filename}`;
 }
 
 export async function deletePhotoFile(filename: string): Promise<void> {
-  await fs.unlink(photoFsPath(filename)).catch(() => {});
+    const key = `photos/${filename}`;
+    await s3Client.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key })).catch(() => {});
 }

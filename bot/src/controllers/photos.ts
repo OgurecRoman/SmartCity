@@ -4,7 +4,6 @@ import type { AttachmentRequest } from '@maxhub/max-bot-api/types';
 import { downloadPhoto, uploadPhoto } from '../lib/api.js';
 import { log } from '../lib/logger.js';
 
-/** Скачивает фото из MAX и передаёт его на хранение бэкенду; возвращает имя файла на сервере. */
 export async function downloadPhotoFromMax(url: string): Promise<string | null> {
   try {
     const response = await fetch(url);
@@ -18,7 +17,6 @@ export async function downloadPhotoFromMax(url: string): Promise<string | null> 
   }
 }
 
-/** Берёт файлы с бэкенда и загружает их в MAX как вложения к сообщению. */
 export async function uploadPhotosToMax(api: Api, filenames: string[]): Promise<AttachmentRequest[]> {
   const attachments: AttachmentRequest[] = [];
   for (const filename of filenames) {
