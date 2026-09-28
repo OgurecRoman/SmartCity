@@ -1,6 +1,8 @@
 import { createContext, useContext, type ReactNode } from 'react';
 import { Spinner, Typography, Button } from '@maxhub/max-ui';
 import { useMe } from '../hooks/useMe';
+import { useDictionaries } from '../hooks/useDictionaries';
+import Onboarding from '../pages/Onboarding';
 import type { User } from '../types/user';
 import s from './AuthProvider.module.scss';
 
@@ -12,6 +14,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { data: user, isLoading, isError, error, refetch, isFetching } = useMe();
+  useDictionaries();
 
   if (isLoading) {
     return (
@@ -32,6 +35,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           Повторить
         </Button>
       </div>
+    );
+  }
+
+  if (!user.onboarded && user.role !== 'UK_EMPLOYEE') {
+    return (
+      <Onboarding
+        user={user}
+        refetch={() => void refetch()}
+        isFetching={isFetching}
+      />
     );
   }
 
