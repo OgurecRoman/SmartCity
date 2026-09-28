@@ -1,4 +1,3 @@
-/* Тени — в Max UI нет, задаём сами */
 :root {
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.1);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.08);
