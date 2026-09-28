@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { messageForApiError } from '../lib/apiError';
 
 const baseURL = `${import.meta.env.VITE_API_URL}/api`;
 const devUserId = import.meta.env.VITE_DEV_USER_ID?.trim();
@@ -33,7 +34,12 @@ api.interceptors.response.use(
       | { error?: { code?: string; message?: string } }
       | undefined;
 
-    const err = new Error(data?.error?.message ?? error.message) as Error & {
+    const err = new Error(
+      messageForApiError(
+        { code: data?.error?.code, message: data?.error?.message ?? error.message },
+        error.message,
+      ),
+    ) as Error & {
       status?: number;
       code?: string;
     };

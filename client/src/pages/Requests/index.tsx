@@ -1,13 +1,19 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router';
 import { Button, Container, Flex, Spinner, Typography } from '@maxhub/max-ui';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
+import { Plus } from 'lucide-react';
 import { api } from '../../api/client';
+import { useAuth } from '../../auth/AuthProvider';
 import Request from '../../components/Request';
-import type { RequestType } from '../../types/request';
+import type { Paginated, RequestType } from '../../types/request';
+import { queryKeys } from '../../lib/queryKeys';
 import s from './Requests.module.scss';
 import SearchLine from '../../components/SearchLine';
 
 type FilterId = 'all' | 'voting' | 'active' | 'done' | 'mine';
+
+const PAGE_SIZE = 10;
 
 const FILTERS: { id: FilterId; label: string }[] = [
   { id: 'all', label: 'Все' },
@@ -43,21 +49,39 @@ function matchesFilter(request: RequestType, filter: FilterId) {
 }
 
 export default function Requests() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const isUk = user.role === 'UK_EMPLOYEE';
+  const canCreate = !isUk;
   const [filter, setFilter] = useState<FilterId>('all');
-  const { data, isLoading, error, refetch, isFetching } = useQuery({
-    queryKey: ['requests'],
-    queryFn: async () => {
-      const { data } = await api.get<RequestType[]>('/requests');
+
+  const listQuery = useInfiniteQuery({
+    queryKey: [...queryKeys.requests, isUk ? 'uk' : 'house'],
+    queryFn: async ({ pageParam }) => {
+      const { data } = await api.get<Paginated<RequestType>>(isUk ? '/uk/requests' : '/requests', {
+        params: { limit: PAGE_SIZE, offset: pageParam },
+      });
       return data;
+    },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, pages) => {
+      const loaded = pages.reduce((sum, page) => sum + page.items.length, 0);
+      return loaded < lastPage.total ? loaded : undefined;
     },
   });
 
-  const requests = useMemo(() => {
-    const list = (data ?? []).filter((item) => matchesFilter(item, filter));
-    return [...list].sort((a, b) => (STATUS_ORDER[a.status] ?? 99) - (STATUS_ORDER[b.status] ?? 99));
-  }, [data, filter]);
+  const allItems = useMemo(
+    () => listQuery.data?.pages.flatMap((page) => page.items) ?? [],
+    [listQuery.data],
+  );
+  const total = listQuery.data?.pages[0]?.total ?? allItems.length;
 
-  if (isLoading) {
+  const requests = useMemo(() => {
+    const list = allItems.filter((item) => matchesFilter(item, filter));
+    return [...list].sort((a, b) => (STATUS_ORDER[a.status] ?? 99) - (STATUS_ORDER[b.status] ?? 99));
+  }, [allItems, filter]);
+
+  if (listQuery.isLoading) {
     return (
       <div className={s.state}>
         <Spinner size={40} appearance="themed" />
@@ -65,11 +89,11 @@ export default function Requests() {
     );
   }
 
-  if (error) {
+  if (listQuery.isError) {
     return (
       <div className={s.state}>
-        <Typography.Body variant="medium">{error.message}</Typography.Body>
-        <Button size="small" loading={isFetching} onClick={() => refetch()}>
+        <Typography.Body variant="medium">{(listQuery.error as Error).message}</Typography.Body>
+        <Button size="small" loading={listQuery.isFetching} onClick={() => void listQuery.refetch()}>
           Повторить
         </Button>
       </div>
@@ -78,15 +102,28 @@ export default function Requests() {
 
   return (
     <div className={s.page}>
-      <SearchLine />
-      <Flex direction="row" justify="space-between" align="center" gap={12} className={s.header}>
+      {!isUk && <SearchLine />}
+      <div className={s.header}>
         <Typography.Headline variant="small" asChild>
-          <h1>Заявки дома</h1>
+          <h1 className={s.title}>{isUk ? 'Заявки' : 'Заявки дома'}</h1>
         </Typography.Headline>
-        <Typography.Label variant="medium" className={s.count}>
-          {requests.length}
-        </Typography.Label>
-      </Flex>
+        <div className={s.actions}>
+          <Typography.Label variant="medium" className={s.count}>
+            {requests.length}
+            {total != null ? ` / ${total}` : ''}
+          </Typography.Label>
+          {canCreate && (
+            <button
+              type="button"
+              className={s.createIcon}
+              aria-label="Создать заявку"
+              onClick={() => navigate('/requests/new')}
+            >
+              <Plus size={20} strokeWidth={2.25} aria-hidden />
+            </button>
+          )}
+        </div>
+      </div>
 
       <div className={s.filters} role="tablist" aria-label="Фильтр заявок">
         {FILTERS.map((item) => (
@@ -108,14 +145,30 @@ export default function Requests() {
           <div className={s.empty}>
             <Typography.Body variant="medium">Пока пусто</Typography.Body>
             <Typography.Body variant="small" className={s.emptyHint}>
-              Смените фильтр или создайте заявку позже
+              {canCreate ? 'Создайте первую заявку' : 'Смените фильтр'}
             </Typography.Body>
+            {canCreate && (
+              <Button size="small" onClick={() => navigate('/requests/new')}>
+                Создать заявку
+              </Button>
+            )}
           </div>
         ) : (
           <Flex direction="column" gap={12}>
             {requests.map((request) => (
               <Request key={request.id} request={request} />
             ))}
+            {listQuery.hasNextPage && (
+              <Button
+                size="medium"
+                variant="secondary"
+                stretched
+                loading={listQuery.isFetchingNextPage}
+                onClick={() => void listQuery.fetchNextPage()}
+              >
+                Показать ещё
+              </Button>
+            )}
           </Flex>
         )}
       </Container>

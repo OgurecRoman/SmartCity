@@ -7,12 +7,33 @@
 }
 
 .header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 8px;
   width: 100%;
   min-width: 0;
 }
 
+.title {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
 .count {
   color: var(--text-tertiary);
+  min-width: 1ch;
+  text-align: right;
 }
 
 .filters {
@@ -45,8 +66,28 @@
 }
 
 .chipActive {
-  background: color-mix(in srgb, var(--text-themed) 18%, transparent);
+  background: var(--background-secondary);
   color: var(--text-themed);
+}
+
+.createIcon {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-themed, #2aabee);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.createIcon:active {
+  background: var(--background-tertiary);
 }
 
 .state,
