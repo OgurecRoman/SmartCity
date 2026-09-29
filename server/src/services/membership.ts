@@ -38,7 +38,6 @@ export async function submitMembershipRequest(input: SubmitMembershipInput): Pro
   });
   if (pending) throw errors.conflict('У вас уже есть заявка в этот дом на рассмотрении', 'membership_pending');
 
-  // Пользователя не трогаем до одобрения: у него могут быть другие (уже подтверждённые) дома.
   const request = await prisma.membershipRequest.create({
     data: { applicantId: input.applicantId, houseId: house.id, apartment, fullName, status: 'PENDING' },
     include: membershipRequestInclude,
@@ -49,11 +48,11 @@ export async function submitMembershipRequest(input: SubmitMembershipInput): Pro
 }
 
 export async function getMembershipRequest(id: number): Promise<MembershipRequestWithRelations | null> {
-  return prisma.membershipRequest.findUnique({ where: { id }, include: membershipRequestInclude });
+  return await prisma.membershipRequest.findUnique({ where: { id }, include: membershipRequestInclude });
 }
 
 export async function getLatestMembershipRequestFor(applicantId: number): Promise<MembershipRequestWithRelations | null> {
-  return prisma.membershipRequest.findFirst({
+  return await prisma.membershipRequest.findFirst({
     where: { applicantId },
     include: membershipRequestInclude,
     orderBy: { createdAt: 'desc' },
@@ -76,7 +75,7 @@ export async function listPendingMembershipRequests(
   reviewer: Pick<DbUser, 'role' | 'houseId' | 'companyId'>,
   options: ListPendingOptions = {},
 ): Promise<MembershipRequestWithRelations[]> {
-  return prisma.membershipRequest.findMany({
+  return await prisma.membershipRequest.findMany({
     where: buildPendingMembershipWhere(reviewer),
     include: membershipRequestInclude,
     orderBy: { createdAt: 'asc' },
@@ -86,7 +85,7 @@ export async function listPendingMembershipRequests(
 }
 
 export async function countPendingMembershipRequests(reviewer: Pick<DbUser, 'role' | 'houseId' | 'companyId'>): Promise<number> {
-  return prisma.membershipRequest.count({ where: buildPendingMembershipWhere(reviewer) });
+  return await prisma.membershipRequest.count({ where: buildPendingMembershipWhere(reviewer) });
 }
 
 export async function approveMembershipRequest(id: number, reviewer: DbUser): Promise<MembershipRequestWithRelations> {

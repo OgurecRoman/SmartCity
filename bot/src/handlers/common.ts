@@ -125,3 +125,4 @@ export function registerCommonHandlers(bot: Bot<BotContext>): void {
     await ctx.reply(`Права сотрудника УК выданы.\n\n${TEXTS.welcomeAdmin}`, withKeyboard(adminMenu()));
   });
 }
+

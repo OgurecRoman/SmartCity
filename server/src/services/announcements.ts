@@ -47,7 +47,7 @@ export async function createAnnouncement(input: CreateAnnouncementInput): Promis
 }
 
 export async function getAnnouncement(id: number): Promise<AnnouncementWithRelations | null> {
-  return prisma.announcement.findUnique({ where: { id }, include: announcementInclude });
+  return await prisma.announcement.findUnique({ where: { id }, include: announcementInclude });
 }
 
 export interface ListAnnouncementsFilter {
@@ -73,7 +73,7 @@ export async function listAnnouncements(filter: ListAnnouncementsFilter): Promis
 }
 
 export async function countAnnouncements(filter: Pick<ListAnnouncementsFilter, 'houseId'>): Promise<number> {
-  return prisma.announcement.count({ where: buildAnnouncementWhere(filter) });
+  return await prisma.announcement.count({ where: buildAnnouncementWhere(filter) });
 }
 
 export interface UpdateAnnouncementInput {

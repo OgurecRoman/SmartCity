@@ -6,7 +6,6 @@ import { serializeMembershipRequest, serializeUser, serializeUserHouse } from '.
 import { activeHouseSchema, submitMembershipSchema } from '../validation/me.js';
 import { idParam, parseBody } from '../validation/parse.js';
 
-/** Подтверждённые дома жителя + дома из ожидающих заявок на вступление; активный помечен. */
 async function housesOf(user: usersService.DbUser) {
   const [approved, pending] = await Promise.all([
     usersService.listUserHouses(user.id),
@@ -37,7 +36,6 @@ export async function get(req: Request, res: Response) {
   res.json({ ...serializeUser(user), membership, houses: await housesOf(user) });
 }
 
-/** Заявка на вступление в дом — в первый или в дополнительный. */
 export async function update(req: Request, res: Response) {
   const input = parseBody(submitMembershipSchema, req);
   const request = await submitMembershipRequest({ applicantId: req.user!.id, ...input });

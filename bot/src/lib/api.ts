@@ -40,6 +40,7 @@ export const getUserByMaxId = (maxUserId: Id) => request<DbUser | null>('GET', `
 export const listEmployees = () => request<DbUser[]>('GET', 'bot/users/employees');
 export const getChairmanOf = (houseId: number) => request<DbUser | null>('GET', `bot/houses/${houseId}/chairman`);
 export const promoteToEmployee = (userId: number, code: string) => request<DbUser>('POST', 'bot/users/promote', { userId, code });
+export const logout = (userId: number) => request<DbUser>('POST', 'bot/users/logout', { userId });
 export const assignResidentToHouse = (maxUserId: Id, houseId: number) =>
   request<DbUser>('POST', 'bot/users/assign-house', { maxUserId: s(maxUserId), houseId });
 export const detachResident = (maxUserId: Id) => request<DbUser>('POST', 'bot/users/detach', { maxUserId: s(maxUserId) });

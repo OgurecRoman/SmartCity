@@ -5,8 +5,6 @@ import { upsertUserController } from '../controllers/user.js';
 import { getVotesController } from '../controllers/votes.js';
 import { photoUpload } from '../lib/upload.js';
 
-// API для процесса бота (bot/): все запросы к данным, которые раньше делались через Prisma напрямую.
-// Не использует MaxInitData — вместо этого общий секрет BOT_API_TOKEN в заголовке X-Bot-Token.
 const router = Router();
 router.use(requireBotToken);
 
@@ -15,6 +13,7 @@ router.get('/users/employees', bot.listEmployees);
 router.get('/users/by-max/:maxUserId', bot.getUserByMax);
 router.get('/users/:id', bot.getUser);
 router.post('/users/promote', bot.promote);
+router.post('/users/logout', bot.logout);
 router.post('/users/assign-house', bot.assignHouse);
 router.post('/users/detach', bot.detach);
 router.post('/users/appoint-chairman', bot.appointChairman);
