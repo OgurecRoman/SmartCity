@@ -1,6 +1,6 @@
 import type { RequestCategory, RequestPriority, RequestStatus, ResidentType, UserRole } from '../types/index.js';
 
-// Копия справочников сервера (server/src/lib/labels.ts): это статические подписи, ходить за ними по сети незачем.
+// копия справочников сервера (server/src/lib/labels.ts): это статические подписи, ходить за ними по сети незачем
 
 export const CATEGORY_LABELS: Record<RequestCategory, string> = {
   NOISE: 'Шум и соседи',
