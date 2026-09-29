@@ -39,6 +39,7 @@ export async function savePhotoBuffer(buffer: Buffer, ext: string): Promise<stri
             Key: key,
             Body: buffer,
             ContentType: contentTypeMap[safeExt],
+            ACL: 'public-read',
         })
     );
 
