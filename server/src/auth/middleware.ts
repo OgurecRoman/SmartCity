@@ -27,12 +27,10 @@ export async function authenticate(req: Request, _res: Response, next: NextFunct
       lastName: payload.user.last_name ?? null,
       username: payload.user.username ?? null,
     });
-    next();
     return next();
   }
 
   return next(errors.unauthorized('Передайте заголовок Authorization: MaxInitData <initData>'));
-    
 }
 
 function headerName(req: Request): string {
