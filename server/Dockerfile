@@ -14,7 +14,7 @@ RUN npm ci
 
 COPY tsconfig.json ./
 COPY src ./src
-COPY openapi.yaml ./
+COPY ../openapi.yaml ./
 COPY certs ./certs
 
 RUN npm run build \
