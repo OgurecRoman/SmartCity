@@ -16,6 +16,7 @@ const router = Router();
  */
 router.get('/houses', housesController.list);
 router.post('/houses', housesController.create);
+router.get('/houses/lookup', housesController.lookup);
 
 /**
  * @swagger
