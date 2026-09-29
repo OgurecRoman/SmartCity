@@ -1,7 +1,7 @@
 schemaVersion: "1.0"
 solution:
   name: "SmartCity API"
-  teamId: "kodimsUtkami"
+  teamId: "171"
 api:
   baseUrl: "https://smartcity.visitly.ru"
   openapi: "./openapi.yaml"
