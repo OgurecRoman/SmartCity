@@ -25,6 +25,7 @@ export function createApp() {
   });
 
   app.get('/health', (_req, res) => {
+    console.log('я в health');
     res.json({ status: 'ok', service: 'backend', time: new Date().toISOString() });
   });
 
