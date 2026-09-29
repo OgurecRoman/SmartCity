@@ -1,7 +1,7 @@
 import { Button, Container, Flex, Spinner, Typography } from '@maxhub/max-ui';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
-import { Plus } from 'lucide-react';
+import { ChevronRight, Plus, Settings2 } from 'lucide-react';
 import { api } from '../../api/client';
 import Request from '../../components/Request';
 import { useAuth } from '../../auth/AuthProvider';
@@ -124,6 +124,19 @@ export default function Profile() {
           ) : null}
         </section>
       )}
+
+      <section className={s.menu} aria-label="Разделы профиля">
+        <button type="button" className={s.menuItem} onClick={() => navigate('/settings')}>
+          <span className={s.menuIcon} aria-hidden>
+            <Settings2 size={18} strokeWidth={2.1} />
+          </span>
+          <span className={s.menuText}>
+            <span className={s.menuTitle}>Настройки</span>
+            <span className={s.menuHint}>Тема, шрифт и доступность</span>
+          </span>
+          <ChevronRight size={18} strokeWidth={2} className={s.menuChevron} aria-hidden />
+        </button>
+      </section>
 
       {canCreate && (
         <>

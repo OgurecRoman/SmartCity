@@ -8,22 +8,29 @@ import App from './App.tsx';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './lib/queryClient';
 import { detectPlatform } from './lib/device';
+import { AccessibilityProvider, useA11y } from './a11y/AccessibilityProvider';
 
 const platform = detectPlatform();
 document.documentElement.dataset.platform = platform;
+
+function ThemedRoot() {
+  const { resolvedColorScheme } = useA11y();
+
+  return (
+    <MaxUI platform={platform} colorScheme={resolvedColorScheme} resetBody>
+      <App />
+    </MaxUI>
+  );
+}
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
       <QueryClientProvider client={queryClient}>
-        {/*
-          platform — iOS/Android по устройству.
-          colorScheme не задаём: MaxUI сам берёт системную тему и слушает её смену.
-        */}
-        <MaxUI platform={platform} resetBody>
-          <App />
-        </MaxUI>
+        <AccessibilityProvider>
+          <ThemedRoot />
+        </AccessibilityProvider>
       </QueryClientProvider>
     </BrowserRouter>
-  </StrictMode>
+  </StrictMode>,
 );

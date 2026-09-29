@@ -7,6 +7,7 @@ import Announcements from './pages/Announcements';
 import Requests from './pages/Requests';
 import RequestCreate from './pages/RequestCreate';
 import Membership from './pages/Membership';
+import Settings from './pages/Settings';
 import NotFound from './pages/NotFound';
 import Header from './components/Header';
 import NavBar from './components/NavBar';
@@ -50,16 +51,17 @@ function AppShell() {
   return (
     <Routes>
       <Route element={<AppLayout onAddHouse={() => setAddingHouse(true)} />}>
-        <Route path="/" element={<Home />} />
-        <Route path="/profile" element={<Profile />} />
-        <Route path="/company/edit" element={<EditCompany />} />
-        <Route path="/news" element={<News />} />
-        <Route path="/announcements" element={<Announcements />} />
-        <Route path="/requests" element={<Requests />} />
-        <Route path="/requests/new" element={<RequestCreate />} />
-        <Route path="/membership" element={<Membership />} />
+        <Route index element={<Home />} />
+        <Route path="profile" element={<Profile />} />
+        <Route path="settings" element={<Settings />} />
+        <Route path="company/edit" element={<EditCompany />} />
+        <Route path="news" element={<News />} />
+        <Route path="announcements" element={<Announcements />} />
+        <Route path="requests" element={<Requests />} />
+        <Route path="requests/new" element={<RequestCreate />} />
+        <Route path="membership" element={<Membership />} />
+        <Route path="*" element={<NotFound />} />
       </Route>
-      <Route path="*" element={<NotFound />} />
     </Routes>
   );
 }
