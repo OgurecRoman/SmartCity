@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Button, Typography } from '@maxhub/max-ui';
+import { MapPin, X } from 'lucide-react';
 import { api } from '../../api/client';
 import YandexMap from '../YandexMap';
 import { useInvalidateAppQueries } from '../../lib/invalidate';
@@ -301,13 +302,32 @@ export default function HouseJoinFlow({
         )}
 
         <div className={s.searchOverlay}>
-          <input
-            className={s.searchInput}
-            placeholder="Поиск адреса"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            enterKeyHint="search"
-          />
+          <div className={s.searchBox}>
+            <input
+              className={s.searchInput}
+              placeholder="Улица, дом…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              enterKeyHint="search"
+              aria-label="Поиск адреса"
+            />
+            {query && (
+              <button
+                type="button"
+                className={s.searchClear}
+                aria-label="Очистить"
+                onClick={() => {
+                  setQuery('');
+                  setDebouncedQ('');
+                }}
+              >
+                <X size={16} strokeWidth={2.25} aria-hidden />
+              </button>
+            )}
+          </div>
+          {geoQuery.isFetching && debouncedQ.length >= 3 && (
+            <p className={s.searchStatus}>Ищем адрес…</p>
+          )}
           {geoQuery.data && geoQuery.data.length > 0 && (
             <ul className={s.suggests}>
               {geoQuery.data.map((hit) => (
@@ -323,7 +343,7 @@ export default function HouseJoinFlow({
                       void handleMapClick([hit.lat, hit.lng]);
                     }}
                   >
-                    {hit.label}
+                    <span className={s.suggestLabel}>{hit.label}</span>
                   </button>
                 </li>
               ))}
@@ -334,7 +354,8 @@ export default function HouseJoinFlow({
         <div className={s.bottomDock}>
           {lookupLoading && (
             <div className={s.statusPill} role="status">
-              Ищем дом…
+              <span className={s.statusDot} aria-hidden />
+              Определяем дом…
             </div>
           )}
 
@@ -349,10 +370,26 @@ export default function HouseJoinFlow({
           {candidate && (
             <div className={s.sheet}>
               <div className={s.sheetHandle} aria-hidden />
-              <Typography.Body variant="medium-strong">
-                {isUkAdd ? 'Добавить этот дом в УК?' : 'Это ваш дом?'}
-              </Typography.Body>
+              <div className={s.sheetTop}>
+                <div className={s.sheetIcon} aria-hidden>
+                  <MapPin size={20} strokeWidth={2.25} />
+                </div>
+                <div className={s.sheetTopText}>
+                  <Typography.Body variant="medium-strong" className={s.sheetTitle}>
+                    {isUkAdd ? 'Добавить дом в УК?' : 'Это ваш дом?'}
+                  </Typography.Body>
+                  <span
+                    className={
+                      candidate.house ? `${s.sheetBadge} ${s.sheetBadgeKnown}` : s.sheetBadge
+                    }
+                  >
+                    {candidate.house ? 'Уже в системе' : 'Новый адрес'}
+                  </span>
+                </div>
+              </div>
+
               <div className={s.addressChip}>{candidate.building.address}</div>
+
               {candidate.building.entrances?.length > 0 && (
                 <p className={s.entrances}>
                   Подъезды:{' '}
@@ -361,20 +398,23 @@ export default function HouseJoinFlow({
                     .join(' · ')}
                 </p>
               )}
+
               <Typography.Body variant="small" className={s.hint}>
                 {isUkAdd
                   ? candidate.house
-                    ? 'Дом уже в системе — проверим, что он вашей УК'
-                    : 'Дом появится в списке домов УК сразу'
+                    ? 'Проверим, что дом вашей УК, и добавим в список'
+                    : 'Дом сразу появится в списке домов УК'
                   : candidate.house
-                    ? 'Дом уже в системе'
-                    : 'Добавим дом после подтверждения'}
+                    ? 'Можно сразу указать квартиру и подать заявку'
+                    : 'После подтверждения добавим дом и попросим квартиру'}
               </Typography.Body>
+
               {error && (
                 <Typography.Body variant="small" className={s.error}>
                   {error}
                 </Typography.Body>
               )}
+
               <div className={s.sheetActions}>
                 <Button
                   size="medium"
@@ -398,6 +438,12 @@ export default function HouseJoinFlow({
                   Выбрать другой
                 </Button>
               </div>
+            </div>
+          )}
+
+          {!candidate && !lookupLoading && !error && (
+            <div className={s.mapHint} role="note">
+              Нажмите на здание на карте или найдите адрес
             </div>
           )}
         </div>
