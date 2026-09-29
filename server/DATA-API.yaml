@@ -1,16 +1,13 @@
 schemaVersion: "1.0"
 solution:
   name: "SmartCity API"
-  teamId: "kodimSUtkami"
+  teamId: "kodimsUtkami"
 api:
   baseUrl: "https://smartcity.visitly.ru"
   openapi: "./openapi.yaml"
   defaultHeaders:
     Accept: "application/json"
 checks:
-  # ============================================
-  # PUBLIC ЭНДПОИНТЫ (без авторизации)
-  # ============================================
   - id: "health"
     name: "Проверка живости сервиса"
     description: "Базовая проверка доступности API"
@@ -472,9 +469,6 @@ checks:
     repeatable: true
     dependsOn: ["get-profile"]
 
-  # ============================================
-  # UK ЭНДПОИНТЫ (сотрудник УК)
-  # ============================================
   - id: "get-uk-requests"
     name: "Очередь заявок УК"
     description: "Список заявок для сотрудника УК с пагинацией"
