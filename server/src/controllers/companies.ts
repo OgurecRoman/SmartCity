@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import * as companiesService from '../services/companies.js';
 import { log } from '../lib/logger.js';
 import { updateCompanySchema } from '../validation/companies.js';
+import { idParam } from '../validation/parse.js';
 
 export async function getAllCompaniesController(req: Request, res: Response): Promise<void> {
   try {
@@ -16,9 +17,7 @@ export async function getAllCompaniesController(req: Request, res: Response): Pr
 
 export async function getCompanyController(req: Request, res: Response): Promise<void> {
   try {
-    if (!req.body.id)
-        return;
-    const company = await companiesService.getCompanyById(Number(req.body.id));
+    const company = await companiesService.getCompanyById(idParam(req));
     res.json({company});
   } catch (error) {
     log.error('Error in upsertUserController', error);
@@ -59,9 +58,7 @@ export async function upsertUserController(req: Request, res: Response): Promise
 
 export async function deleteCompanyController(req: Request, res: Response): Promise<void> {
   try {
-    if (!req.body.id)
-        return;
-    const company = await companiesService.deleteCompany(req.body.id);
+    const company = await companiesService.deleteCompany(idParam(req));
 
     res.json({company});
   } catch (error) {

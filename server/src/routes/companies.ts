@@ -26,9 +26,9 @@ const router = Router();
  *     data: { id: number }
  */
 router.get('/companies', companiesController.getAllCompaniesController);
-router.get('/company', companiesController.getCompanyController);
+router.get('/company/:id', companiesController.getCompanyController);
 router.post('/company', companiesController.createCompanyController);
-router.patch('/company', companiesController.upsertUserController);
-router.delete('/company', companiesController.deleteCompanyController);
+router.patch('/company/:id', companiesController.upsertUserController);
+router.delete('/company/:id', companiesController.deleteCompanyController);
 
 export default router;

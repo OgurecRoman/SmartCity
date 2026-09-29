@@ -9,6 +9,7 @@ export const createCompanySchema = z.object({
 });
 
 export const updateCompanySchema = z.object({
+  id: z.number().int().positive(),
   name: z.string().min(1).max(255).optional(),
   phone: z.string().min(1).max(50).optional(),
   email: z.string().email().nullable().optional(),
