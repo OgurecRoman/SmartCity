@@ -1,0 +1,129 @@
+# SmartCity — стек для VPS (PostgreSQL + API + bot + mini-app)
+#
+# Запуск:
+#   cp .env.example .env   # заполнить секреты
+#   docker compose up -d --build
+#
+# Проверка связи (без деплоя секретов можно поднять только db+server с заглушками):
+#   docker compose config
+#   docker compose build
+
+name: smartcity
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-smartcity}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-smartcity}
+      POSTGRES_DB: ${POSTGRES_DB:-smartcity}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-smartcity} -d ${POSTGRES_DB:-smartcity}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    networks:
+      - internal
+
+  server:
+    build:
+      context: ./server
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-smartcity}:${POSTGRES_PASSWORD:-smartcity}@db:5432/${POSTGRES_DB:-smartcity}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+      MAX_BOT_TOKEN: ${MAX_BOT_TOKEN:-}
+      BOT_API_TOKEN: ${BOT_API_TOKEN:-}
+      UK_ACCESS_CODE: ${UK_ACCESS_CODE:-change-me}
+      UK_ADMIN_IDS: ${UK_ADMIN_IDS:-}
+      DEV_AUTH_BYPASS: ${DEV_AUTH_BYPASS:-false}
+      INIT_DATA_MAX_AGE_SEC: ${INIT_DATA_MAX_AGE_SEC:-86400}
+      VOTE_PERCENT_DEFAULT: ${VOTE_PERCENT_DEFAULT:-20}
+      DEFAULT_DEADLINE_DAYS: ${DEFAULT_DEADLINE_DAYS:-14}
+      EXPIRE_CHECK_INTERVAL_SEC: ${EXPIRE_CHECK_INTERVAL_SEC:-300}
+      NOTIFY_POLL_INTERVAL_SEC: ${NOTIFY_POLL_INTERVAL_SEC:-3}
+      YANDEX_GEO_API_KEY: ${YANDEX_GEO_API_KEY:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+    volumes:
+      - uploads:/app/uploads
+    # Для отладки API с хоста раскомментируйте:
+    # ports:
+    #   - "3000:3000"
+    networks:
+      - internal
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  bot:
+    build:
+      context: ./bot
+    restart: unless-stopped
+    depends_on:
+      server:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      MAX_BOT_TOKEN: ${MAX_BOT_TOKEN:-}
+      BOT_ENABLED: ${BOT_ENABLED:-true}
+      BOT_MODE: ${BOT_MODE:-polling}
+      WEBHOOK_DOMAIN: ${WEBHOOK_DOMAIN:-}
+      WEBHOOK_PATH: ${WEBHOOK_PATH:-/bot/webhook}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET:-}
+      BOT_WEBHOOK_PORT: ${BOT_WEBHOOK_PORT:-3001}
+      BOT_USERNAME: ${BOT_USERNAME:-}
+      BACKEND_API_URL: http://server:3000
+      BOT_API_TOKEN: ${BOT_API_TOKEN:-}
+      NOTIFY_POLL_INTERVAL_SEC: ${NOTIFY_POLL_INTERVAL_SEC:-3}
+      DEFAULT_DEADLINE_DAYS: ${DEFAULT_DEADLINE_DAYS:-14}
+    # Нужен только при BOT_MODE=webhook (проброс наружу через reverse-proxy)
+    # ports:
+    #   - "3001:3001"
+    networks:
+      - internal
+
+  client:
+    build:
+      context: ./client
+      args:
+        # Пусто = same-origin через nginx proxy (/api, /uploads)
+        VITE_API_URL: ${VITE_API_URL:-}
+        VITE_YANDEX_MAPS_API_KEY: ${VITE_YANDEX_MAPS_API_KEY:-}
+    restart: unless-stopped
+    depends_on:
+      server:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${HTTP_PORT:-8080}:80"
+    networks:
+      - internal
+
+volumes:
+  pgdata:
+  uploads:
+
+networks:
+  internal:
+    driver: bridge

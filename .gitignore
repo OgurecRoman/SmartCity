@@ -5,6 +5,8 @@ node_modules/
 # секреты
 .env
 server/.env
+bot/.env
+client/.env
 
 # генерируемое
 server/src/generated/
