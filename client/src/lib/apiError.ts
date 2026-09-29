@@ -1,5 +1,5 @@
 const CODE_MESSAGES: Record<string, string> = {
-  unauthorized: 'Войдите через MAX или проверьте VITE_DEV_USER_ID',
+  unauthorized: 'Войдите через MAX',
   forbidden: 'Недостаточно прав для этого действия',
   not_found: 'Не найдено',
   conflict: 'Действие сейчас недоступно',
