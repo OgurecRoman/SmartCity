@@ -113,8 +113,6 @@ model User {
   houses        UserHouse[]
 }
 
-// Все дома жителя. Поля User.houseId/apartment/residentType/onboardedAt — «активный» дом
-// (тот, с которым работают бот и проверки по умолчанию); переключается через API.
 model UserHouse {
   id               Int           @id @default(autoincrement())
   userId           Int

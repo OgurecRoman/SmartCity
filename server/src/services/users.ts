@@ -74,13 +74,11 @@ export function isChairman(user: Pick<DbUser, 'role'>): boolean {
   return user.role === 'CHAIRMAN';
 }
 
-/** УК может действовать в любом доме; председатель ТСЖ — только в своём. */
 export function canActOnHouse(user: Pick<DbUser, 'role' | 'houseId'>, houseId: number): boolean {
   if (user.role === 'UK_EMPLOYEE') return true;
   return user.role === 'CHAIRMAN' && user.houseId === houseId;
 }
 
-/** УК может управлять объявлениями любого дома; председатель ТСЖ — только своего. */
 export function canManageAnnouncements(user: Pick<DbUser, 'role' | 'houseId'>, houseId: number): boolean {
   return canActOnHouse(user, houseId);
 }
@@ -92,8 +90,6 @@ export function isOnboarded(user: Pick<DbUser, 'houseId' | 'onboardedAt'>): bool
 export async function getChairmanOf(houseId: number): Promise<DbUser | null> {
   return prisma.user.findFirst({ where: { role: 'CHAIRMAN', houseId }, include: userInclude });
 }
-
-// --- Дома жителя (UserHouse). User.houseId и связанные поля — «активный» дом. ---
 
 export const userHouseInclude = {
   house: { select: { id: true, address: true, votePercent: true, lat: true, lng: true, apartmentsCount: true, chatId: true } },
@@ -108,10 +104,6 @@ export async function isMemberOfHouse(userId: number, houseId: number): Promise<
   return (await prisma.userHouse.count({ where: { userId, houseId } })) > 0;
 }
 
-/**
- * Дом, с которым работает запрос: УК обязан указать houseId; житель может указать любой из своих домов,
- * иначе берётся активный. С allowPending дома из ожидающих заявок на вступление тоже подходят (для чтения).
- */
 export async function resolveHouseFor(
   user: Pick<DbUser, 'id' | 'role' | 'houseId' | 'onboardedAt'>,
   requested: number | undefined,
@@ -149,7 +141,6 @@ interface JoinHouseInput {
   verifiedFullName?: string | null;
 }
 
-/** Добавляет дом в список жителя; если активного дома ещё нет — этот становится активным. */
 async function joinHouseTx(tx: Prisma.TransactionClient, input: JoinHouseInput): Promise<void> {
   await tx.userHouse.upsert({
     where: { userId_houseId: { userId: input.userId, houseId: input.houseId } },
@@ -187,7 +178,6 @@ export async function joinHouse(input: JoinHouseInput): Promise<DbUser> {
   return prisma.user.findUniqueOrThrow({ where: { id: input.userId }, include: userInclude });
 }
 
-/** Переключает активный дом жителя на один из его домов. */
 export async function setActiveHouse(userId: number, houseId: number): Promise<DbUser> {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw errors.notFound('Пользователь не найден');
@@ -209,7 +199,6 @@ export async function setActiveHouse(userId: number, houseId: number): Promise<D
   });
 }
 
-/** Убирает дом из списка жителя; если он был активным — активным становится следующий (или никакой). */
 export async function leaveHouse(userId: number, houseId: number): Promise<DbUser> {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw errors.notFound('Пользователь не найден');
@@ -232,7 +221,6 @@ export async function leaveHouse(userId: number, houseId: number): Promise<DbUse
   });
 }
 
-/** Подтверждённый житель добавляет своего съёмщика — сразу, без подтверждения председателя. */
 export async function addTenantByOwner(
   owner: Pick<DbUser, 'id' | 'houseId' | 'onboardedAt' | 'residentType'>,
   maxUserId: bigint,
@@ -270,7 +258,6 @@ async function ensureUser(maxUserId: bigint): Promise<{ id: number; role: string
   return existing ?? (await prisma.user.create({ data: { maxUserId, firstName: 'Житель' }, select: { id: true, role: true, residentType: true } }));
 }
 
-/** УК добавляет жителя в дом (без подтверждения); дом становится активным, если активного ещё нет. */
 export async function assignResidentToHouse(maxUserId: bigint, houseId: number): Promise<DbUser> {
   const house = await prisma.house.findUnique({ where: { id: houseId } });
   if (!house) throw errors.notFound('Дом не найден');
@@ -278,7 +265,6 @@ export async function assignResidentToHouse(maxUserId: bigint, houseId: number):
   return joinHouse({ userId: user.id, houseId, apartment: null, residentType: user.residentType ?? 'OWNER' });
 }
 
-/** УК убирает жителя из дома (по умолчанию — из активного). Председателя этого дома заодно снимает с должности. */
 export async function detachResident(maxUserId: bigint, houseId?: number): Promise<DbUser> {
   const existing = await prisma.user.findUnique({ where: { maxUserId } });
   const target = houseId ?? existing?.houseId ?? null;
@@ -289,7 +275,6 @@ export async function detachResident(maxUserId: bigint, houseId?: number): Promi
   return leaveHouse(existing.id, target);
 }
 
-/** Назначает председателя ТСЖ дома; если человек ещё не привязан к дому — привязывает как владельца. Дом становится активным. */
 export async function appointChairman(maxUserId: bigint, houseId: number): Promise<DbUser> {
   const house = await prisma.house.findUnique({ where: { id: houseId } });
   if (!house) throw errors.notFound('Дом не найден');
@@ -325,7 +310,6 @@ export interface ResidentRow {
   residentType: ResidentType | null;
 }
 
-/** Жители дома — все, у кого дом есть в списке (не только те, у кого он активный). */
 export async function listResidentsOfHouse(houseId: number): Promise<ResidentRow[]> {
   const rows = await prisma.userHouse.findMany({
     where: { houseId, user: residentRoles },
@@ -361,7 +345,6 @@ export async function setVotePercent(houseId: number, percent: number) {
   return prisma.house.update({ where: { id: houseId }, data: { votePercent: percent } });
 }
 
-/** Удаляет дом, только если с ним ничего не связано (жители, заявки, объявления, новости, вступления, камеры). */
 export async function deleteHouse(houseId: number): Promise<void> {
   const house = await prisma.house.findUnique({
     where: { id: houseId },

@@ -55,7 +55,7 @@ export async function createNews(input: CreateNewsInput): Promise<NewsWithRelati
 }
 
 export async function getNews(id: number): Promise<NewsWithRelations | null> {
-  return prisma.news.findUnique({ where: { id }, include: newsInclude });
+  return await prisma.news.findUnique({ where: { id }, include: newsInclude });
 }
 
 export interface ListNewsFilter {
@@ -71,7 +71,7 @@ function buildNewsWhere(filter: Pick<ListNewsFilter, 'houseId'>): Prisma.NewsWhe
 }
 
 export async function listNews(filter: ListNewsFilter): Promise<NewsWithRelations[]> {
-  return prisma.news.findMany({
+  return await prisma.news.findMany({
     where: buildNewsWhere(filter),
     include: newsInclude,
     orderBy: [{ createdAt: 'desc' }],
@@ -81,7 +81,7 @@ export async function listNews(filter: ListNewsFilter): Promise<NewsWithRelation
 }
 
 export async function countNews(filter: Pick<ListNewsFilter, 'houseId'>): Promise<number> {
-  return prisma.news.count({ where: buildNewsWhere(filter) });
+  return await prisma.news.count({ where: buildNewsWhere(filter) });
 }
 
 export interface UpdateNewsInput {

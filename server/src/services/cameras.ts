@@ -8,7 +8,7 @@ export const cameraInclude = {
 export type CameraWithHouse = Prisma.CameraGetPayload<{ include: typeof cameraInclude }>;
 
 export async function listCamerasOfHouse(houseId: number): Promise<CameraWithHouse[]> {
-  return prisma.camera.findMany({
+  return await prisma.camera.findMany({
     where: { houseId },
     include: cameraInclude,
     orderBy: { id: 'asc' },
