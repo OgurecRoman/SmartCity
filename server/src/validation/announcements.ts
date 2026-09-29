@@ -7,7 +7,7 @@ export const listAnnouncementsQuerySchema = z.object({
 });
 
 export const createAnnouncementSchema = z.object({
-  houseId: z.number().int().positive().optional(),
+  houseId: positiveInt.optional(),
   title: z.string().trim().min(3).max(120),
   description: z.string().trim().min(5).max(2000),
 });

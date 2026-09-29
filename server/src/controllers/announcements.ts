@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import { errors } from '../lib/errors.js';
+import { saveUploadedPhotos } from '../lib/upload.js';
 import { countAnnouncements, createAnnouncement, deleteAnnouncement, listAnnouncements, updateAnnouncement } from '../services/announcements.js';
 import { isChairman, isEmployee, resolveHouseFor } from '../services/users.js';
 import { serializeAnnouncement } from '../routes/serialize.js';
@@ -45,7 +46,14 @@ export async function create(req: Request, res: Response) {
     throw errors.forbidden('Создавать объявления могут УК или председатель ТСЖ');
   }
 
-  const announcement = await createAnnouncement({ houseId, authorId: user.id, title: input.title, description: input.description });
+  const photos = await saveUploadedPhotos(req.files as Express.Multer.File[] | undefined);
+  const announcement = await createAnnouncement({
+    houseId,
+    authorId: user.id,
+    title: input.title,
+    description: input.description,
+    photos,
+  });
   res.status(201).json(serializeAnnouncement(announcement));
 }
 

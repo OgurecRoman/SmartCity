@@ -105,10 +105,12 @@
 .address {
   grid-area: address;
   margin: 0;
+  min-width: 0;
   color: var(--text-secondary);
   padding-top: 10px;
   border-top: 0.5px solid var(--divider-secondary);
   line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .ukCard {

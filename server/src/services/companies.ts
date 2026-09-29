@@ -59,6 +59,7 @@ export async function updateCompanyContacts(
   return prisma.managementCompany.update({
     where: { id },
     data: {
+      name: contacts.name,
       phone: contacts.phone,
       email: contacts.email,
       address: contacts.address,

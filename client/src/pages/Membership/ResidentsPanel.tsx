@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Button, Spinner, Typography } from '@maxhub/max-ui';
 import { api } from '../../api/client';
+import { useAuth } from '../../auth/AuthProvider';
 import { useToast } from '../../components/Toast/ToastProvider';
 import { messageForApiError } from '../../lib/apiError';
 import { useInvalidateAppQueries } from '../../lib/invalidate';
@@ -12,8 +13,11 @@ import type { User } from '../../types/user';
 import s from './Membership.module.scss';
 
 export function ResidentsPanel() {
+  const { user } = useAuth();
   const toast = useToast();
   const { invalidateResidents } = useInvalidateAppQueries();
+  const isUk = user.role === 'UK_EMPLOYEE';
+  const canRemove = isUk;
   const [houseId, setHouseId] = useState<number | ''>('');
   const [confirmId, setConfirmId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -24,10 +28,19 @@ export function ResidentsPanel() {
       const { data } = await api.get<House[]>('/houses');
       return data;
     },
+    enabled: isUk,
   });
 
-  const houses = housesQuery.data ?? [];
-  const activeHouseId = typeof houseId === 'number' ? houseId : houses[0]?.id;
+  const houses = isUk
+    ? (housesQuery.data ?? [])
+    : user.house
+      ? [{ id: user.house.id, address: user.house.address } as House]
+      : [];
+  const activeHouseId = isUk
+    ? typeof houseId === 'number'
+      ? houseId
+      : houses[0]?.id
+    : user.house?.id;
 
   const residentsQuery = useQuery({
     queryKey: queryKeys.residents(activeHouseId ?? 0),
@@ -60,7 +73,7 @@ export function ResidentsPanel() {
   const busy = removeMutation.isPending;
   const residents = residentsQuery.data ?? [];
 
-  if (housesQuery.isLoading) {
+  if (isUk && housesQuery.isLoading) {
     return (
       <div className={s.state}>
         <Spinner size={40} appearance="themed" />
@@ -71,38 +84,50 @@ export function ResidentsPanel() {
   return (
     <div className={s.section}>
       <Typography.Body variant="small" className={s.hint}>
-        Подтверждённые жители дома. Удаление убирает человека из дома
+        {canRemove
+          ? 'Подтверждённые жители дома. Удаление убирает человека из дома'
+          : 'Подтверждённые жители вашего дома'}
         {residents.length ? ` · ${residents.length}` : ''}
       </Typography.Body>
 
-      <label className={s.field}>
-        <span className={s.label}>Дом</span>
-        <select
-          className={s.select}
-          value={activeHouseId ?? ''}
-          disabled={busy || houses.length === 0}
-          onChange={(e) => {
-            setHouseId(Number(e.target.value));
-            setConfirmId(null);
-            setError(null);
-          }}
-        >
-          {houses.length === 0 && (
-            <option value="" disabled>
-              Нет домов
-            </option>
-          )}
-          {houses.map((house) => (
-            <option key={house.id} value={house.id}>
-              {house.address}
-            </option>
-          ))}
-        </select>
-      </label>
+      {isUk ? (
+        <label className={s.field}>
+          <span className={s.label}>Дом</span>
+          <select
+            className={s.select}
+            value={activeHouseId ?? ''}
+            disabled={busy || houses.length === 0}
+            onChange={(e) => {
+              setHouseId(Number(e.target.value));
+              setConfirmId(null);
+              setError(null);
+            }}
+          >
+            {houses.length === 0 && (
+              <option value="" disabled>
+                Нет домов
+              </option>
+            )}
+            {houses.map((house) => (
+              <option key={house.id} value={house.id}>
+                {house.address}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : user.house ? (
+        <Typography.Body variant="small" className={s.meta}>
+          {user.house.address}
+        </Typography.Body>
+      ) : null}
 
       {error && <p className={s.error}>{error}</p>}
 
-      {activeHouseId == null ? null : residentsQuery.isLoading ? (
+      {activeHouseId == null ? (
+        <div className={s.empty}>
+          <Typography.Body variant="medium">Дом не выбран</Typography.Body>
+        </div>
+      ) : residentsQuery.isLoading ? (
         <div className={s.state}>
           <Spinner size={32} appearance="themed" />
         </div>
@@ -137,46 +162,47 @@ export function ResidentsPanel() {
                 {resident.username ? ` · @${resident.username}` : ''}
               </p>
 
-              {confirmId === resident.id ? (
-                <div className={s.rowActions}>
-                  <Button
-                    size="small"
-                    stretched
-                    loading={busy}
-                    onClick={() => {
-                      if (activeHouseId == null) return;
-                      removeMutation.mutate({ house: activeHouseId, userId: resident.id });
-                    }}
-                  >
-                    Убрать из дома
-                  </Button>
+              {canRemove &&
+                (confirmId === resident.id ? (
+                  <div className={s.rowActions}>
+                    <Button
+                      size="small"
+                      stretched
+                      loading={busy}
+                      onClick={() => {
+                        if (activeHouseId == null) return;
+                        removeMutation.mutate({ house: activeHouseId, userId: resident.id });
+                      }}
+                    >
+                      Убрать из дома
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="secondary"
+                      stretched
+                      disabled={busy}
+                      onClick={() => {
+                        setConfirmId(null);
+                        setError(null);
+                      }}
+                    >
+                      Отмена
+                    </Button>
+                  </div>
+                ) : (
                   <Button
                     size="small"
                     variant="secondary"
                     stretched
                     disabled={busy}
                     onClick={() => {
-                      setConfirmId(null);
+                      setConfirmId(resident.id);
                       setError(null);
                     }}
                   >
-                    Отмена
+                    Удалить
                   </Button>
-                </div>
-              ) : (
-                <Button
-                  size="small"
-                  variant="secondary"
-                  stretched
-                  disabled={busy}
-                  onClick={() => {
-                    setConfirmId(resident.id);
-                    setError(null);
-                  }}
-                >
-                  Удалить
-                </Button>
-              )}
+                ))}
             </li>
           ))}
         </ul>

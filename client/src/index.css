@@ -16,49 +16,20 @@
 html,
 body,
 #root {
-  background-color: var(--background-primary, #17181c);
-  color: var(--text-primary, #fff);
-}
-
-html[data-a11y-scheme='light'],
-html[data-a11y-scheme='light'] body,
-html[data-a11y-scheme='light'] #root {
-  background-color: var(--background-primary, #ffffff);
-  color: var(--text-primary, #060708);
-}
-
-html[data-a11y-scheme='dark'],
-html[data-a11y-scheme='dark'] body,
-html[data-a11y-scheme='dark'] #root {
-  background-color: var(--background-primary, #17181c);
-  color: var(--text-primary, #ffffff);
+  background-color: var(--background-primary, Canvas);
+  color: var(--text-primary, CanvasText);
 }
 
 select {
   color: var(--text-primary, CanvasText);
   background-color: var(--background-secondary, var(--background-primary, Canvas));
+  color-scheme: inherit;
 }
 
 select option,
 select optgroup {
   color: inherit;
   background-color: var(--background-primary, Canvas);
-}
-
-html[data-a11y-scheme='light'] select,
-html[data-a11y-scheme='light'] select option,
-html[data-a11y-scheme='light'] select optgroup {
-  color-scheme: light;
-  color: #060708;
-  background-color: #ffffff;
-}
-
-html[data-a11y-scheme='dark'] select,
-html[data-a11y-scheme='dark'] select option,
-html[data-a11y-scheme='dark'] select optgroup {
-  color-scheme: dark;
-  color: #ffffff;
-  background-color: #1c1d21;
 }
 
 html {
@@ -77,9 +48,29 @@ body::-webkit-scrollbar,
 body {
   margin: 0;
   overflow-y: auto;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 * {
   scrollbar-width: none;
   -ms-overflow-style: none;
+}
+
+.truncate {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.truncate2 {
+  min-width: 0;
+  max-width: 100%;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
 }

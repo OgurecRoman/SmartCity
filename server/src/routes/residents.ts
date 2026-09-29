@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import { requireEmployee } from '../auth/middleware.js';
 import * as residentsController from '../controllers/residents.js';
 
 const router = Router();
@@ -8,9 +7,9 @@ const router = Router();
  * @swagger
  * /api/residents:
  *   get:
- *     summary: Получить всех жителей
+ *     summary: Получить жителей дома (УК или председатель ТСЖ)
  *     tags: [Жители]
  */
-router.get('/residents', requireEmployee, residentsController.list);
+router.get('/residents', residentsController.list);
 
 export default router;

@@ -26,11 +26,6 @@ type A11yContextValue = {
 
 const A11yContext = createContext<A11yContextValue | null>(null);
 
-function resolveScheme(theme: AccessibilitySettings['theme'], system: ColorSchemeType): ColorSchemeType {
-  if (theme === 'system') return system;
-  return theme;
-}
-
 function applyDom(settings: AccessibilitySettings, scheme: ColorSchemeType) {
   const root = document.documentElement;
   root.dataset.a11yFont = settings.font;
@@ -43,9 +38,7 @@ function applyDom(settings: AccessibilitySettings, scheme: ColorSchemeType) {
 
 export function AccessibilityProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<AccessibilitySettings>(() => loadAccessibilitySettings());
-  const [systemScheme, setSystemScheme] = useState<ColorSchemeType>(() => getSystemColorScheme());
-
-  const resolvedColorScheme = resolveScheme(settings.theme, systemScheme);
+  const [resolvedColorScheme, setResolvedColorScheme] = useState<ColorSchemeType>(() => getSystemColorScheme());
 
   const syncDom = useEffectEvent((next: AccessibilitySettings, scheme: ColorSchemeType) => {
     applyDom(next, scheme);
@@ -56,7 +49,7 @@ export function AccessibilityProvider({ children }: { children: ReactNode }) {
   }, [settings, resolvedColorScheme, syncDom]);
 
   useEffect(() => {
-    const sync = () => setSystemScheme(getSystemColorScheme());
+    const sync = () => setResolvedColorScheme(getSystemColorScheme());
     const media = window.matchMedia('(prefers-color-scheme: dark)');
     media.addEventListener('change', sync);
 

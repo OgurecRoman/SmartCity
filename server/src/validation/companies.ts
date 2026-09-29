@@ -23,8 +23,9 @@ export const updateCompanySchema = z.object({
   workingHours: z.string().max(255).nullable().optional(),
 });
 
-/** Контакты своей УК — только для сотрудника. */
+/** Профиль своей УК — только для сотрудника. */
 export const updateCompanyContactsSchema = z.object({
+  name: z.string().trim().min(1, "Укажите название").max(255),
   phone: z.string().trim().min(1, "Укажите телефон").max(50),
   email: z
     .string()

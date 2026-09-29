@@ -1,7 +1,7 @@
 .host {
   position: fixed;
   z-index: 100000;
-  top: calc(8px + env(safe-area-inset-top, 0px));
+  top: calc(10px + env(safe-area-inset-top, 0px));
   left: 0;
   right: 0;
   width: 100%;
@@ -10,7 +10,7 @@
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  padding: 0 4px;
+  padding: 0 12px;
   pointer-events: none;
 }
 
@@ -19,32 +19,34 @@
   width: 100%;
   max-width: 32rem;
   margin: 0;
-  padding: 12px 14px;
-  border: 0.5px solid var(--divider-primary, var(--divider-secondary));
+  padding: 12px 14px 12px 12px;
+  border: none;
   border-radius: 14px;
+  border-left: 4px solid var(--text-themed, #5b9fd4);
   text-align: left;
   font: inherit;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 550;
   line-height: 1.35;
-  color: var(--text-primary);
-  background: var(--background-card, var(--background-secondary));
-  box-shadow: var(--shadow-lg);
+  /* Canvas — непрозрачная системная заливка под текущий color-scheme из MAX */
+  color: CanvasText;
+  background-color: Canvas;
+  box-shadow: var(--shadow-lg, 0 8px 24px rgba(0, 0, 0, 0.28));
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   animation: toast-in 180ms ease-out;
 }
 
 .info {
-  color: var(--text-primary);
+  border-left-color: var(--text-themed, #5b9fd4);
 }
 
 .success {
-  color: var(--text-positive, var(--text-themed, #2aabee));
+  border-left-color: var(--text-positive, #3dd68c);
 }
 
 .error {
-  color: var(--text-negative, #ff453a);
+  border-left-color: var(--text-negative, #ff5c5c);
 }
 
 @keyframes toast-in {

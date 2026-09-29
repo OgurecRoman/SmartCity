@@ -73,17 +73,25 @@
 }
 
 .title {
-  display: block;
   width: 100%;
   min-width: 0;
   color: var(--text-primary);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
 }
 
 .description {
-  display: block;
   width: 100%;
   min-width: 0;
   color: var(--text-secondary);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow-wrap: anywhere;
 }
 
 .meta {
