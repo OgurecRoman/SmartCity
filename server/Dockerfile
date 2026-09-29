@@ -4,17 +4,18 @@ FROM node:22-alpine AS build
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci
-
 COPY prisma ./prisma
 COPY prisma.config.ts ./
+
+# prisma.config.ts / postinstall generate требуют DATABASE_URL
+ENV DATABASE_URL="postgresql://build:build@127.0.0.1:5432/build"
+
+RUN npm ci
+
 COPY tsconfig.json ./
 COPY src ./src
 COPY openapi.yaml ./
 COPY certs ./certs
-
-# prisma.config.ts требует DATABASE_URL даже для `prisma generate`
-ENV DATABASE_URL="postgresql://build:build@127.0.0.1:5432/build"
 
 RUN npm run build \
  && npm prune --omit=dev \
