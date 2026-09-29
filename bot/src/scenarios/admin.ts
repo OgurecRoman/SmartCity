@@ -18,6 +18,7 @@ import {
 import { isAppError } from '../lib/errors.js';
 import { fullName } from '../lib/labels.js';
 import { isChairman } from '../lib/rules.js';
+import { log } from '../lib/logger.js';
 import { SCENARIO_TIMEOUT_MS, cancelIntercept, handlePhotoInput } from './common.js';
 
 export interface ManageOwnerData {
@@ -150,38 +151,39 @@ export const manageChairmanScenario = defineScenario<BotContext, ManageChairmanD
     },
 
     user: async ({ ctx, data }) => {
-      const text = textOf(ctx);
-      if (!text || !/^\d{1,18}$/.test(text)) {
-        await ctx.reply('ID должен быть числом. Попробуйте ещё раз:');
-        return transition.stay();
-      }
-      const existing = await getUserByMaxId(BigInt(text));
-      const targetName = existing ? fullName(existing) : `пользователь ${text}`;
-
-      if (data.action === 'dismiss') {
-        if (!existing || !isChairman(existing)) {
-          await ctx.reply('Этот пользователь не является председателем ТСЖ.', withKeyboard(panelButton()));
-          return transition.cancel();
+        const text = textOf(ctx);
+        if (!text || !/^\d{1,18}$/.test(text)) {
+            await ctx.reply('ID должен быть числом. Попробуйте ещё раз:');
+            return transition.stay();
         }
-        await ctx.reply(
-          `Снять ${mdName(targetName)} (${esc(existing.house?.address ?? '—')}) с должности председателя ТСЖ?`,
-          { ...withKeyboard(yesNoButtons('chair')), ...MD },
-        );
-        return transition.goto('confirm', { maxUserId: text, targetName });
-      }
+        const existing = await getUserByMaxId(BigInt(text));
+        const targetName = existing ? fullName(existing) : `пользователь ${text}`;
 
-      if (existing?.role === 'UK_EMPLOYEE') {
-        await ctx.reply('Этот пользователь — сотрудник УК, председателем его назначить нельзя.', withKeyboard(panelButton()));
-        return transition.cancel();
-      }
+        if (data.action === 'dismiss') {
+            if (!existing || !isChairman(existing)) {
+                await ctx.reply('Этот пользователь не является председателем ТСЖ.', withKeyboard(panelButton()));
+                return transition.cancel();
+            }
+            await ctx.reply(
+                `Снять ${mdName(targetName)} (${esc(existing.house?.address ?? '—')}) с должности председателя ТСЖ?`,
+                { ...withKeyboard(yesNoButtons('chair')), ...MD },
+            );
+            // ИСПРАВЛЕНО: используем ?? undefined, чтобы преобразовать null в undefined
+            return transition.goto('confirm', { maxUserId: text, targetName, houseId: existing.houseId ?? undefined });
+        }
 
-      const houses = await listHouses();
-      if (houses.length === 0) {
-        await ctx.reply('Сначала добавьте дома (см. seed или БД).', withKeyboard(panelButton()));
-        return transition.cancel();
-      }
-      await ctx.reply('В каком доме назначить председателя?', withKeyboard(houseButtons(houses, 'chair:house')));
-      return transition.goto('house', { maxUserId: text, targetName });
+        if (existing?.role === 'UK_EMPLOYEE') {
+            await ctx.reply('Этот пользователь — сотрудник УК, председателем его назначить нельзя.', withKeyboard(panelButton()));
+            return transition.cancel();
+        }
+
+        const houses = await listHouses();
+        if (houses.length === 0) {
+            await ctx.reply('Сначала добавьте дома (см. seed или БД).', withKeyboard(panelButton()));
+            return transition.cancel();
+        }
+        await ctx.reply('В каком доме назначить председателя?', withKeyboard(houseButtons(houses, 'chair:house')));
+        return transition.goto('house', { maxUserId: text, targetName });
     },
 
     house: async ({ ctx, data }) => {
@@ -200,35 +202,64 @@ export const manageChairmanScenario = defineScenario<BotContext, ManageChairmanD
     },
 
     confirm: async ({ ctx, data }) => {
-      const payload = payloadOf(ctx);
-      if (payload === 'chair:no') {
-        await ack(ctx, { message: { text: 'Отменено.' } });
-        await ctx.reply('Хорошо, ничего не меняем.', withKeyboard(panelButton()));
-        return transition.cancel();
-      }
-      if (payload !== 'chair:yes' || !data.maxUserId) {
-        await ctx.reply('Нажмите «Да» или «Нет».');
-        return transition.stay();
-      }
-      try {
-        if (data.action === 'appoint' && data.houseId) {
-          await appointChairman(BigInt(data.maxUserId), data.houseId);
-          await ack(ctx, { message: { text: 'Председатель назначен!' } });
-          await ctx.reply(
-            `✅ ${mdName(data.targetName ?? '')} назначен председателем ТСЖ дома «${esc(data.houseAddress ?? '')}».`,
-            { ...withKeyboard(panelButton()), ...MD },
-          );
-        } else {
-          await dismissChairman(BigInt(data.maxUserId));
-          await ack(ctx, { message: { text: 'Председатель снят!' } });
-          await ctx.reply(`✅ ${mdName(data.targetName ?? '')} больше не председатель ТСЖ.`, { ...withKeyboard(panelButton()), ...MD });
+        const payload = payloadOf(ctx);
+        if (payload === 'chair:no') {
+            await ack(ctx, { message: { text: 'Отменено.' } });
+            await ctx.reply('Хорошо, ничего не меняем.', withKeyboard(panelButton()));
+            return transition.cancel();
         }
-      } catch (error) {
-        if (!isAppError(error)) throw error;
-        await ack(ctx, { notification: error.message });
-        await ctx.reply(`Не получилось: ${error.message}`, withKeyboard(panelButton()));
-      }
-      return transition.complete();
+        if (payload !== 'chair:yes' || !data.maxUserId) {
+            await ctx.reply('Нажмите «Да» или «Нет».');
+            return transition.stay();
+        }
+        try {
+            if (data.action === 'appoint' && data.houseId) {
+                await appointChairman(BigInt(data.maxUserId), data.houseId);
+                await ack(ctx, { message: { text: 'Председатель назначен!' } });
+                await ctx.reply(
+                    `✅ ${mdName(data.targetName ?? '')} назначен председателем ТСЖ дома «${esc(data.houseAddress ?? '')}».`,
+                    { ...withKeyboard(panelButton()), ...MD },
+                );
+
+                const house = await getHouse(data.houseId);
+                if (house?.chatId) {
+                    try {
+                        await ctx.api.sendMessageToChat(
+                            Number(house.chatId),
+                            `📢 **Новый председатель ТСЖ**\n\nПредседателем дома «${esc(house.address)}» назначен(а) ${mdName(data.targetName ?? '')}.`,
+                            MD,
+                        );
+                    } catch (chatError) {
+                        log.warn(`Не удалось отправить уведомление в чат дома ${house.chatId}`, chatError);
+                    }
+                }
+
+            } else {
+                await dismissChairman(BigInt(data.maxUserId));
+                await ack(ctx, { message: { text: 'Председатель снят!' } });
+                await ctx.reply(`✅ ${mdName(data.targetName ?? '')} больше не председатель ТСЖ.`, { ...withKeyboard(panelButton()), ...MD });
+
+                if (data.houseId) {
+                    const house = await getHouse(data.houseId);
+                    if (house?.chatId) {
+                        try {
+                            await ctx.api.sendMessageToChat(
+                                Number(house.chatId),
+                                `ℹ️ **Смена председателя ТСЖ**\n\n${mdName(data.targetName ?? '')} освобожден(а) от должности председателя дома «${esc(house.address)}».`,
+                                MD,
+                            );
+                        } catch (chatError) {
+                            log.warn(`Не удалось отправить уведомление в чат дома ${house.chatId}`, chatError);
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            if (!isAppError(error)) throw error;
+            await ack(ctx, { notification: error.message });
+            await ctx.reply(`Не получилось: ${error.message}`, withKeyboard(panelButton()));
+        }
+        return transition.complete();
     },
   },
 });

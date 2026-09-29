@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requireEmployee } from '../auth/middleware.js';
+import { requireEmployeeOrChairman } from '../auth/middleware.js'; // ИЗМЕНЕНО
 import * as residentsController from '../controllers/residents.js';
 
 const router = Router();
@@ -11,6 +11,6 @@ const router = Router();
  *     summary: Получить всех жителей
  *     tags: [Жители]
  */
-router.get('/residents', requireEmployee, residentsController.list);
+router.get('/residents', requireEmployeeOrChairman, residentsController.list); // ИЗМЕНЕНО
 
 export default router;
