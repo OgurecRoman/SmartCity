@@ -30,7 +30,7 @@
 ## 🛠 Архитектура решения
 
 #### ```/server``` - backend-сервер с собственным API
-Node.js (NestJS) — REST API
+Node.js (Express + TypeScript) — REST API
 
 #### ```/server/prisma``` - настройка базы данных через Prisma
 PostgreSQL + Prisma
@@ -159,7 +159,7 @@ S3_SECRET_ACCESS_KEY=
 S3_PUBLIC_URL=
 ```
 
-## 🔑 Интеграция с внешними сервисами
+## 🔗 Интеграция с внешними сервисами
 ### Yandex.Maps
 Карты для поиска дома
 
