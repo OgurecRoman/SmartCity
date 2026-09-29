@@ -96,6 +96,19 @@ export default function Feed({ defaultTab = 'announcements' }: Props) {
 
   const createNews = useMutation({
     mutationFn: async () => {
+      if (photos.length > 0) {
+        const fd = new FormData();
+        fd.append('title', title.trim());
+        fd.append('description', description.trim());
+        fd.append('contact', contact.trim());
+        for (const file of photos) fd.append('photos', file);
+        const { data } = await api.post<NewsItem>('/news', fd, {
+          headers: { 'Content-Type': undefined as unknown as string },
+          timeout: 60_000,
+        });
+        return data;
+      }
+
       const { data } = await api.post<NewsItem>('/news', {
         title: title.trim(),
         description: description.trim(),
@@ -478,7 +491,7 @@ export default function Feed({ defaultTab = 'announcements' }: Props) {
             </label>
           )}
 
-          {!editing && tab === 'announcements' && (
+          {!editing && (
             <div className={s.field}>
               <span className={s.labelRow}>
                 <span className={s.label}>Фото</span>
