@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { requireEmployee } from '../auth/middleware.js';
 import * as companiesController from '../controllers/companies.js';
 
 const router = Router();
@@ -9,26 +10,21 @@ const router = Router();
  *   get:
  *     summary: Получить список всех компаний
  *     tags: [Компании]
- * /company:
+ * /company/{id}:
  *   get:
  *     summary: Получить компанию
  *     tags: [Компании]
- *     data: { id: number }
- *   post:
- *     summary: Создать компанию
- *     tags: [Компании]
  *   patch:
- *     summary: Изменить компанию
+ *     summary: Изменить контакты своей УК (только сотрудник этой УК)
  *     tags: [Компании]
  *   delete:
  *     summary: Удалить компанию
  *     tags: [Компании]
- *     data: { id: number }
  */
 router.get('/companies', companiesController.getAllCompaniesController);
 router.get('/company/:id', companiesController.getCompanyController);
 router.post('/company', companiesController.createCompanyController);
-router.patch('/company/:id', companiesController.upsertUserController);
+router.patch('/company/:id', requireEmployee, companiesController.updateCompanyContactsController);
 router.delete('/company/:id', companiesController.deleteCompanyController);
 
 export default router;

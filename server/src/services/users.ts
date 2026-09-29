@@ -464,6 +464,13 @@ export async function getCompany() {
   return await prisma.managementCompany.findFirst({ orderBy: { id: 'asc' } });
 }
 
+export async function getCompanyByIdForUser(user: Pick<DbUser, 'role' | 'companyId'>) {
+  if (isEmployee(user) && user.companyId != null) {
+    return prisma.managementCompany.findUnique({ where: { id: user.companyId } });
+  }
+  return getCompany();
+}
+
 export async function listOrganizations() {
   return await prisma.responsibleOrganization.findMany({ orderBy: { id: 'asc' } });
 }
