@@ -38,7 +38,7 @@
 
 .toneVoting {
   color: var(--text-themed);
-  background: var(--background-tertiary);
+  background: color-mix(in srgb, var(--text-themed) 16%, var(--background-tertiary));
 }
 
 .toneSubmitted {
@@ -47,29 +47,34 @@
 }
 
 .toneProgress {
-  color: #c47a00;
-  background: var(--background-tertiary);
+  color: color-mix(in srgb, var(--text-primary) 35%, #e0a100);
+  background: color-mix(in srgb, #e0a100 15%, var(--background-tertiary));
 }
 
 .toneDelegated {
-  color: #7b61ff;
-  background: var(--background-tertiary);
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--text-themed) 10%, var(--background-tertiary));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-themed) 42%, transparent);
 }
 
 .toneResolved {
-  color: var(--icon-positive);
-  background: var(--background-tertiary);
+  color: var(--icon-positive, var(--text-positive, var(--text-themed)));
+  background: color-mix(
+    in srgb,
+    var(--icon-positive, var(--text-positive, var(--text-themed))) 14%,
+    var(--background-tertiary)
+  );
 }
 
 .toneRejected,
 .toneExpired {
   color: var(--text-negative);
-  background: var(--background-tertiary);
+  background: color-mix(in srgb, var(--text-negative) 14%, var(--background-tertiary));
 }
 
 .toneEmergency {
   color: var(--text-negative);
-  background: var(--background-tertiary);
+  background: color-mix(in srgb, var(--text-negative) 18%, var(--background-tertiary));
 }
 
 .title {
