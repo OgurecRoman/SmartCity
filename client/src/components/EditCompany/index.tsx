@@ -13,6 +13,7 @@ import type { Company } from '../../types/company';
 import s from './EditCompany.module.scss';
 
 type ContactsForm = {
+  name: string;
   phone: string;
   email: string;
   address: string;
@@ -38,6 +39,7 @@ export default function EditCompany() {
   });
 
   const [form, setForm] = useState<ContactsForm>({
+    name: '',
     phone: '',
     email: '',
     address: '',
@@ -50,6 +52,7 @@ export default function EditCompany() {
     const company = companyQuery.data;
     if (!company || hydrated) return;
     setForm({
+      name: company.name ?? '',
       phone: company.phone ?? '',
       email: company.email ?? '',
       address: company.address ?? '',
@@ -62,6 +65,7 @@ export default function EditCompany() {
     mutationFn: async () => {
       if (companyId == null) throw new Error('Сотрудник не привязан к УК');
       const { data } = await api.patch<{ company: Company }>(`/company/${companyId}`, {
+        name: form.name.trim(),
         phone: form.phone.trim(),
         email: form.email.trim(),
         address: form.address.trim(),
@@ -71,7 +75,7 @@ export default function EditCompany() {
     },
     onSuccess: async () => {
       await invalidateCompany();
-      toast.success('Контакты УК сохранены');
+      toast.success('Данные УК сохранены');
       navigate(-1);
     },
     onError: (err) => {
@@ -87,7 +91,7 @@ export default function EditCompany() {
           <h1>Нет доступа</h1>
         </Typography.Headline>
         <Typography.Body variant="small" className={s.hint}>
-          Редактировать контакты могут только сотрудники УК
+          Редактировать данные УК могут только сотрудники
         </Typography.Body>
         <Button size="small" onClick={() => navigate('/')}>
           На главную
@@ -104,7 +108,7 @@ export default function EditCompany() {
           Назад
         </button>
         <Typography.Headline variant="small" asChild>
-          <h1>Контакты УК</h1>
+          <h1>Данные УК</h1>
         </Typography.Headline>
         <Typography.Body variant="small" className={s.hint}>
           Аккаунт сотрудника не привязан к компании. Обратитесь к администратору.
@@ -119,6 +123,10 @@ export default function EditCompany() {
   const onSubmit = (event: FormEvent) => {
     event.preventDefault();
     setLocalError(null);
+    if (!form.name.trim()) {
+      setLocalError('Укажите название');
+      return;
+    }
     if (!form.phone.trim()) {
       setLocalError('Укажите телефон');
       return;
@@ -138,10 +146,10 @@ export default function EditCompany() {
           Назад
         </button>
         <Typography.Headline variant="small" asChild>
-          <h1>Контакты УК</h1>
+          <h1>Данные УК</h1>
         </Typography.Headline>
         <Typography.Body variant="small" className={s.hint}>
-          {company?.name ? `${company.name} — данные для жителей` : 'Данные для жителей в мини-приложении'}
+          Название и контакты для жителей в мини-приложении
         </Typography.Body>
       </div>
 
@@ -160,6 +168,20 @@ export default function EditCompany() {
         <Typography.Body variant="medium">Компания не найдена</Typography.Body>
       ) : (
         <form className={s.form} onSubmit={onSubmit}>
+          <label className={s.field}>
+            <span className={s.label}>Название</span>
+            <input
+              className={s.control}
+              type="text"
+              value={form.name}
+              disabled={busy}
+              maxLength={255}
+              placeholder="ООО «Управляющая компания»"
+              onChange={(e) => patch('name', e.target.value)}
+              required
+            />
+          </label>
+
           <label className={s.field}>
             <span className={s.label}>Телефон</span>
             <input

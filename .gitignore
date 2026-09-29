@@ -8,3 +8,6 @@ dist
 .agents/
 .windsurf/
 .DS_Store
+
+**/*.module.css
+**/*.module.css.map

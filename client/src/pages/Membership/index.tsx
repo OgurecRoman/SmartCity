@@ -35,55 +35,59 @@ export default function Membership() {
         <h1>Жители</h1>
       </Typography.Headline>
 
-      {isUk && (
-        <div className={s.tabs} role="tablist" aria-label="Разделы">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === 'requests'}
-            className={tab === 'requests' ? `${s.tab} ${s.tabActive}` : s.tab}
-            onClick={() => setTab('requests')}
-          >
-            Вступления
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === 'residents'}
-            className={tab === 'residents' ? `${s.tab} ${s.tabActive}` : s.tab}
-            onClick={() => setTab('residents')}
-          >
-            Список
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === 'chairman'}
-            className={tab === 'chairman' ? `${s.tab} ${s.tabActive}` : s.tab}
-            onClick={() => setTab('chairman')}
-          >
-            ТСЖ
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === 'house'}
-            className={tab === 'house' ? `${s.tab} ${s.tabActive}` : s.tab}
-            onClick={() => setTab('house')}
-          >
-            Дом
-          </button>
-        </div>
-      )}
+      <div className={s.tabs} role="tablist" aria-label="Разделы">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'requests'}
+          className={tab === 'requests' ? `${s.tab} ${s.tabActive}` : s.tab}
+          onClick={() => setTab('requests')}
+        >
+          Вступления
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'residents'}
+          className={tab === 'residents' ? `${s.tab} ${s.tabActive}` : s.tab}
+          onClick={() => setTab('residents')}
+        >
+          Список
+        </button>
+        {isUk && (
+          <>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === 'chairman'}
+              className={tab === 'chairman' ? `${s.tab} ${s.tabActive}` : s.tab}
+              onClick={() => setTab('chairman')}
+            >
+              ТСЖ
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === 'house'}
+              className={tab === 'house' ? `${s.tab} ${s.tabActive}` : s.tab}
+              onClick={() => setTab('house')}
+            >
+              Дом
+            </button>
+          </>
+        )}
+      </div>
 
-      {!isUk || tab === 'requests' ? (
+      {tab === 'requests' ? (
         <MembershipQueue />
       ) : tab === 'residents' ? (
         <ResidentsPanel />
-      ) : tab === 'house' ? (
+      ) : isUk && tab === 'house' ? (
         <HouseSettingsPanel />
-      ) : (
+      ) : isUk && tab === 'chairman' ? (
         <ChairmanPanel />
+      ) : (
+        <MembershipQueue />
       )}
     </div>
   );
