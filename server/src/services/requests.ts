@@ -247,6 +247,10 @@ export async function changeStatus(
     if (!input.organizationId) throw errors.badRequest('Укажите организацию, в которую передаётся заявка');
     const organization = await prisma.responsibleOrganization.findUnique({ where: { id: input.organizationId } });
     if (!organization) throw errors.notFound('Организация не найдена');
+    const house = await prisma.house.findUnique({ where: { id: request.houseId }, select: { companyId: true } });
+    if (!house || organization.companyId !== house.companyId) {
+      throw errors.forbidden('Организация принадлежит другой УК');
+    }
     data.delegatedTo = { connect: { id: organization.id } };
     data.delegatedAt = new Date();
   }
@@ -411,6 +415,7 @@ export async function deleteRequest(requestId: number, userId: number): Promise<
 
 export interface ListFilter {
   houseId?: number;
+  companyId?: number;
   authorId?: number;
   supportedByUserId?: number;
   statuses?: RequestStatus[];
@@ -419,11 +424,15 @@ export interface ListFilter {
   offset?: number;
 }
 
-type RequestFilterFields = Pick<ListFilter, 'houseId' | 'authorId' | 'supportedByUserId' | 'statuses' | 'categories'>;
+type RequestFilterFields = Pick<
+  ListFilter,
+  'houseId' | 'companyId' | 'authorId' | 'supportedByUserId' | 'statuses' | 'categories'
+>;
 
 function buildRequestWhere(filter: RequestFilterFields): Prisma.RequestWhereInput {
   const where: Prisma.RequestWhereInput = {};
   if (filter.houseId !== undefined) where.houseId = filter.houseId;
+  else if (filter.companyId !== undefined) where.house = { companyId: filter.companyId };
   if (filter.authorId !== undefined) where.authorId = filter.authorId;
   if (filter.supportedByUserId !== undefined) where.votes = { some: { userId: filter.supportedByUserId } };
   if (filter.statuses && filter.statuses.length > 0) where.status = { in: filter.statuses };

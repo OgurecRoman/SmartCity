@@ -6,6 +6,7 @@ import type { Prisma, ResidentType } from '@prisma/client';
 import { findBuildingAt, type BuildingInfo } from './geo.js';
 import { checkApartment, type ApartmentData, type Entrance } from './rules.js';
 import { createCompany } from './companies.js';
+import { fullName } from '../lib/labels.js';
 
 export const userInclude = { house: true, company: true } satisfies Prisma.UserInclude;
 export type DbUser = Prisma.UserGetPayload<{ include: typeof userInclude }>;
@@ -19,9 +20,64 @@ export interface MaxIdentity {
 
 async function defaultCompanyId(): Promise<number | null> {
   let company = await prisma.managementCompany.findFirst({ orderBy: { id: 'asc' }, select: { id: true } });
-  if (!company)
-    company = await createCompany({ name: 'Новая управляющая компания', phone: '' });
+  if (!company) company = await createCompany({ name: 'Новая управляющая компания', phone: '' });
   return company?.id ?? null;
+}
+
+const DEFAULT_ORG_SPECS = [
+  { name: 'Лифтовая служба «ЛифтСервис»', email: 'lift@example.org', phone: '+7 (800) 555-35-35', categories: ['ELEVATOR'] as const },
+  { name: 'МУП «Водоканал»', email: 'dispatch@vodokanal.example', phone: '+7 (666) 666-66-66', categories: ['PLUMBING'] as const },
+  { name: 'АО «Сетевая компания»', email: 'avaria@setevaya.example', phone: '+7 (777) 777-77-77', categories: ['ELECTRICITY'] as const },
+  { name: 'Подрядчик по текущему ремонту', email: 'remont@example.org', phone: null, categories: ['REPAIR', 'CLEANING'] as const },
+  { name: 'Участковый уполномоченный', email: 'uchastok@example.org', phone: '102', categories: ['NOISE', 'SECURITY'] as const },
+];
+
+async function provisionCompanyForEmployee(user: {
+  id: number;
+  firstName: string;
+  lastName?: string | null;
+}): Promise<number> {
+  const label = fullName(user).trim() || `сотрудник #${user.id}`;
+  const company = await createCompany({
+    name: `УК «${label}»`,
+    phone: '',
+    email: null,
+    address: null,
+    workingHours: 'Пн–Пт 9:00–18:00',
+  });
+
+  const templateCompanyId = await prisma.managementCompany.findFirst({
+    where: { id: { not: company.id } },
+    orderBy: { id: 'asc' },
+    select: { id: true },
+  });
+  const templates = templateCompanyId
+    ? await prisma.responsibleOrganization.findMany({ where: { companyId: templateCompanyId.id } })
+    : [];
+
+  if (templates.length > 0) {
+    await prisma.responsibleOrganization.createMany({
+      data: templates.map((org) => ({
+        companyId: company.id,
+        name: org.name,
+        email: org.email,
+        phone: org.phone,
+        categories: org.categories,
+      })),
+    });
+  } else {
+    await prisma.responsibleOrganization.createMany({
+      data: DEFAULT_ORG_SPECS.map((org) => ({
+        companyId: company.id,
+        name: org.name,
+        email: org.email,
+        phone: org.phone,
+        categories: [...org.categories],
+      })),
+    });
+  }
+
+  return company.id;
 }
 
 export async function upsertFromMax(identity: MaxIdentity): Promise<DbUser> {
@@ -36,14 +92,36 @@ export async function upsertFromMax(identity: MaxIdentity): Promise<DbUser> {
     const changed =
       existing.firstName !== firstName || (existing.lastName ?? null) !== lastName || (existing.username ?? null) !== username;
     if (!needsRole && !changed) return existing;
+    const companyId = needsRole
+      ? existing.companyId ?? (await provisionCompanyForEmployee({ id: existing.id, firstName, lastName }))
+      : undefined;
     return prisma.user.update({
       where: { id: existing.id },
       data: {
         firstName,
         lastName,
         username,
-        ...(needsRole ? { role: 'UK_EMPLOYEE', companyId: existing.companyId ?? (await defaultCompanyId()) } : {}),
+        ...(needsRole ? { role: 'UK_EMPLOYEE', companyId, chairmanHouseId: null } : {}),
       },
+      include: userInclude,
+    });
+  }
+
+  if (isAdmin) {
+    const created = await prisma.user.create({
+      data: {
+        maxUserId: identity.maxUserId,
+        firstName,
+        lastName,
+        username,
+        role: 'RESIDENT',
+      },
+      include: userInclude,
+    });
+    const companyId = await provisionCompanyForEmployee(created);
+    return prisma.user.update({
+      where: { id: created.id },
+      data: { role: 'UK_EMPLOYEE', companyId },
       include: userInclude,
     });
   }
@@ -54,8 +132,8 @@ export async function upsertFromMax(identity: MaxIdentity): Promise<DbUser> {
       firstName,
       lastName,
       username,
-      role: isAdmin ? 'UK_EMPLOYEE' : 'RESIDENT',
-      companyId: isAdmin ? await defaultCompanyId() : null,
+      role: 'RESIDENT',
+      companyId: null,
     },
     include: userInclude,
   });
@@ -78,7 +156,7 @@ export function isChairman(user: Pick<DbUser, 'role'>): boolean {
 }
 
 export function canActOnHouse(
-  user: Pick<DbUser, 'role' | 'houseId' | 'companyId'>,
+  user: Pick<DbUser, 'role' | 'houseId' | 'companyId' | 'chairmanHouseId'>,
   houseId: number,
   houseCompanyId?: number | null,
 ): boolean {
@@ -87,11 +165,11 @@ export function canActOnHouse(
     if (houseCompanyId == null) return true;
     return houseCompanyId === user.companyId;
   }
-  return user.role === 'CHAIRMAN' && user.houseId === houseId;
+  return user.role === 'CHAIRMAN' && user.chairmanHouseId === houseId;
 }
 
 export function canManageAnnouncements(
-  user: Pick<DbUser, 'role' | 'houseId' | 'companyId'>,
+  user: Pick<DbUser, 'role' | 'houseId' | 'companyId' | 'chairmanHouseId'>,
   houseId: number,
   houseCompanyId?: number | null,
 ): boolean {
@@ -116,7 +194,7 @@ export function isOnboarded(user: Pick<DbUser, 'houseId' | 'onboardedAt'>): bool
 }
 
 export async function getChairmanOf(houseId: number): Promise<DbUser | null> {
-  return prisma.user.findFirst({ where: { role: 'CHAIRMAN', houseId }, include: userInclude });
+  return prisma.user.findFirst({ where: { role: 'CHAIRMAN', chairmanHouseId: houseId }, include: userInclude });
 }
 
 export const userHouseInclude = {
@@ -222,9 +300,6 @@ export async function setActiveHouse(userId: number, houseId: number): Promise<D
 
   const membership = await prisma.userHouse.findUnique({ where: { userId_houseId: { userId, houseId } } });
   if (!membership) throw errors.forbidden('Это не ваш дом');
-  if (user.role === 'CHAIRMAN' && user.houseId !== houseId) {
-    throw errors.conflict('Председатель ТСЖ привязан к своему дому — сначала снимите его с должности', 'chairman_bound');
-  }
   return prisma.user.update({
     where: { id: userId },
     data: {
@@ -243,7 +318,7 @@ export async function leaveHouse(userId: number, houseId: number): Promise<DbUse
   if (!user) throw errors.notFound('Пользователь не найден');
   const membership = await prisma.userHouse.findUnique({ where: { userId_houseId: { userId, houseId } } });
   if (!membership) throw errors.notFound('Житель не привязан к этому дому');
-  if (user.role === 'CHAIRMAN' && user.houseId === houseId) {
+  if (user.chairmanHouseId === houseId) {
     throw errors.conflict('Председатель ТСЖ не может покинуть свой дом — сначала снимите его с должности', 'chairman_bound');
   }
   return prisma.$transaction(async (tx) => {
@@ -285,21 +360,24 @@ export async function addTenantByOwner(
 }
 
 export async function promoteToEmployee(userId: number): Promise<DbUser> {
-  const promote = await prisma.user.update({
+  const user = await prisma.user.findUnique({ where: { id: userId }, include: userInclude });
+  if (!user) throw errors.notFound('Пользователь не найден');
+  if (user.role === 'UK_EMPLOYEE' && user.companyId != null) return user;
+
+  const companyId = user.companyId ?? (await provisionCompanyForEmployee(user));
+  return prisma.user.update({
     where: { id: userId },
-    data: { role: 'UK_EMPLOYEE', companyId: await defaultCompanyId() },
+    data: { role: 'UK_EMPLOYEE', companyId, chairmanHouseId: null },
     include: userInclude,
   });
-  return promote;
 }
 
 export async function logout(userId: number): Promise<DbUser> {
-  const promote = await prisma.user.update({
+  return prisma.user.update({
     where: { id: userId },
-    data: { role: "RESIDENT" },
+    data: { role: 'RESIDENT', companyId: null, chairmanHouseId: null },
     include: userInclude,
   });
-  return promote;
 }
 
 async function ensureUser(maxUserId: bigint): Promise<{ id: number; role: string; residentType: ResidentType | null }> {
@@ -318,8 +396,8 @@ export async function detachResident(maxUserId: bigint, houseId?: number): Promi
   const existing = await prisma.user.findUnique({ where: { maxUserId } });
   const target = houseId ?? existing?.houseId ?? null;
   if (!existing || target === null) throw errors.notFound('Житель с таким ID не привязан к дому');
-  if (existing.role === 'CHAIRMAN' && existing.houseId === target) {
-    await prisma.user.update({ where: { id: existing.id }, data: { role: 'RESIDENT' } });
+  if (existing.chairmanHouseId === target) {
+    await prisma.user.update({ where: { id: existing.id }, data: { role: 'RESIDENT', chairmanHouseId: null } });
   }
   return leaveHouse(existing.id, target);
 }
@@ -330,15 +408,28 @@ export async function appointChairman(maxUserId: bigint, houseId: number): Promi
   const user = await ensureUser(maxUserId);
   if (user.role === 'UK_EMPLOYEE') throw errors.badRequest('Этот пользователь — сотрудник УК, председателем его назначить нельзя');
   await joinHouse({ userId: user.id, houseId, apartment: null, residentType: user.residentType ?? 'OWNER' });
-  await prisma.user.update({ where: { id: user.id }, data: { role: 'RESIDENT' } });
-  const active = await setActiveHouse(user.id, houseId);
-  return prisma.user.update({ where: { id: active.id }, data: { role: 'CHAIRMAN' }, include: userInclude });
+
+  await prisma.user.updateMany({
+    where: { OR: [{ chairmanHouseId: houseId }, { id: user.id, role: 'CHAIRMAN' }] },
+    data: { role: 'RESIDENT', chairmanHouseId: null },
+  });
+
+  await setActiveHouse(user.id, houseId);
+  return prisma.user.update({
+    where: { id: user.id },
+    data: { role: 'CHAIRMAN', chairmanHouseId: houseId },
+    include: userInclude,
+  });
 }
 
 export async function dismissChairman(maxUserId: bigint): Promise<DbUser> {
   const existing = await prisma.user.findUnique({ where: { maxUserId } });
   if (!existing || existing.role !== 'CHAIRMAN') throw errors.notFound('Председатель ТСЖ с таким ID не найден');
-  return await prisma.user.update({ where: { id: existing.id }, data: { role: 'RESIDENT' }, include: userInclude });
+  return await prisma.user.update({
+    where: { id: existing.id },
+    data: { role: 'RESIDENT', chairmanHouseId: null },
+    include: userInclude,
+  });
 }
 
 const residentRoles: Prisma.UserWhereInput = { role: { in: ['RESIDENT', 'CHAIRMAN'] } };
@@ -362,13 +453,35 @@ export interface ResidentRow {
 export async function listResidentsOfHouse(houseId: number): Promise<ResidentRow[]> {
   const rows = await prisma.userHouse.findMany({
     where: { houseId, user: residentRoles },
-    include: { user: { select: { id: true, maxUserId: true, firstName: true, lastName: true, username: true, role: true } } },
+    include: {
+      user: {
+        select: {
+          id: true,
+          maxUserId: true,
+          firstName: true,
+          lastName: true,
+          username: true,
+          role: true,
+          chairmanHouseId: true,
+        },
+      },
+    },
   });
   const residents: ResidentRow[] = rows.map((row) => ({
-    ...row.user,
+    id: row.user.id,
+    maxUserId: row.user.maxUserId,
+    firstName: row.user.firstName,
+    lastName: row.user.lastName,
+    username: row.user.username,
     apartment: row.apartment,
     verifiedFullName: row.verifiedFullName,
     residentType: row.residentType,
+    role:
+      row.user.role === 'CHAIRMAN' && row.user.chairmanHouseId === houseId
+        ? 'CHAIRMAN'
+        : row.user.role === 'UK_EMPLOYEE'
+          ? 'UK_EMPLOYEE'
+          : 'RESIDENT',
   }));
   return residents.sort((a, b) => (parseInt(a.apartment ?? '', 10) || 0) - (parseInt(b.apartment ?? '', 10) || 0));
 }

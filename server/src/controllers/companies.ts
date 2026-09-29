@@ -2,7 +2,7 @@ import type { Request, Response } from 'express';
 import { errors } from '../lib/errors.js';
 import { log } from '../lib/logger.js';
 import * as companiesService from '../services/companies.js';
-import { updateCompanyContactsSchema, updateCompanySchema } from '../validation/companies.js';
+import { updateCompanyContactsSchema } from '../validation/companies.js';
 import { idParam } from '../validation/parse.js';
 
 export async function getAllCompaniesController(req: Request, res: Response): Promise<void> {
@@ -21,36 +21,6 @@ export async function getCompanyController(req: Request, res: Response): Promise
     res.json({ company });
   } catch (error) {
     log.error('Error in getCompanyController', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-}
-
-export async function createCompanyController(req: Request, res: Response): Promise<void> {
-  try {
-    const company = await companiesService.updateCompany(req.body.company);
-    res.json({ company });
-  } catch (error) {
-    log.error('Error in createCompanyController', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-}
-
-/** @deprecated legacy body { company }; prefer updateCompanyContactsController */
-export async function upsertUserController(req: Request, res: Response): Promise<void> {
-  try {
-    const parseResult = updateCompanySchema.safeParse(req.body.company);
-    if (!parseResult.success) {
-      res.status(400).json({
-        error: 'Invalid request body',
-        details: parseResult.error.issues,
-      });
-      return;
-    }
-
-    const company = await companiesService.updateCompany(parseResult.data);
-    res.json({ company });
-  } catch (error) {
-    log.error('Error in upsertUserController', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -77,14 +47,4 @@ export async function updateCompanyContactsController(req: Request, res: Respons
 
   const company = await companiesService.updateCompanyContacts(id, parseResult.data);
   res.json({ company });
-}
-
-export async function deleteCompanyController(req: Request, res: Response): Promise<void> {
-  try {
-    const company = await companiesService.deleteCompany(idParam(req));
-    res.json({ company });
-  } catch (error) {
-    log.error('Error in deleteCompanyController', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
 }

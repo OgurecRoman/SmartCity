@@ -59,9 +59,11 @@ export async function getLatestMembershipRequestFor(applicantId: number): Promis
   });
 }
 
-function buildPendingMembershipWhere(reviewer: Pick<DbUser, 'role' | 'houseId' | 'companyId'>): Prisma.MembershipRequestWhereInput {
+function buildPendingMembershipWhere(
+  reviewer: Pick<DbUser, 'role' | 'houseId' | 'companyId' | 'chairmanHouseId'>,
+): Prisma.MembershipRequestWhereInput {
   const where: Prisma.MembershipRequestWhereInput = { status: 'PENDING' };
-  if (reviewer.role === 'CHAIRMAN') where.houseId = reviewer.houseId ?? -1;
+  if (reviewer.role === 'CHAIRMAN') where.houseId = reviewer.chairmanHouseId ?? -1;
   if (reviewer.role === 'UK_EMPLOYEE') where.house = { companyId: reviewer.companyId ?? -1 };
   return where;
 }
@@ -72,7 +74,7 @@ export interface ListPendingOptions {
 }
 
 export async function listPendingMembershipRequests(
-  reviewer: Pick<DbUser, 'role' | 'houseId' | 'companyId'>,
+  reviewer: Pick<DbUser, 'role' | 'houseId' | 'companyId' | 'chairmanHouseId'>,
   options: ListPendingOptions = {},
 ): Promise<MembershipRequestWithRelations[]> {
   return await prisma.membershipRequest.findMany({
@@ -84,7 +86,9 @@ export async function listPendingMembershipRequests(
   });
 }
 
-export async function countPendingMembershipRequests(reviewer: Pick<DbUser, 'role' | 'houseId' | 'companyId'>): Promise<number> {
+export async function countPendingMembershipRequests(
+  reviewer: Pick<DbUser, 'role' | 'houseId' | 'companyId' | 'chairmanHouseId'>,
+): Promise<number> {
   return await prisma.membershipRequest.count({ where: buildPendingMembershipWhere(reviewer) });
 }
 

@@ -7,7 +7,7 @@ import { buildRequestDocument } from '../services/documents.js';
 import { sendDelegationEmail } from '../services/mailer.js';
 import * as requestsService from '../services/requests.js';
 import { UK_ACTIVE_STATUSES } from '../services/rules.js';
-import { assertEmployeeHouseAccess, isEmployee, resolveHouseFor } from '../services/users.js';
+import { assertEmployeeHouseAccess, isEmployee, isMemberOfHouse, resolveHouseFor } from '../services/users.js';
 import { serializeRequest, serializeRequestDetailed } from '../routes/serialize.js';
 import { REQUEST_CATEGORIES, REQUEST_STATUSES } from '../validation/common.js';
 import { idParam, parseBody, parseQuery } from '../validation/parse.js';
@@ -28,6 +28,23 @@ function parseListParam<T extends string>(raw: string | undefined, valid: readon
   return values as T[];
 }
 
+async function assertCanAccessRequest(
+  user: NonNullable<Request['user']>,
+  houseId: number,
+  options: { allowAuthorId?: number; document?: boolean } = {},
+): Promise<void> {
+  if (isEmployee(user)) {
+    await assertEmployeeHouseAccess(user, houseId);
+    return;
+  }
+  if (options.document) {
+    if (options.allowAuthorId != null && user.id === options.allowAuthorId) return;
+    throw errors.forbidden('Документ доступен автору и сотрудникам УК');
+  }
+  if (await isMemberOfHouse(user.id, houseId)) return;
+  throw errors.forbidden('Заявка другого дома');
+}
+
 export async function list(req: Request, res: Response) {
   const user = req.user!;
   const query = parseQuery(listRequestsQuerySchema, req);
@@ -35,14 +52,23 @@ export async function list(req: Request, res: Response) {
   const categories = parseListParam(query.category, REQUEST_CATEGORIES, 'категория');
   const employee = isEmployee(user);
 
-  // УК видит любой дом (или все). Житель — один из своих домов (по умолчанию активный);
-  // «мои»/«поддержанные» без houseId показываются по всем его домам.
   let houseId: number | undefined;
-  if (employee) houseId = query.houseId;
-  else if (query.filter === 'all' || query.houseId !== undefined) houseId = await resolveHouseFor(user, query.houseId);
+  let companyId: number | undefined;
+  if (employee) {
+    if (user.companyId == null) throw errors.forbidden('Сотрудник УК не привязан к компании');
+    if (query.houseId != null) {
+      await assertEmployeeHouseAccess(user, query.houseId);
+      houseId = query.houseId;
+    } else {
+      companyId = user.companyId;
+    }
+  } else if (query.filter === 'all' || query.houseId !== undefined) {
+    houseId = await resolveHouseFor(user, query.houseId);
+  }
 
   const filter = {
     houseId,
+    companyId,
     authorId: query.filter === 'mine' ? user.id : undefined,
     supportedByUserId: query.filter === 'supported' ? user.id : undefined,
     statuses: statuses as (keyof typeof STATUS_LABELS)[] | undefined,
@@ -86,7 +112,7 @@ export async function get(req: Request, res: Response) {
   const user = req.user!;
   const request = await requestsService.getRequestDetailed(idParam(req));
   if (!request) throw errors.notFound('Заявка не найдена');
-  if (!isEmployee(user) && request.houseId !== user.houseId) throw errors.forbidden('Заявка другого дома');
+  await assertCanAccessRequest(user, request.houseId);
   const voted = await requestsService.hasVoted(request.id, user.id);
   res.json(serializeRequestDetailed(request, { hasVoted: voted, viewerId: user.id }));
 }
@@ -127,7 +153,7 @@ export async function document(req: Request, res: Response) {
   const user = req.user!;
   const request = await requestsService.getRequestDetailed(idParam(req));
   if (!request) throw errors.notFound('Заявка не найдена');
-  if (!isEmployee(user) && request.authorId !== user.id) throw errors.forbidden('Документ доступен автору и сотрудникам УК');
+  await assertCanAccessRequest(user, request.houseId, { allowAuthorId: request.authorId, document: true });
   const doc = buildRequestDocument(request);
   res.setHeader('Content-Type', 'text/plain; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="${doc.fileName}"`);
@@ -138,6 +164,9 @@ export async function updateStatus(req: Request, res: Response) {
   const user = req.user!;
   const input = parseBody(updateStatusSchema, req);
   const requestId = idParam(req);
+  const existing = await requestsService.getRequest(requestId);
+  if (!existing) throw errors.notFound('Заявка не найдена');
+  await assertEmployeeHouseAccess(user, existing.houseId);
   const photos = await saveUploadedPhotos(req.files as Express.Multer.File[] | undefined);
   const request = await requestsService.changeStatus(requestId, input.status as keyof typeof STATUS_LABELS, {
     byUserId: user.id,
@@ -159,18 +188,22 @@ export async function updateStatus(req: Request, res: Response) {
 
 export async function listForUk(req: Request, res: Response) {
   const user = req.user!;
+  if (user.companyId == null) throw errors.forbidden('Сотрудник УК не привязан к компании');
   const query = parseQuery(listRequestsQuerySchema, req);
   const statuses = (parseListParam(query.status, REQUEST_STATUSES, 'статус') as (keyof typeof STATUS_LABELS)[] | undefined) ?? [
     ...UK_ACTIVE_STATUSES,
   ];
   const categories = parseListParam(query.category, REQUEST_CATEGORIES, 'категория') as (keyof typeof CATEGORY_LABELS)[] | undefined;
   const houseId = query.houseId ?? user.houseId ?? undefined;
-  if (houseId == null) {
-    res.json({ items: [], total: 0 });
-    return;
+  if (houseId != null) {
+    await assertEmployeeHouseAccess(user, houseId);
   }
-  await assertEmployeeHouseAccess(user, houseId);
-  const filter = { houseId, statuses, categories };
+  const filter = {
+    houseId,
+    companyId: houseId == null ? user.companyId : undefined,
+    statuses,
+    categories,
+  };
   const [requests, total] = await Promise.all([
     requestsService.listRequests({ ...filter, limit: query.limit, offset: query.offset }),
     requestsService.countRequests(filter),

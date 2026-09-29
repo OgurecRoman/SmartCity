@@ -17,7 +17,7 @@ export async function list(req: Request, res: Response) {
   if (isEmployee(user)) {
     await assertEmployeeHouseAccess(user, houseId);
   } else if (isChairman(user)) {
-    if (user.houseId !== houseId) {
+    if (user.chairmanHouseId !== houseId) {
       throw errors.forbidden('Председатель ТСЖ видит жителей только своего дома');
     }
   } else {

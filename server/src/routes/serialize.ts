@@ -68,6 +68,7 @@ export function serializeUser(user: DbUser) {
     username: user.username,
     name: fullName(user),
     companyId: user.companyId,
+    chairmanHouseId: user.chairmanHouseId,
     house: user.house
       ? {
           id: user.house.id,

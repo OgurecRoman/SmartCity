@@ -33,14 +33,24 @@ export function ResidentsPanel() {
 
   const houses = isUk
     ? (housesQuery.data ?? [])
-    : user.house
-      ? [{ id: user.house.id, address: user.house.address } as House]
-      : [];
+    : user.chairmanHouseId
+      ? [
+          {
+            id: user.chairmanHouseId,
+            address:
+              user.houses?.find((h) => h.houseId === user.chairmanHouseId)?.address ??
+              (user.house?.id === user.chairmanHouseId ? user.house.address : null) ??
+              '—',
+          } as House,
+        ]
+      : user.house
+        ? [{ id: user.house.id, address: user.house.address } as House]
+        : [];
   const activeHouseId = isUk
     ? typeof houseId === 'number'
       ? houseId
       : houses[0]?.id
-    : user.house?.id;
+    : houses[0]?.id;
 
   const residentsQuery = useQuery({
     queryKey: queryKeys.residents(activeHouseId ?? 0),
@@ -115,9 +125,9 @@ export function ResidentsPanel() {
             ))}
           </select>
         </label>
-      ) : user.house ? (
+      ) : houses[0] ? (
         <Typography.Body variant="small" className={s.meta}>
-          {user.house.address}
+          {houses[0].address}
         </Typography.Body>
       ) : null}
 

@@ -67,7 +67,3 @@ export async function updateCompanyContacts(
     },
   });
 }
-
-export async function deleteCompany(id: number): Promise<ManagementCompany | null> {
-  return prisma.managementCompany.findUnique({ where: { id } });
-}

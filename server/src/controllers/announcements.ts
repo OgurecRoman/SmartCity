@@ -37,11 +37,11 @@ export async function create(req: Request, res: Response) {
     if (resolved == null) throw errors.badRequest('Укажите дом (houseId)');
     houseId = resolved;
   } else if (isChairman(user)) {
-    if (!user.houseId) throw errors.badRequest('У председателя не указан дом');
-    if (input.houseId && input.houseId !== user.houseId) {
+    if (!user.chairmanHouseId) throw errors.badRequest('У председателя не указан дом');
+    if (input.houseId && input.houseId !== user.chairmanHouseId) {
       throw errors.forbidden('Председатель может публиковать объявления только в своём доме');
     }
-    houseId = user.houseId;
+    houseId = user.chairmanHouseId;
   } else {
     throw errors.forbidden('Создавать объявления могут УК или председатель ТСЖ');
   }
