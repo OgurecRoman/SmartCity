@@ -1,15 +1,7 @@
 node_modules/
-
+dist/
 /generated/prisma
-
-# секреты
 .env
-server/.env
-bot/.env
-client/.env
-
-# генерируемое
-server/src/generated/
 server/_old/
 dist
 .idea/

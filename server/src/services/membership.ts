@@ -38,7 +38,6 @@ export async function submitMembershipRequest(input: SubmitMembershipInput): Pro
   });
   if (pending) throw errors.conflict('У вас уже есть заявка в этот дом на рассмотрении', 'membership_pending');
 
-  // Пользователя не трогаем до одобрения: у него могут быть другие (уже подтверждённые) дома.
   const request = await prisma.membershipRequest.create({
     data: { applicantId: input.applicantId, houseId: house.id, apartment, fullName, status: 'PENDING' },
     include: membershipRequestInclude,
