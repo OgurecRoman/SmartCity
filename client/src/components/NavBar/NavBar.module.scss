@@ -8,7 +8,7 @@
   box-sizing: border-box;
   display: flex;
   justify-content: center;
-  padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
+  padding: 4px 4px 4px;
   background-color: var(--background-secondary);
   border-top: 0.5px solid var(--divider-primary);
 }

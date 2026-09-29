@@ -1,0 +1,241 @@
+@font-face {
+  font-family: 'OpenDyslexic';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/OpenDyslexic-Regular.woff') format('woff');
+}
+
+@font-face {
+  font-family: 'OpenDyslexic';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/OpenDyslexic-Bold.woff') format('woff');
+}
+
+:root {
+  --a11y-zoom: 1;
+  --a11y-font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+html[data-a11y-font='verdana'] {
+  --a11y-font-family: Verdana, Geneva, 'DejaVu Sans', sans-serif;
+}
+
+html[data-a11y-font='arial'] {
+  --a11y-font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif;
+}
+
+html[data-a11y-font='opendyslexic'] {
+  --a11y-font-family: 'OpenDyslexic', Verdana, sans-serif;
+}
+
+html,
+body,
+#root,
+button,
+input,
+textarea,
+select {
+  font-family: var(--a11y-font-family);
+}
+
+#root {
+  zoom: var(--a11y-zoom);
+}
+
+html.a11y-reduce-motion *,
+html.a11y-reduce-motion *::before,
+html.a11y-reduce-motion *::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
+
+html.a11y-contrast[data-a11y-scheme='light'],
+html.a11y-contrast[data-a11y-scheme='light'] [class*='MaxUI_colorScheme_'] {
+  --background-surface: #ffffff;
+  --background-primary: #ffffff;
+  --background-secondary: #ffffff;
+  --background-tertiary: #f2f2f2;
+  --background-card: #ffffff;
+  --background-overlay: rgba(0, 0, 0, 0.55);
+  --background-overlay-secondary: rgba(0, 0, 0, 0.35);
+  --text-primary: #000000;
+  --text-secondary: #000000;
+  --text-tertiary: #111111;
+  --text-themed: #000000;
+  --text-link: #000000;
+  --text-negative: #000000;
+  --text-primary-static: #000000;
+  --text-primary-inverse: #ffffff;
+  --text-primary-inverse-static: #ffffff;
+  --icon-primary: #000000;
+  --icon-secondary: #000000;
+  --icon-tertiary: #111111;
+  --icon-quaternary: #222222;
+  --icon-mute: #333333;
+  --icon-themed: #000000;
+  --icon-positive: #000000;
+  --icon-negative: #000000;
+  --divider-primary: #000000;
+  --divider-secondary: #000000;
+  --button-primary: #000000;
+  --button-secondary: #ffffff;
+  --button-primary-contrast: #ffffff;
+  --button-secondary-contrast: #ffffff;
+  --button-negative: #000000;
+  --button-ghost: transparent;
+  --button-overlay: #000000;
+  --controls-active: #000000;
+  --controls-inactive: #cccccc;
+  --counter-themed: #000000;
+  --counter-default: #000000;
+  --counter-attention: #000000;
+  --counter-contrast: #ffffff;
+  --promo-text-step-1: #000000;
+  --states-button-primary-hover: #222222;
+  --states-button-primary-pressed: #111111;
+  --states-button-secondary-hover: #f2f2f2;
+  --states-button-secondary-pressed: #e5e5e5;
+  --states-button-secondary-contrast-pressed: #e5e5e5;
+  --states-controls-active-disabled: #666666;
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: none;
+  color-scheme: light;
+}
+
+html.a11y-contrast[data-a11y-scheme='dark'],
+html.a11y-contrast[data-a11y-scheme='dark'] [class*='MaxUI_colorScheme_'] {
+  --background-surface: #000000;
+  --background-primary: #000000;
+  --background-secondary: #000000;
+  --background-tertiary: #111111;
+  --background-card: #000000;
+  --background-overlay: rgba(0, 0, 0, 0.75);
+  --background-overlay-secondary: rgba(0, 0, 0, 0.55);
+  --text-primary: #ffffff;
+  --text-secondary: #ffffff;
+  --text-tertiary: #eeeeee;
+  --text-themed: #ffffff;
+  --text-link: #ffffff;
+  --text-negative: #ffffff;
+  --text-primary-static: #ffffff;
+  --text-primary-inverse: #000000;
+  --text-primary-inverse-static: #000000;
+  --icon-primary: #ffffff;
+  --icon-secondary: #ffffff;
+  --icon-tertiary: #eeeeee;
+  --icon-quaternary: #dddddd;
+  --icon-mute: #cccccc;
+  --icon-themed: #ffffff;
+  --icon-positive: #ffffff;
+  --icon-negative: #ffffff;
+  --divider-primary: #ffffff;
+  --divider-secondary: #ffffff;
+  --button-primary: #ffffff;
+  --button-secondary: #000000;
+  --button-primary-contrast: #000000;
+  --button-secondary-contrast: #000000;
+  --button-negative: #ffffff;
+  --button-ghost: transparent;
+  --button-overlay: #ffffff;
+  --controls-active: #ffffff;
+  --controls-inactive: #333333;
+  --counter-themed: #ffffff;
+  --counter-default: #ffffff;
+  --counter-attention: #ffffff;
+  --counter-contrast: #000000;
+  --promo-text-step-1: #ffffff;
+  --states-button-primary-hover: #e5e5e5;
+  --states-button-primary-pressed: #dddddd;
+  --states-button-secondary-hover: #111111;
+  --states-button-secondary-pressed: #1a1a1a;
+  --states-button-secondary-contrast-pressed: #1a1a1a;
+  --states-controls-active-disabled: #888888;
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: none;
+  color-scheme: dark;
+}
+
+html.a11y-contrast[data-a11y-scheme='light'] [class*='Button_variant_primary'],
+html.a11y-contrast[data-a11y-scheme='light'] [class*='IconButton_variant_primary'] {
+  --MaxUi-Button_background: #000000;
+  --MaxUi-Button_background-active: #222222;
+  --MaxUi-Button_font: #ffffff;
+  color: #ffffff;
+}
+
+html.a11y-contrast[data-a11y-scheme='light'] [class*='Button_variant_secondary'],
+html.a11y-contrast[data-a11y-scheme='light'] [class*='IconButton_variant_secondary'] {
+  --MaxUi-Button_background: #ffffff;
+  --MaxUi-Button_background-active: #e8e8e8;
+  --MaxUi-Button_font: #000000;
+  color: #000000;
+  box-shadow: inset 0 0 0 2px #000000;
+}
+
+html.a11y-contrast[data-a11y-scheme='dark'] [class*='Button_variant_primary'],
+html.a11y-contrast[data-a11y-scheme='dark'] [class*='IconButton_variant_primary'] {
+  --MaxUi-Button_background: #ffffff;
+  --MaxUi-Button_background-active: #e0e0e0;
+  --MaxUi-Button_font: #000000;
+  color: #000000;
+}
+
+html.a11y-contrast[data-a11y-scheme='dark'] [class*='Button_variant_secondary'],
+html.a11y-contrast[data-a11y-scheme='dark'] [class*='IconButton_variant_secondary'] {
+  --MaxUi-Button_background: #000000;
+  --MaxUi-Button_background-active: #1a1a1a;
+  --MaxUi-Button_font: #ffffff;
+  color: #ffffff;
+  box-shadow: inset 0 0 0 2px #ffffff;
+}
+
+html.a11y-contrast [class*='Button_variant_ghost'] {
+  --MaxUi-Button_font: var(--text-primary);
+  color: var(--text-primary);
+}
+
+html.a11y-contrast[data-a11y-scheme='light'] [class*='Spinner_appearance_'],
+html.a11y-contrast[data-a11y-scheme='light'] [class*='MaxUI_colorScheme_'] {
+  --MaxUi-Spinner_gradient-from: transparent;
+  --MaxUi-Spinner_gradient-to: #000000;
+  --gradients-loading-icon-themed-transparent: transparent;
+  --gradients-loading-icon-themed-filled: #000000;
+  --gradients-loading-icon-primary-transparent: transparent;
+  --gradients-loading-icon-primary-filled: #000000;
+  --gradients-loading-icon-primary-static-transparent: transparent;
+  --gradients-loading-icon-primary-static-filled: #000000;
+  --gradients-loading-icon-contrast-transparent: transparent;
+  --gradients-loading-icon-contrast-filled: #000000;
+  --gradients-loading-icon-contrast-static-transparent: transparent;
+  --gradients-loading-icon-contrast-static-filled: #000000;
+  --gradients-loading-icon-negative-transparent: transparent;
+  --gradients-loading-icon-negative-filled: #000000;
+  --gradients-loading-icon-neutral-themed-transparent: transparent;
+  --gradients-loading-icon-neutral-themed-filled: #000000;
+}
+
+html.a11y-contrast[data-a11y-scheme='dark'] [class*='Spinner_appearance_'],
+html.a11y-contrast[data-a11y-scheme='dark'] [class*='MaxUI_colorScheme_'] {
+  --MaxUi-Spinner_gradient-from: transparent;
+  --MaxUi-Spinner_gradient-to: #ffffff;
+  --gradients-loading-icon-themed-transparent: transparent;
+  --gradients-loading-icon-themed-filled: #ffffff;
+  --gradients-loading-icon-primary-transparent: transparent;
+  --gradients-loading-icon-primary-filled: #ffffff;
+  --gradients-loading-icon-primary-static-transparent: transparent;
+  --gradients-loading-icon-primary-static-filled: #ffffff;
+  --gradients-loading-icon-contrast-transparent: transparent;
+  --gradients-loading-icon-contrast-filled: #ffffff;
+  --gradients-loading-icon-contrast-static-transparent: transparent;
+  --gradients-loading-icon-contrast-static-filled: #ffffff;
+  --gradients-loading-icon-negative-transparent: transparent;
+  --gradients-loading-icon-negative-filled: #ffffff;
+  --gradients-loading-icon-neutral-themed-transparent: transparent;
+  --gradients-loading-icon-neutral-themed-filled: #ffffff;
+}

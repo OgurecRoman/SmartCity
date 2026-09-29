@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Button, Spinner, Typography } from '@maxhub/max-ui';
 import { useNavigate } from 'react-router';
-import { ChevronRight, Clock3, Mail, MapPin, Phone, Star } from 'lucide-react';
+import { ChevronRight, Clock3, Mail, MapPin, PenLine, Phone, Star } from 'lucide-react';
 import { api } from '../../api/client';
 import { useAuth } from '../../auth/AuthProvider';
 import type { Paginated, RequestType } from '../../types/request';
@@ -147,6 +147,16 @@ export default function Home() {
           <Typography.Title variant="small" asChild>
             <h2>{isUk ? 'Компания' : 'Ваша УК'}</h2>
           </Typography.Title>
+          {isUk && (
+            <button
+              type="button"
+              className={s.createIcon}
+              aria-label="Редактировать УК"
+              onClick={() => navigate('/company/edit')}
+            >
+              <PenLine size={20} strokeWidth={2.25} aria-hidden />
+            </button>
+          )}
         </div>
 
         {companyQuery.isLoading ? (

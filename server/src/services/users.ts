@@ -77,13 +77,38 @@ export function isChairman(user: Pick<DbUser, 'role'>): boolean {
   return user.role === 'CHAIRMAN';
 }
 
-export function canActOnHouse(user: Pick<DbUser, 'role' | 'houseId'>, houseId: number): boolean {
-  if (user.role === 'UK_EMPLOYEE') return true;
+export function canActOnHouse(
+  user: Pick<DbUser, 'role' | 'houseId' | 'companyId'>,
+  houseId: number,
+  houseCompanyId?: number | null,
+): boolean {
+  if (user.role === 'UK_EMPLOYEE') {
+    if (user.companyId == null) return false;
+    if (houseCompanyId == null) return true;
+    return houseCompanyId === user.companyId;
+  }
   return user.role === 'CHAIRMAN' && user.houseId === houseId;
 }
 
-export function canManageAnnouncements(user: Pick<DbUser, 'role' | 'houseId'>, houseId: number): boolean {
-  return canActOnHouse(user, houseId);
+export function canManageAnnouncements(
+  user: Pick<DbUser, 'role' | 'houseId' | 'companyId'>,
+  houseId: number,
+  houseCompanyId?: number | null,
+): boolean {
+  return canActOnHouse(user, houseId, houseCompanyId);
+}
+
+export async function assertEmployeeHouseAccess(
+  user: Pick<DbUser, 'role' | 'companyId'>,
+  houseId: number,
+): Promise<void> {
+  if (!isEmployee(user)) return;
+  if (user.companyId == null) throw errors.forbidden('Сотрудник УК не привязан к компании');
+  const house = await prisma.house.findUnique({ where: { id: houseId }, select: { companyId: true } });
+  if (!house) throw errors.notFound('Дом не найден');
+  if (house.companyId !== user.companyId) {
+    throw errors.forbidden('Этот дом обслуживает другая УК', 'other_company_house');
+  }
 }
 
 export function isOnboarded(user: Pick<DbUser, 'houseId' | 'onboardedAt'>): boolean {
@@ -108,12 +133,13 @@ export async function isMemberOfHouse(userId: number, houseId: number): Promise<
 }
 
 export async function resolveHouseFor(
-  user: Pick<DbUser, 'id' | 'role' | 'houseId' | 'onboardedAt'>,
+  user: Pick<DbUser, 'id' | 'role' | 'houseId' | 'onboardedAt' | 'companyId'>,
   requested: number | undefined,
   options: { allowPending?: boolean } = {},
 ): Promise<number> {
   if (user.role === 'UK_EMPLOYEE') {
     if (!requested) throw errors.badRequest('Укажите дом (houseId)');
+    await assertEmployeeHouseAccess(user, requested);
     return requested;
   }
   if (requested !== undefined) {
@@ -341,8 +367,12 @@ export async function listEmployees(): Promise<DbUser[]> {
   return await prisma.user.findMany({ where: { role: 'UK_EMPLOYEE' }, include: userInclude, orderBy: { id: 'asc' } });
 }
 
-export async function listHouses() {
-  return await prisma.house.findMany({ orderBy: { id: 'asc' }, include: { _count: { select: { residents: true } } } });
+export async function listHouses(companyId?: number | null) {
+  return prisma.house.findMany({
+    where: companyId != null ? { companyId } : undefined,
+    orderBy: { id: 'asc' },
+    include: { _count: { select: { residents: true } } },
+  });
 }
 
 export async function getHouse(id: number) {
@@ -397,13 +427,18 @@ export async function lookupHouseAt(lat: number, lng: number) {
   return { building, house };
 }
 
-export async function findOrCreateHouseAt(lat: number, lng: number) {
+export async function findOrCreateHouseAt(lat: number, lng: number, forCompanyId?: number) {
   const { building, house } = await lookupHouseAt(lat, lng);
+
   if (house) {
+    if (forCompanyId !== undefined && house.companyId !== forCompanyId) {
+      throw errors.conflict('Этот дом уже закреплён за другой УК', 'other_company_house');
+    }
     const filled = house.externalId ? house : await prisma.house.update({ where: { id: house.id }, data: geoFieldsOf(building) });
     return { house: filled, building, created: false };
   }
-  const companyId = await defaultCompanyId();
+
+  const companyId = forCompanyId ?? (await defaultCompanyId());
   if (companyId === null) throw errors.conflict('В базе нет управляющей компании — выполните npm run prisma:seed', 'no_company');
   const created = await prisma.house.create({
     data: { address: building.address, ...geoFieldsOf(building), votePercent: config.votes.defaultPercent, companyId },

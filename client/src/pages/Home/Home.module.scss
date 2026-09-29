@@ -87,6 +87,7 @@
   justify-content: space-between;
   gap: 8px;
   min-width: 0;
+  height: 2.25rem;
 }
 
 .linkBtn {
@@ -242,4 +243,24 @@
 
 .contactStatic {
   color: var(--text-secondary);
+}
+
+.createIcon {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-themed, #2aabee);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.createIcon:active {
+  background: var(--background-tertiary);
 }
