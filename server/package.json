@@ -7,7 +7,6 @@
   "type": "module",
   "scripts": {
     "dev": "cross-env NODE_EXTRA_CA_CERTS=certs/russian_trusted_ca.pem tsx watch src/server.ts",
-    "prepublish": "prisma generate && prisma migrate deploy && prisma seed",
     "build": "prisma generate && tsc -p tsconfig.json",
     "start": "cross-env NODE_EXTRA_CA_CERTS=certs/russian_trusted_ca.pem node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -16,7 +15,8 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "prisma:seed": "tsx prisma/seed.ts",
-    "prisma:studio": "prisma studio"
+    "prisma:studio": "prisma studio",
+    "db:setup": "prisma migrate deploy && prisma db seed"
   },
   "engines": {
     "node": ">=20.19.0"
