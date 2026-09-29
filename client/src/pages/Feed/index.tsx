@@ -1,7 +1,7 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Button, Spinner, Typography } from '@maxhub/max-ui';
-import { Plus, X } from 'lucide-react';
+import { ImagePlus, Plus, X } from 'lucide-react';
 import { api } from '../../api/client';
 import { useAuth } from '../../auth/AuthProvider';
 import { useToast } from '../../components/Toast/ToastProvider';
@@ -24,11 +24,14 @@ type Props = {
   defaultTab?: TabId;
 };
 
+const MAX_PHOTOS = 5;
+const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
 
 export default function Feed({ defaultTab = 'announcements' }: Props) {
   const { user } = useAuth();
   const toast = useToast();
   const { invalidateFeed } = useInvalidateAppQueries();
+  const fileRef = useRef<HTMLInputElement>(null);
   const [tab, setTab] = useState<TabId>(defaultTab);
   const [composerOpen, setComposerOpen] = useState(false);
   const [editing, setEditing] = useState<EditTarget | null>(null);
@@ -81,7 +84,15 @@ export default function Feed({ defaultTab = 'announcements' }: Props) {
   const [description, setDescription] = useState('');
   const [contact, setContact] = useState('');
   const [houseId, setHouseId] = useState<number | ''>('');
+  const [photos, setPhotos] = useState<File[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
+
+  const photoPreviews = useMemo(() => photos.map((file) => URL.createObjectURL(file)), [photos]);
+  useEffect(() => {
+    return () => {
+      for (const url of photoPreviews) URL.revokeObjectURL(url);
+    };
+  }, [photoPreviews]);
 
   const createNews = useMutation({
     mutationFn: async () => {
@@ -105,14 +116,26 @@ export default function Feed({ defaultTab = 'announcements' }: Props) {
 
   const createAnnouncement = useMutation({
     mutationFn: async () => {
+      if (isUk && !houseId) throw new Error('Выберите дом');
+
+      if (photos.length > 0) {
+        const fd = new FormData();
+        fd.append('title', title.trim());
+        fd.append('description', description.trim());
+        if (isUk && houseId) fd.append('houseId', String(houseId));
+        for (const file of photos) fd.append('photos', file);
+        const { data } = await api.post<AnnouncementItem>('/announcements', fd, {
+          headers: { 'Content-Type': undefined as unknown as string },
+          timeout: 60_000,
+        });
+        return data;
+      }
+
       const payload: { title: string; description: string; houseId?: number } = {
         title: title.trim(),
         description: description.trim(),
       };
-      if (isUk) {
-        if (!houseId) throw new Error('Выберите дом');
-        payload.houseId = Number(houseId);
-      }
+      if (isUk && houseId) payload.houseId = Number(houseId);
       const { data } = await api.post<AnnouncementItem>('/announcements', payload);
       return data;
     },
@@ -212,7 +235,9 @@ export default function Feed({ defaultTab = 'announcements' }: Props) {
     setDescription('');
     setContact('');
     setHouseId('');
+    setPhotos([]);
     setFormError(null);
+    if (fileRef.current) fileRef.current.value = '';
   }
 
   function openComposer() {
@@ -221,10 +246,33 @@ export default function Feed({ defaultTab = 'announcements' }: Props) {
     setTitle('');
     setDescription('');
     setContact('');
+    setPhotos([]);
+    if (fileRef.current) fileRef.current.value = '';
     if (isUk && user.house) setHouseId(user.house.id);
     else if (isUk && houseOptions[0]) setHouseId(houseOptions[0].id);
     else if (user.house) setHouseId(user.house.id);
     setComposerOpen(true);
+  }
+
+  function addPhotos(list: FileList | null) {
+    if (!list?.length) return;
+    setFormError(null);
+    const incoming = Array.from(list);
+    const next = [...photos];
+    for (const file of incoming) {
+      if (next.length >= MAX_PHOTOS) break;
+      if (!file.type.startsWith('image/')) {
+        setFormError('Можно только изображения');
+        continue;
+      }
+      if (file.size > MAX_PHOTO_BYTES) {
+        setFormError('Фото больше 8 МБ');
+        continue;
+      }
+      next.push(file);
+    }
+    setPhotos(next);
+    if (fileRef.current) fileRef.current.value = '';
   }
 
   function onPlusClick() {
@@ -242,6 +290,7 @@ export default function Feed({ defaultTab = 'announcements' }: Props) {
     setDescription(item.description);
     setContact(item.contact);
     setHouseId(item.houseId);
+    setPhotos([]);
     setFormError(null);
     setComposerOpen(true);
   }
@@ -253,6 +302,7 @@ export default function Feed({ defaultTab = 'announcements' }: Props) {
     setDescription(item.description);
     setContact('');
     setHouseId(item.houseId);
+    setPhotos([]);
     setFormError(null);
     setComposerOpen(true);
   }
@@ -426,6 +476,53 @@ export default function Feed({ defaultTab = 'announcements' }: Props) {
                 onChange={(e) => setContact(e.target.value)}
               />
             </label>
+          )}
+
+          {!editing && tab === 'announcements' && (
+            <div className={s.field}>
+              <span className={s.labelRow}>
+                <span className={s.label}>Фото</span>
+                <span className={s.optional}>до {MAX_PHOTOS}</span>
+              </span>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className={s.fileInput}
+                disabled={busy || photos.length >= MAX_PHOTOS}
+                onChange={(e) => addPhotos(e.target.files)}
+              />
+              <ul className={s.photoPickList}>
+                {photos.map((file, index) => (
+                  <li key={`${file.name}-${file.size}-${index}`} className={s.photoPickItem}>
+                    <img src={photoPreviews[index]} alt="" className={s.photoPickThumb} />
+                    <button
+                      type="button"
+                      className={s.photoPickRemove}
+                      aria-label="Убрать фото"
+                      disabled={busy}
+                      onClick={() => setPhotos((prev) => prev.filter((_, i) => i !== index))}
+                    >
+                      <X size={14} strokeWidth={2} aria-hidden />
+                    </button>
+                  </li>
+                ))}
+                {photos.length < MAX_PHOTOS && (
+                  <li>
+                    <button
+                      type="button"
+                      className={s.addPhoto}
+                      disabled={busy}
+                      onClick={() => fileRef.current?.click()}
+                    >
+                      <ImagePlus size={22} strokeWidth={1.75} aria-hidden />
+                      <span>Добавить</span>
+                    </button>
+                  </li>
+                )}
+              </ul>
+            </div>
           )}
 
           {errorText && <p className={s.error}>{errorText}</p>}

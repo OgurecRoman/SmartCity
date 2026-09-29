@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { photoUpload } from '../lib/upload.js';
 import * as announcementsController from '../controllers/announcements.js';
 
 const router = Router();
@@ -11,11 +12,11 @@ const router = Router();
  *     tags: [Объявления]
  *   post:
  *     summary: Создать новое объявление
- *     description: Доступно только сотрудникам УК или председателю ТСЖ этого дома
+ *     description: Доступно только сотрудникам УК или председателю ТСЖ этого дома. Фото — multipart field photos.
  *     tags: [Объявления]
  */
 router.get('/announcements', announcementsController.list);
-router.post('/announcements', announcementsController.create);
+router.post('/announcements', photoUpload.array('photos'), announcementsController.create);
 
 /**
  * @swagger
@@ -25,7 +26,7 @@ router.post('/announcements', announcementsController.create);
  *     description: Доступно только сотрудникам УК или председателю ТСЖ этого дома
  *     tags: [Объявления]
  *   delete:
- *     summary: Создать новое объявление
+ *     summary: Удалить объявление
  *     description: Доступно только сотрудникам УК или председателю ТСЖ этого дома
  *     tags: [Объявления]
  */
