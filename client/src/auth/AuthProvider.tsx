@@ -29,7 +29,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       <div className={s.state}>
         <Typography.Headline variant="small">Не удалось загрузить профиль</Typography.Headline>
         <Typography.Body variant="medium">
-          {(error as Error | null)?.message ?? 'Проверьте, что API запущен и задан VITE_DEV_USER_ID'}
+          {(error as Error | null)?.message ?? 'Проверьте, что вы заходите через MAX'}
         </Typography.Body>
         <Button size="small" loading={isFetching} onClick={() => refetch()}>
           Повторить
