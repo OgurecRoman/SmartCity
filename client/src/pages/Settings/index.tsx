@@ -6,7 +6,6 @@ import { useA11y } from '../../a11y/AccessibilityProvider';
 import {
   DEFAULT_A11Y_SETTINGS,
   FONT_OPTIONS,
-  THEME_OPTIONS,
   type AccessibilitySettings,
   type FontScale,
 } from '../../a11y/types';
@@ -44,26 +43,11 @@ export default function Settings() {
           <h1>Настройки</h1>
         </Typography.Headline>
         <Typography.Body variant="small" className={s.hint}>
-          Доступность: тема, шрифт и удобство управления
+          Доступность: шрифт, контраст и удобство управления. Тема — как в MAX.
         </Typography.Body>
       </div>
 
       <section className={s.card} aria-label="Оформление">
-        <label className={s.field}>
-          <span className={s.label}>Тема</span>
-          <select
-            className={s.select}
-            value={draft.theme}
-            onChange={(e) => patch('theme', e.target.value as AccessibilitySettings['theme'])}
-          >
-            {THEME_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </label>
-
         <label className={s.field}>
           <span className={s.label}>Шрифт</span>
           <select

@@ -4,12 +4,7 @@ import {
   type AccessibilitySettings,
   type FontPreference,
   type FontScale,
-  type ThemePreference,
 } from './types';
-
-function isTheme(value: unknown): value is ThemePreference {
-  return value === 'system' || value === 'light' || value === 'dark';
-}
 
 function isFont(value: unknown): value is FontPreference {
   return value === 'default' || value === 'verdana' || value === 'arial' || value === 'opendyslexic';
@@ -23,9 +18,8 @@ export function loadAccessibilitySettings(): AccessibilitySettings {
   try {
     const raw = localStorage.getItem(A11Y_STORAGE_KEY);
     if (!raw) return { ...DEFAULT_A11Y_SETTINGS };
-    const parsed = JSON.parse(raw) as Partial<AccessibilitySettings>;
+    const parsed = JSON.parse(raw) as Partial<AccessibilitySettings> & { theme?: unknown };
     return {
-      theme: isTheme(parsed.theme) ? parsed.theme : DEFAULT_A11Y_SETTINGS.theme,
       font: isFont(parsed.font) ? parsed.font : DEFAULT_A11Y_SETTINGS.font,
       fontScale: isFontScale(parsed.fontScale) ? parsed.fontScale : DEFAULT_A11Y_SETTINGS.fontScale,
       highContrast: typeof parsed.highContrast === 'boolean' ? parsed.highContrast : DEFAULT_A11Y_SETTINGS.highContrast,
