@@ -20,8 +20,11 @@ router.post('/houses', housesController.create);
 /**
  * @swagger
  * /api/houses/{id}:
- *   get:
- *     summary: Получить дом по id
+ *   patch:
+ *     summary: Изменить дом по id
+ *     tags: [Дома]
+ *   delete:
+ *     summary: Удалить дом по id
  *     tags: [Дома]
  */
 router.patch('/houses/:id', requireEmployee, housesController.updateVotePercent);
