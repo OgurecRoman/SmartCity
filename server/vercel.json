@@ -2,17 +2,20 @@
   "version": 2,
   "builds": [
     {
-      "src": "dist/server.js", 
+      "src": "src/server.ts",
       "use": "@vercel/node",
       "config": {
-        "includeFiles": ["prisma/migrations/**"] 
+        "includeFiles": ["prisma/**/*", "certs/**/*", "openapi.yaml"]
       }
     }
   ],
   "routes": [
     {
-      "src": "/.*",
-      "dest": "server.js"
+      "src": "/(.*)",
+      "dest": "src/server.ts"
     }
-  ]
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  }
 }
