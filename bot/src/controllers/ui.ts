@@ -100,7 +100,7 @@ export function adminMenu(): ButtonRows {
     [btn.callback('📢 Объявление жителям', 'menu:announce')],
     [btn.callback('➕ Добавить владельца', 'menu:add_owner'), btn.callback('➖ Удалить владельца', 'menu:remove_owner')],
     [btn.callback('👤 Назначить председателя', 'menu:appoint_chairman'), btn.callback('🚫 Снять председателя', 'menu:dismiss_chairman')],
-    [btn.callback('📞 Контакты УК', 'menu:contacts'), btn.callback('🔙 Выйти из профиля УК', 'logout')]
+    [btn.callback('📞 Контакты УК', 'menu:contacts'), btn.callback('🔙 Выйти из профиля УК', 'menu:logout')]
   ];
 }
 
