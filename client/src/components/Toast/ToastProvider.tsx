@@ -8,7 +8,9 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { messageForApiError } from '../../lib/apiError';
+import { getPortalRoot } from '../../lib/portalRoot';
 import s from './Toast.module.scss';
 
 type ToastTone = 'info' | 'success' | 'error';
@@ -28,7 +30,7 @@ type ToastApi = {
 const ToastContext = createContext<ToastApi | null>(null);
 
 const MAX_TOASTS = 3;
-const TTL_MS = 4200;
+const TTL_MS = 3000;
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<ToastItem[]>([]);
@@ -54,14 +56,23 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     [show],
   );
 
+  const host =
+    items.length > 0
+      ? createPortal(
+          <div className={s.host} aria-live="polite" aria-relevant="additions">
+            {items.map((item) => (
+              <ToastCard key={item.id} item={item} onDone={() => dismiss(item.id)} />
+            ))}
+          </div>,
+          // body — вне #root/zoom и поверх карты / модалок
+          typeof document !== 'undefined' ? document.body : getPortalRoot(),
+        )
+      : null;
+
   return (
     <ToastContext.Provider value={api}>
       {children}
-      <div className={s.host} aria-live="polite" aria-relevant="additions">
-        {items.map((item) => (
-          <ToastCard key={item.id} item={item} onDone={() => dismiss(item.id)} />
-        ))}
-      </div>
+      {host}
     </ToastContext.Provider>
   );
 }
