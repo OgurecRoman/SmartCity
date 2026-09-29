@@ -77,9 +77,32 @@ body::-webkit-scrollbar,
 body {
   margin: 0;
   overflow-y: auto;
+  /* длинные адреса/слова без пробелов не раздувают вёрстку */
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 * {
   scrollbar-width: none;
   -ms-overflow-style: none;
+}
+
+/* однострочное обрезание с «…» — вешать на адрес/заголовок в узком блоке */
+.truncate {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* до 2 строк с «…» */
+.truncate2 {
+  min-width: 0;
+  max-width: 100%;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
 }
