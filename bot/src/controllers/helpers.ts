@@ -86,6 +86,10 @@ export async function ack(ctx: BotContext, options: AnswerOptions = {}): Promise
       ...(options.message.format ? { format: options.message.format } : {}),
     };
   }
+  
+  if (!body.notification && !body.message) {
+    body.notification = '✓';
+  }
   try {
     await ctx.answerOnCallback(body as Parameters<typeof ctx.answerOnCallback>[0]);
   } catch (error) {

@@ -15,6 +15,7 @@ const router = Router();
  *     tags: [Дома]
  */
 router.get('/houses', housesController.list);
+router.get('/houses/lookup', housesController.lookup);
 router.post('/houses', housesController.create);
 router.get('/houses/lookup', housesController.lookup);
 

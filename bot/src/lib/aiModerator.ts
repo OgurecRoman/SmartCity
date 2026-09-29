@@ -246,12 +246,25 @@ function normalizeDecision(raw: Record<string, unknown>): ModerationDecision {
 }
 
 function createModerator(): Moderator {
-  const authKey = process.env.GIGACHAT_AUTH_KEY;
-  const clientId = process.env.GIGACHAT_CLIENT_ID;
-  const clientSecret = process.env.GIGACHAT_CLIENT_SECRET;
+  const authKey = process.env.GIGACHAT_AUTH_KEY?.trim();
+  const clientId = process.env.GIGACHAT_CLIENT_ID?.trim();
+  const clientSecret = process.env.GIGACHAT_CLIENT_SECRET?.trim();
 
   if (!authKey && (!clientId || !clientSecret)) {
-    throw new Error('⚠️ Задайте в .env либо GIGACHAT_AUTH_KEY, либо пару GIGACHAT_CLIENT_ID и GIGACHAT_CLIENT_SECRET');
+    console.warn(
+      'GigaChat не настроен (GIGACHAT_AUTH_KEY или CLIENT_ID/SECRET) — модерация отключена, сообщения пропускаются',
+    );
+    return {
+      async moderate() {
+        return {
+          action: 'allow',
+          categories: [],
+          confidence: 0,
+          reason: 'AI moderation disabled',
+          is_complaint_to_uk: false,
+        };
+      },
+    };
   }
 
   const model = process.env.GIGACHAT_MODEL?.trim() || 'GigaChat';
@@ -259,7 +272,7 @@ function createModerator(): Moderator {
   const timeoutMs = Number(process.env.MODERATION_TIMEOUT_MS ?? 20000);
   const failStrategy = process.env.MODERATION_FAIL_STRATEGY === 'block' ? 'block' : 'allow';
 
-  console.log(`ℹ️ AI-модерация GigaChat: model=${model}, scope=${scope}`);
+  console.log(`AI-модерация GigaChat: model=${model}, scope=${scope}`);
 
   return new AiModerator({
     authKey,
