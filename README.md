@@ -64,7 +64,6 @@ npm run start          # API на http://localhost:3000
 Запуск бота
 
 ```bash
-cd ..
 cd bot
 cp .env.example .env    # заполнить секреты
 npm install
@@ -75,7 +74,6 @@ npm run start
 Запуск клиента
 
 ```bash
-cd ..
 cd client
 cp .env.example .env    # заполнить секреты
 npm install
