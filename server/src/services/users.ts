@@ -375,7 +375,7 @@ export async function promoteToEmployee(userId: number): Promise<DbUser> {
 export async function logout(userId: number): Promise<DbUser> {
   return prisma.user.update({
     where: { id: userId },
-    data: { role: 'RESIDENT', companyId: null, chairmanHouseId: null },
+    data: { role: 'RESIDENT', chairmanHouseId: null },
     include: userInclude,
   });
 }
