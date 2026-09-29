@@ -17,29 +17,10 @@ const router = Router();
  *   post:
  *     summary: Создать компанию
  *     tags: [Компании]
- *     data: { 
- *          company: {
- *              name: string;
-                phone: string;
-                email?: string | null;
-                address?: string | null;
-                workingHours?: string | null;
- *          } 
- *      }
- *     patch:
+ *   patch:
  *     summary: Изменить компанию
  *     tags: [Компании]
- *     data: { 
- *          company: {
- *              id: number;
- *              name: string;
-                phone: string;
-                email?: string | null;
-                address?: string | null;
-                workingHours?: string | null;
- *          } 
- *      }
- *     delete:
+ *   delete:
  *     summary: Удалить компанию
  *     tags: [Компании]
  *     data: { id: number }

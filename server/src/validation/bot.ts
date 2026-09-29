@@ -2,9 +2,6 @@ import { z } from 'zod';
 import { UK_SETTABLE_STATUSES } from '../services/rules.js';
 import { REQUEST_CATEGORIES, chatId, maxId, photoFilenames, positiveInt } from './common.js';
 
-// Схемы ручек /api/bot/* (см. controllers/bot.ts). Бот передаёт пользователя явно (userId/maxUserId),
-// т.к. авторизации через MaxInitData у него нет.
-
 // --- Пользователи ---
 
 export const upsertUserSchema = z.object({
@@ -15,6 +12,7 @@ export const upsertUserSchema = z.object({
 });
 
 export const promoteSchema = z.object({ userId: positiveInt, code: z.string() });
+export const logoutSchema = z.object({ userId: positiveInt });
 export const maxUserSchema = z.object({ maxUserId: maxId });
 export const maxUserHouseSchema = z.object({ maxUserId: maxId, houseId: positiveInt });
 export const addTenantSchema = z.object({ ownerId: positiveInt, maxUserId: maxId, apartment: z.string().trim().min(1).max(20) });

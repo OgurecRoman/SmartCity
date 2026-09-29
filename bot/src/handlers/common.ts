@@ -3,7 +3,7 @@ import type { BotContext } from '../controllers/context.js';
 import { ack, isDialog, parseIntStrict } from '../controllers/helpers.js';
 import { MD, TEXTS, adminMenu, residentMenu, withKeyboard } from '../controllers/ui.js';
 import { showRequestToEmployee, showRequestToResident } from '../controllers/views.js';
-import { getLatestMembershipRequestFor, promoteToEmployee } from '../lib/api.js';
+import { getLatestMembershipRequestFor, logout, promoteToEmployee } from '../lib/api.js';
 import { isAppError } from '../lib/errors.js';
 import { isChairman, isEmployee, isOnboarded } from '../lib/rules.js';
 import { onboardingScenario } from '../scenarios/onboarding.js';
@@ -124,4 +124,18 @@ export function registerCommonHandlers(bot: Bot<BotContext>): void {
     ctx.scenario.cancel();
     await ctx.reply(`Права сотрудника УК выданы.\n\n${TEXTS.welcomeAdmin}`, withKeyboard(adminMenu()));
   });
+
+  bot.command('logout', async (ctx) => {
+    if (!isDialog(ctx)) return;
+    try {
+      ctx.dbUser = await logout(ctx.dbUser.id);
+    } catch (error) {
+      if (!isAppError(error)) throw error;
+      await ctx.reply(error.message);
+      return;
+    }
+    ctx.scenario.cancel();
+    await ctx.reply(`Вы вышли из аккаунта сотрудника УК`, withKeyboard(residentMenu()));
+  });
 }
+

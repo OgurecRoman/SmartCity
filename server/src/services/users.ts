@@ -5,6 +5,7 @@ import { events } from '../lib/events.js';
 import type { Prisma, ResidentType } from '@prisma/client';
 import { findBuildingAt, type BuildingInfo } from './geo.js';
 import { checkApartment, type ApartmentData, type Entrance } from './rules.js';
+import { createCompany } from './companies.js';
 
 export const userInclude = { house: true, company: true } satisfies Prisma.UserInclude;
 export type DbUser = Prisma.UserGetPayload<{ include: typeof userInclude }>;
@@ -17,7 +18,9 @@ export interface MaxIdentity {
 }
 
 async function defaultCompanyId(): Promise<number | null> {
-  const company = await prisma.managementCompany.findFirst({ orderBy: { id: 'asc' }, select: { id: true } });
+  let company = await prisma.managementCompany.findFirst({ orderBy: { id: 'asc' }, select: { id: true } });
+  if (!company)
+    company = await createCompany({ name: 'Новая управляющая компания', phone: '' });
   return company?.id ?? null;
 }
 
@@ -246,11 +249,21 @@ export async function addTenantByOwner(
 }
 
 export async function promoteToEmployee(userId: number): Promise<DbUser> {
-  return prisma.user.update({
+  const promote = await prisma.user.update({
     where: { id: userId },
     data: { role: 'UK_EMPLOYEE', companyId: await defaultCompanyId() },
     include: userInclude,
   });
+  return promote;
+}
+
+export async function logout(userId: number): Promise<DbUser> {
+  const promote = await prisma.user.update({
+    where: { id: userId },
+    data: { role: "RESIDENT" },
+    include: userInclude,
+  });
+  return promote;
 }
 
 async function ensureUser(maxUserId: bigint): Promise<{ id: number; role: string; residentType: ResidentType | null }> {
@@ -289,13 +302,13 @@ export async function appointChairman(maxUserId: bigint, houseId: number): Promi
 export async function dismissChairman(maxUserId: bigint): Promise<DbUser> {
   const existing = await prisma.user.findUnique({ where: { maxUserId } });
   if (!existing || existing.role !== 'CHAIRMAN') throw errors.notFound('Председатель ТСЖ с таким ID не найден');
-  return prisma.user.update({ where: { id: existing.id }, data: { role: 'RESIDENT' }, include: userInclude });
+  return await prisma.user.update({ where: { id: existing.id }, data: { role: 'RESIDENT' }, include: userInclude });
 }
 
 const residentRoles: Prisma.UserWhereInput = { role: { in: ['RESIDENT', 'CHAIRMAN'] } };
 
 export async function countResidents(houseId: number): Promise<number> {
-  return prisma.userHouse.count({ where: { houseId, user: residentRoles } });
+  return await prisma.userHouse.count({ where: { houseId, user: residentRoles } });
 }
 
 export interface ResidentRow {
@@ -325,15 +338,15 @@ export async function listResidentsOfHouse(houseId: number): Promise<ResidentRow
 }
 
 export async function listEmployees(): Promise<DbUser[]> {
-  return prisma.user.findMany({ where: { role: 'UK_EMPLOYEE' }, include: userInclude, orderBy: { id: 'asc' } });
+  return await prisma.user.findMany({ where: { role: 'UK_EMPLOYEE' }, include: userInclude, orderBy: { id: 'asc' } });
 }
 
 export async function listHouses() {
-  return prisma.house.findMany({ orderBy: { id: 'asc' }, include: { _count: { select: { residents: true } } } });
+  return await prisma.house.findMany({ orderBy: { id: 'asc' }, include: { _count: { select: { residents: true } } } });
 }
 
 export async function getHouse(id: number) {
-  return prisma.house.findUnique({ where: { id } });
+  return await prisma.house.findUnique({ where: { id } });
 }
 
 export async function setVotePercent(houseId: number, percent: number) {
@@ -342,7 +355,7 @@ export async function setVotePercent(houseId: number, percent: number) {
   }
   const house = await prisma.house.findUnique({ where: { id: houseId } });
   if (!house) throw errors.notFound('Дом не найден');
-  return prisma.house.update({ where: { id: houseId }, data: { votePercent: percent } });
+  return await prisma.house.update({ where: { id: houseId }, data: { votePercent: percent } });
 }
 
 export async function deleteHouse(houseId: number): Promise<void> {
@@ -405,7 +418,7 @@ export async function getHouseByChat(chatId: bigint) {
 export async function bindHouseChat(houseId: number, chatId: bigint, chatTitle: string | null) {
 
   await prisma.house.updateMany({ where: { chatId, NOT: { id: houseId } }, data: { chatId: null, chatTitle: null } });
-  return prisma.house.update({ where: { id: houseId }, data: { chatId, chatTitle } });
+  return await prisma.house.update({ where: { id: houseId }, data: { chatId, chatTitle } });
 }
 
 export async function unbindHouseChat(chatId: bigint) {
@@ -413,9 +426,9 @@ export async function unbindHouseChat(chatId: bigint) {
 }
 
 export async function getCompany() {
-  return prisma.managementCompany.findFirst({ orderBy: { id: 'asc' } });
+  return await prisma.managementCompany.findFirst({ orderBy: { id: 'asc' } });
 }
 
 export async function listOrganizations() {
-  return prisma.responsibleOrganization.findMany({ orderBy: { id: 'asc' } });
+  return await prisma.responsibleOrganization.findMany({ orderBy: { id: 'asc' } });
 }

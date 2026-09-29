@@ -24,6 +24,7 @@ import {
   devResetSchema,
   hasVotedQuerySchema,
   listRequestsQuerySchema,
+  logoutSchema,
   maxUserHouseSchema,
   maxUserSchema,
   outboxQuerySchema,
@@ -69,6 +70,11 @@ export async function promote(req: Request, res: Response) {
   if (!config.uk.accessCode) throw errors.unavailable('Вход для сотрудников УК по коду отключён (UK_ACCESS_CODE не задан).');
   if (input.code !== config.uk.accessCode) throw errors.forbidden('Неверный код. Формат: /uk_login <код>');
   res.json(await usersService.promoteToEmployee(input.userId));
+}
+
+export async function logout(req: Request, res: Response) {
+  const input = parseBody(logoutSchema, req);
+  res.json(await usersService.logout(input.userId));
 }
 
 export async function assignHouse(req: Request, res: Response) {
@@ -322,13 +328,9 @@ export async function deleteSession(req: Request, res: Response) {
   res.status(204).end();
 }
 
-// --- Очередь уведомлений (таблица NotificationOutbox): бот забирает события и подтверждает обработку ---
-
 export async function listOutbox(req: Request, res: Response) {
   const query = parseQuery(outboxQuerySchema, req);
-  console.log('/bot/outbox', query);
   const notifications = await prisma.notificationOutbox.findMany({ orderBy: { id: 'asc' }, take: query.limit })
-  console.log('/bot/outbox', notifications);
   res.json(notifications);
 }
 
@@ -336,8 +338,6 @@ export async function ackOutbox(req: Request, res: Response) {
   await prisma.notificationOutbox.deleteMany({ where: { id: idParam(req) } });
   res.status(204).end();
 }
-
-// --- Только для разработки: очистка данных тестовых пользователей (используется bot/src/scripts/simulate-bot.ts) ---
 
 export async function devReset(req: Request, res: Response) {
   if (config.isProduction) throw errors.forbidden('Недоступно в production');

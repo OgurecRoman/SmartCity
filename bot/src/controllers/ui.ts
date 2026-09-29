@@ -42,7 +42,6 @@ export const HASHTAGS = {
   membership: '#вступление',
 } as const;
 
-/** Хештег типа сущности внизу карточки — по нему удобно искать в чате дома. Не с начала строки, чтобы markdown не принял `#` за заголовок. */
 export function hashtagLine(kind: keyof typeof HASHTAGS): string {
   return `🏷 ${HASHTAGS[kind]}`;
 }
