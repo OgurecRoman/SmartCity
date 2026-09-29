@@ -13,6 +13,9 @@ interface ImportMeta {
 interface MaxWebApp {
   initData?: string;
   ready?: () => void;
+  colorScheme?: 'light' | 'dark';
+  onEvent?: (eventType: string, callback: () => void) => void;
+  offEvent?: (eventType: string, callback: () => void) => void;
 }
 
 interface Window {

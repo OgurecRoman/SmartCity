@@ -56,10 +56,17 @@ export function AccessibilityProvider({ children }: { children: ReactNode }) {
   }, [settings, resolvedColorScheme, syncDom]);
 
   useEffect(() => {
+    const sync = () => setSystemScheme(getSystemColorScheme());
     const media = window.matchMedia('(prefers-color-scheme: dark)');
-    const onChange = () => setSystemScheme(media.matches ? 'dark' : 'light');
-    media.addEventListener('change', onChange);
-    return () => media.removeEventListener('change', onChange);
+    media.addEventListener('change', sync);
+
+    const wa = window.WebApp;
+    wa?.onEvent?.('themeChanged', sync);
+
+    return () => {
+      media.removeEventListener('change', sync);
+      wa?.offEvent?.('themeChanged', sync);
+    };
   }, []);
 
   useEffect(() => {

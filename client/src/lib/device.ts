@@ -13,5 +13,9 @@ export function detectPlatform(): PlatformType {
 
 export function getSystemColorScheme(): ColorSchemeType {
   if (typeof window === 'undefined') return 'light';
+
+  const fromMax = window.WebApp?.colorScheme;
+  if (fromMax === 'light' || fromMax === 'dark') return fromMax;
+
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }

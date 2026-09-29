@@ -200,6 +200,58 @@ html.a11y-contrast [class*='Button_variant_ghost'] {
   color: var(--text-primary);
 }
 
+html.a11y-contrast[data-a11y-scheme='light'] [class*='Switch_platform_'] {
+  --MaxUi-Switch__toggle_background: #ffffff;
+  --MaxUi-Switch__toggle_border: 2px solid;
+  --MaxUi-Switch__toggle_borderColor: #000000;
+  --MaxUi-Switch__thumb_background: #000000;
+  --MaxUi-Switch__thumb_shadow: none;
+}
+
+html.a11y-contrast[data-a11y-scheme='light'] [class*='Switch__input']:checked + [class*='Switch__toggle'] {
+  --MaxUi-Switch__toggle_background: #000000;
+  --MaxUi-Switch__toggle_borderColor: #000000;
+  --MaxUi-Switch__thumb_background: #ffffff;
+}
+
+html.a11y-contrast[data-a11y-scheme='light'] [class*='Switch__input']:disabled + [class*='Switch__toggle'] {
+  --MaxUi-Switch__toggle_background: #ffffff;
+  --MaxUi-Switch__toggle_borderColor: #666666;
+  --MaxUi-Switch__thumb_background: #666666;
+}
+
+html.a11y-contrast[data-a11y-scheme='light'] [class*='Switch__input']:disabled:checked + [class*='Switch__toggle'] {
+  --MaxUi-Switch__toggle_background: #666666;
+  --MaxUi-Switch__toggle_borderColor: #666666;
+  --MaxUi-Switch__thumb_background: #ffffff;
+}
+
+html.a11y-contrast[data-a11y-scheme='dark'] [class*='Switch_platform_'] {
+  --MaxUi-Switch__toggle_background: #000000;
+  --MaxUi-Switch__toggle_border: 2px solid;
+  --MaxUi-Switch__toggle_borderColor: #ffffff;
+  --MaxUi-Switch__thumb_background: #ffffff;
+  --MaxUi-Switch__thumb_shadow: none;
+}
+
+html.a11y-contrast[data-a11y-scheme='dark'] [class*='Switch__input']:checked + [class*='Switch__toggle'] {
+  --MaxUi-Switch__toggle_background: #ffffff;
+  --MaxUi-Switch__toggle_borderColor: #ffffff;
+  --MaxUi-Switch__thumb_background: #000000;
+}
+
+html.a11y-contrast[data-a11y-scheme='dark'] [class*='Switch__input']:disabled + [class*='Switch__toggle'] {
+  --MaxUi-Switch__toggle_background: #000000;
+  --MaxUi-Switch__toggle_borderColor: #888888;
+  --MaxUi-Switch__thumb_background: #888888;
+}
+
+html.a11y-contrast[data-a11y-scheme='dark'] [class*='Switch__input']:disabled:checked + [class*='Switch__toggle'] {
+  --MaxUi-Switch__toggle_background: #888888;
+  --MaxUi-Switch__toggle_borderColor: #888888;
+  --MaxUi-Switch__thumb_background: #000000;
+}
+
 html.a11y-contrast[data-a11y-scheme='light'] [class*='Spinner_appearance_'],
 html.a11y-contrast[data-a11y-scheme='light'] [class*='MaxUI_colorScheme_'] {
   --MaxUi-Spinner_gradient-from: transparent;
@@ -238,4 +290,36 @@ html.a11y-contrast[data-a11y-scheme='dark'] [class*='MaxUI_colorScheme_'] {
   --gradients-loading-icon-negative-filled: #ffffff;
   --gradients-loading-icon-neutral-themed-transparent: transparent;
   --gradients-loading-icon-neutral-themed-filled: #ffffff;
+}
+
+html.a11y-contrast select {
+  border: 2px solid var(--text-primary) !important;
+  border-radius: 12px;
+  outline: none;
+  box-shadow: none;
+  background-image: none !important;
+  background-color: var(--background-primary) !important;
+  color: var(--text-primary) !important;
+}
+
+html.a11y-contrast select option,
+html.a11y-contrast select optgroup {
+  background-color: var(--background-primary) !important;
+  color: var(--text-primary) !important;
+}
+
+html.a11y-contrast[data-a11y-scheme='light'] select,
+html.a11y-contrast[data-a11y-scheme='light'] select option,
+html.a11y-contrast[data-a11y-scheme='light'] select optgroup {
+  color-scheme: light;
+  background-color: #ffffff !important;
+  color: #000000 !important;
+}
+
+html.a11y-contrast[data-a11y-scheme='dark'] select,
+html.a11y-contrast[data-a11y-scheme='dark'] select option,
+html.a11y-contrast[data-a11y-scheme='dark'] select optgroup {
+  color-scheme: dark;
+  background-color: #000000 !important;
+  color: #ffffff !important;
 }
