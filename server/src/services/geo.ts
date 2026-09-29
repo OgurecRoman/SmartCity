@@ -68,6 +68,49 @@ interface YandexFeatureMember {
     };
 }
 
+export function shortenAddress(fullAddress: string): string {
+    if (!fullAddress) return fullAddress;
+
+    let cleaned = fullAddress.trim();
+
+    const noisePatterns = [
+        /^Россия\s*,?\s*/i,
+        /^Российская\s+Федерация\s*,?\s*/i,
+        /^Республика\s+Татарстан\s*,?\s*/i,
+        /^Татарстан\s*,?\s*/i,
+    ];
+    for (const pattern of noisePatterns) {
+        cleaned = cleaned.replace(pattern, '');
+    }
+
+    const abbreviations: [RegExp, string][] = [
+        [/\bгород\s+/gi, 'г. '],
+        [/\bулица\s+/gi, 'ул. '],
+        [/\bпроспект\s+/gi, 'пр. '],
+        [/\bпереулок\s+/gi, 'пер. '],
+        [/\bплощадь\s+/gi, 'пл. '],
+        [/\bбульвар\s+/gi, 'б-р '],
+        [/\bнабережная\s+/gi, 'наб. '],
+        [/\bшоссе\s+/gi, 'ш. '],
+        [/\bдом\s+/gi, 'д. '],
+        [/\bкорпус\s+/gi, 'к. '],
+        [/\bстроение\s+/gi, 'стр. '],
+    ];
+    for (const [pattern, abbr] of abbreviations) {
+        cleaned = cleaned.replace(pattern, abbr);
+    }
+
+    // 3. Чистим форматирование (убираем двойные запятые, пробелы и висячие знаки)
+    cleaned = cleaned
+        .replace(/,\s*,/g, ',') // Двойные запятые
+        .replace(/^,\s*/, '')   // Запятая в начале строки
+        .replace(/,\s*$/, '')   // Запятая в конце строки
+        .replace(/\s{2,}/g, ' ') // Двойные и более пробелы
+        .trim();
+
+    return cleaned;
+}
+
 export async function findBuildingAt(lat: number, lng: number): Promise<BuildingInfo | null> {
     if (!config.geo.yandexApiKey) {
         throw errors.unavailable('Ключ Яндекс.Геокодера не настроен');
@@ -114,18 +157,20 @@ function parseYandexBuilding(
 
     const description = geo.description ?? '';
     const name = geo.name ?? '';
-    const address = description && name ? `${description}, ${name}` : description || name || 'Неизвестный адрес';
+
+    const rawAddress = description && name ? `${description}, ${name}` : description || name || 'Неизвестный адрес';
+    const address = shortenAddress(rawAddress);
 
     const externalId = `yandex:${lng.toFixed(6)},${lat.toFixed(6)}`;
 
     return {
         externalId,
         source: 'yandex',
-        address,
+        address, // <-- Теперь здесь короткий адрес
         lat,
         lng,
-        apartmentsCount: null,   // Яндекс не возвращает кол-во квартир
-        entrances: [],           // и подъезды тоже
+        apartmentsCount: null,
+        entrances: [],
     };
 }
 
@@ -170,7 +215,10 @@ export async function searchAddress(query: string): Promise<AddressHit[]> {
 
             const description = geo.description ?? '';
             const name = geo.name ?? '';
-            const label = description && name ? `${description}, ${name}` : description || name;
+
+            const rawLabel = description && name ? `${description}, ${name}` : description || name;
+            const label = rawLabel ? shortenAddress(rawLabel) : null;
+
             if (!label) return null;
 
             return { label, lat, lng };
