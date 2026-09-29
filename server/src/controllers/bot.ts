@@ -40,16 +40,13 @@ import {
 import { REQUEST_STATUSES } from '../validation/common.js';
 import { idParam, parseBody, parseQuery } from '../validation/parse.js';
 
-// Ручки для процесса бота. Раньше бот ходил в Prisma напрямую — теперь всё, что ему нужно, доступно по HTTP.
-// Ответы отдаются в «сыром» виде (как возвращают сервисы), BigInt сериализуется строкой (см. lib/bigint.ts).
-
 async function requireUser(id: number): Promise<usersService.DbUser> {
   const user = await usersService.getUserById(id);
   if (!user) throw errors.notFound('Пользователь не найден');
   return user;
 }
 
-// --- Пользователи ---
+// Пользователи
 
 export async function getUser(req: Request, res: Response) {
   res.json(await usersService.getUserById(idParam(req)));
@@ -103,7 +100,7 @@ export async function addTenant(req: Request, res: Response) {
   res.json(await usersService.addTenantByOwner(owner, BigInt(input.maxUserId), input.apartment));
 }
 
-// --- Дома, компания, организации ---
+// Дома, компания, организации
 
 export async function listHouses(_req: Request, res: Response) {
   res.json(await usersService.listHouses());
@@ -150,7 +147,7 @@ export async function listOrganizations(_req: Request, res: Response) {
   res.json(await usersService.listOrganizations());
 }
 
-// --- Заявки ---
+// Заявки
 
 export async function listRequests(req: Request, res: Response) {
   const query = parseQuery(listRequestsQuerySchema, req);
@@ -231,7 +228,7 @@ export async function setRequestChatMessage(req: Request, res: Response) {
   res.status(204).end();
 }
 
-// --- Заявки на вступление ---
+// Заявки на вступление
 
 export async function getMembership(req: Request, res: Response) {
   res.json(await membershipService.getMembershipRequest(idParam(req)));
@@ -264,7 +261,7 @@ export async function rejectMembership(req: Request, res: Response) {
   res.json(await membershipService.rejectMembershipRequest(idParam(req), reviewer, input.reason));
 }
 
-// --- Объявления и новости ---
+// Объявления и новости
 
 export async function createAnnouncement(req: Request, res: Response) {
   res.status(201).json(await announcementsService.createAnnouncement(parseBody(createAnnouncementSchema, req)));
@@ -294,7 +291,7 @@ export async function setNewsChatMessage(req: Request, res: Response) {
   res.status(204).end();
 }
 
-// --- Фото: бот скачивает файл из MAX и отдаёт его сюда, а сервер хранит на своём диске ---
+// Фото
 
 export async function uploadPhoto(req: Request, res: Response) {
   const file = req.file;
@@ -303,7 +300,7 @@ export async function uploadPhoto(req: Request, res: Response) {
   res.status(201).json({ filename });
 }
 
-// --- Сессии сценариев бота (таблица BotSession) ---
+// Сессии сценариев бота
 
 function sessionKey(req: Request): string {
   const key = String(req.params.key ?? '');

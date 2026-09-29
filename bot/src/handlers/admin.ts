@@ -1,9 +1,9 @@
 import type { Bot } from '@maxhub/max-bot-api';
 import type { BotContext } from '../controllers/context.js';
 import { ack, isDialog } from '../controllers/helpers.js';
-import { esc, houseButtons, keyboard, MD, panelButton, requestCard, residentsCards, ukRequestButtons, withKeyboard } from '../controllers/ui.js';
+import { esc, houseButtons, keyboard, MD, panelButton, requestCard, residentMenu, residentsCards, ukRequestButtons, withKeyboard } from '../controllers/ui.js';
 import { sendRequestDocument, sendRequestList } from '../controllers/views.js';
-import { changeStatus, getHouse, listHouses, listRequests, listResidentsOfHouse } from '../lib/api.js';
+import { changeStatus, getHouse, listHouses, listRequests, listResidentsOfHouse, logout } from '../lib/api.js';
 import { isAppError } from '../lib/errors.js';
 import { isChairman, isEmployee, UK_ACTIVE_STATUSES } from '../lib/rules.js';
 import { announceScenario, delegateScenario, manageChairmanScenario, manageOwnerScenario, rejectScenario, resolveScenario } from '../scenarios/admin.js';
@@ -134,5 +134,18 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
       const isLast = i === cards.length - 1;
       await ctx.reply(cards[i], isLast ? { ...withKeyboard(panelButton()), ...MD } : MD);
     }
+  });
+
+  bot.command('logout', async (ctx) => {
+    if (!isDialog(ctx)) return;
+    try {
+      ctx.dbUser = await logout(ctx.dbUser.id);
+    } catch (error) {
+      if (!isAppError(error)) throw error;
+      await ctx.reply(error.message);
+      return;
+    }
+    ctx.scenario.cancel();
+    await ctx.reply(`Вы вышли из аккаунта сотрудника УК`, withKeyboard(residentMenu()));
   });
 }
