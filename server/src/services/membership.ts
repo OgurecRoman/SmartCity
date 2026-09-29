@@ -60,9 +60,10 @@ export async function getLatestMembershipRequestFor(applicantId: number): Promis
   });
 }
 
-function buildPendingMembershipWhere(reviewer: Pick<DbUser, 'role' | 'houseId'>): Prisma.MembershipRequestWhereInput {
+function buildPendingMembershipWhere(reviewer: Pick<DbUser, 'role' | 'houseId' | 'companyId'>): Prisma.MembershipRequestWhereInput {
   const where: Prisma.MembershipRequestWhereInput = { status: 'PENDING' };
   if (reviewer.role === 'CHAIRMAN') where.houseId = reviewer.houseId ?? -1;
+  if (reviewer.role === 'UK_EMPLOYEE') where.house = { companyId: reviewer.companyId ?? -1 };
   return where;
 }
 
@@ -72,7 +73,7 @@ export interface ListPendingOptions {
 }
 
 export async function listPendingMembershipRequests(
-  reviewer: Pick<DbUser, 'role' | 'houseId'>,
+  reviewer: Pick<DbUser, 'role' | 'houseId' | 'companyId'>,
   options: ListPendingOptions = {},
 ): Promise<MembershipRequestWithRelations[]> {
   return prisma.membershipRequest.findMany({
@@ -84,7 +85,7 @@ export async function listPendingMembershipRequests(
   });
 }
 
-export async function countPendingMembershipRequests(reviewer: Pick<DbUser, 'role' | 'houseId'>): Promise<number> {
+export async function countPendingMembershipRequests(reviewer: Pick<DbUser, 'role' | 'houseId' | 'companyId'>): Promise<number> {
   return prisma.membershipRequest.count({ where: buildPendingMembershipWhere(reviewer) });
 }
 
@@ -92,8 +93,10 @@ export async function approveMembershipRequest(id: number, reviewer: DbUser): Pr
   const request = await prisma.membershipRequest.findUnique({ where: { id } });
   if (!request) throw errors.notFound('Заявка не найдена');
   if (request.status !== 'PENDING') throw errors.conflict('Заявка уже рассмотрена');
-  if (!canActOnHouse(reviewer, request.houseId)) throw errors.forbidden('Подтвердить заявку может председатель ТСЖ этого дома или сотрудник УК');
-
+  const house = await prisma.house.findUnique({ where: { id: request.houseId }, select: { companyId: true } });
+  if (!canActOnHouse(reviewer, request.houseId, house?.companyId)) {
+    throw errors.forbidden('Подтвердить заявку может председатель ТСЖ этого дома или сотрудник УК');
+  }
   await joinHouse({
     userId: request.applicantId,
     houseId: request.houseId,
@@ -115,8 +118,10 @@ export async function rejectMembershipRequest(id: number, reviewer: DbUser, reas
   const request = await prisma.membershipRequest.findUnique({ where: { id } });
   if (!request) throw errors.notFound('Заявка не найдена');
   if (request.status !== 'PENDING') throw errors.conflict('Заявка уже рассмотрена');
-  if (!canActOnHouse(reviewer, request.houseId)) throw errors.forbidden('Отклонить заявку может председатель ТСЖ этого дома или сотрудник УК');
-
+  const house = await prisma.house.findUnique({ where: { id: request.houseId }, select: { companyId: true } });
+  if (!canActOnHouse(reviewer, request.houseId, house?.companyId)) {
+    throw errors.forbidden('Отклонить заявку может председатель ТСЖ этого дома или сотрудник УК');
+  }
   const trimmedReason = reason.trim();
   if (trimmedReason.length < 3) throw errors.badRequest('Укажите причину отказа (от 3 символов)');
 
