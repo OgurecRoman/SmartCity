@@ -33,6 +33,7 @@ export type User = {
   lastName: string | null;
   username: string | null;
   name: string;
+  companyId: number | null;
   house: {
     id: number;
     address: string;
