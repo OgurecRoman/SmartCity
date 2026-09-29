@@ -150,8 +150,23 @@ export const setNewsChatMessage = (id: number, messageId: string) => request<voi
 // Фото
 
 export const uploadPhoto = async (buffer: Buffer, ext: string) =>
-  (await upload<{ filename: string }>('bot/photos', buffer, `photo${ext}`)).filename;
-export const downloadPhoto = (filename: string) => download(`/uploads/photos/${encodeURIComponent(filename)}`);
+    (await upload<{ filename: string }>('bot/photos', buffer, `photo${ext}`)).filename;
+
+export const downloadPhoto = async (urlOrFilename: string): Promise<Buffer> => {
+    let url = urlOrFilename;
+
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        const publicUrl = process.env.S3_PUBLIC_URL || 'https://58b38eef4985-smartcity.s3.ru1.storage.beget.cloud';
+        url = `${publicUrl}/photos/${url}`;
+    }
+
+    const response = await fetch(url);
+    if (!response.ok) {
+        throw new Error(`HTTP ${response.status} при скачивании ${url}`);
+    }
+
+    return Buffer.from(await response.arrayBuffer());
+};
 
 // Сессии и очередь уведомлений
 

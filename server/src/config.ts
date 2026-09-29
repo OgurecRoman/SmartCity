@@ -66,6 +66,16 @@ export const config = {
     pass: process.env.SMTP_PASS ?? '',
     from: process.env.SMTP_FROM?.trim() || process.env.SMTP_USER || 'smartcity@example.com',
   },
+
+  s3: {
+      endpoint: (process.env.S3_ENDPOINT ?? 'https://s3.ru1.storage.beget.cloud').trim(),
+      region: (process.env.S3_REGION ?? 'ru-1').trim(),
+      bucket: (process.env.S3_BUCKET ?? '').trim(),
+      accessKeyId: (process.env.S3_ACCESS_KEY_ID ?? '').trim(),
+      secretAccessKey: (process.env.S3_SECRET_ACCESS_KEY ?? '').trim(),
+      publicUrl: (process.env.S3_PUBLIC_URL ?? '').trim(),
+  },
+
 } as const;
 
 export function assertConfig(): void {
