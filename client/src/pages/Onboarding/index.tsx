@@ -25,7 +25,7 @@ export default function Onboarding({ user, refetch, isFetching }: Props) {
   return (
     <HouseJoinFlow
       defaultFullName={user.verifiedFullName ?? user.name}
-      eyebrow="Умный город"
+      eyebrow="Умный дом"
       title="Выберите дом"
     />
   );

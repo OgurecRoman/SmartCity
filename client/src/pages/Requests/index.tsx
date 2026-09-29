@@ -56,10 +56,14 @@ export default function Requests() {
   const [filter, setFilter] = useState<FilterId>('all');
 
   const listQuery = useInfiniteQuery({
-    queryKey: [...queryKeys.requests, isUk ? 'uk' : 'house'],
+    queryKey: [...queryKeys.requests, isUk ? 'uk' : 'house', user.house?.id ?? null],
     queryFn: async ({ pageParam }) => {
       const { data } = await api.get<Paginated<RequestType>>(isUk ? '/uk/requests' : '/requests', {
-        params: { limit: PAGE_SIZE, offset: pageParam },
+        params: {
+          limit: PAGE_SIZE,
+          offset: pageParam,
+          ...(isUk && user.house?.id ? { houseId: user.house.id } : {}),
+        },
       });
       return data;
     },
@@ -68,6 +72,7 @@ export default function Requests() {
       const loaded = pages.reduce((sum, page) => sum + page.items.length, 0);
       return loaded < lastPage.total ? loaded : undefined;
     },
+    enabled: !isUk || user.house != null,
   });
 
   const allItems = useMemo(

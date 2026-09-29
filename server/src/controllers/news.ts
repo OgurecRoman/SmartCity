@@ -11,7 +11,13 @@ export async function list(req: Request, res: Response) {
   const user = req.user!;
   const query = parseQuery(listNewsQuerySchema, req);
 
-  const houseId = isEmployee(user) ? query.houseId : await resolveHouseFor(user, query.houseId, { allowPending: true });
+  const houseId = isEmployee(user)
+    ? (query.houseId ?? user.houseId ?? undefined)
+    : await resolveHouseFor(user, query.houseId, { allowPending: true });
+  if (isEmployee(user) && houseId == null) {
+    res.json({ items: [], total: 0 });
+    return;
+  }
 
   const [news, total] = await Promise.all([
     listNews({ houseId, limit: query.limit, offset: query.offset }),

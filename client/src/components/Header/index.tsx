@@ -45,6 +45,7 @@ export default function Header({ onAddHouse }: Props) {
   const { invalidateAll } = useInvalidateAppQueries();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const autoSelectedRef = useRef(false);
   const isUk = user.role === 'UK_EMPLOYEE';
   const canManage = user.role === 'RESIDENT' || user.role === 'CHAIRMAN';
   const canAdd = canManage || isUk;
@@ -67,33 +68,21 @@ export default function Header({ onAddHouse }: Props) {
           residentType: null,
           residentTypeLabel: null,
           status: 'APPROVED',
-          active: false,
+          active: user.house?.id === h.id,
           membershipRequestId: null,
         }),
       )
     : housesFromUser(user);
 
-  const active = !isUk
-    ? (houses.find((h) => h.active && h.status === 'APPROVED') ?? houses.find((h) => h.active))
-    : null;
-  const triggerLabel = isUk
-    ? houses.length > 0
-      ? `Домов УК: ${houses.length}`
-      : 'Дома УК'
-    : active
-      ? labelOf(active)
-      : user.house
-        ? labelOf({
-            houseId: user.house.id,
-            address: user.house.address,
-            apartment: user.apartment,
-            residentType: user.residentType,
-            residentTypeLabel: user.residentTypeLabel,
-            status: 'APPROVED',
-            active: true,
-            membershipRequestId: null,
-          })
-        : 'Выбрать дом';
+  const active =
+    houses.find((h) => h.active && h.status === 'APPROVED') ?? houses.find((h) => h.active) ?? null;
+  const triggerLabel = active
+    ? isUk
+      ? shortAddress(active.address)
+      : labelOf(active)
+    : user.house
+      ? shortAddress(user.house.address)
+      : 'Выбрать дом';
 
   const switchMutation = useMutation({
     mutationFn: async (houseId: number) => {
@@ -117,6 +106,17 @@ export default function Header({ onAddHouse }: Props) {
     },
   });
 
+  // У сотрудника УК без активного дома — сразу первый из списка компании
+  useEffect(() => {
+    if (!isUk || user.house || autoSelectedRef.current) return;
+    if (companyHousesQuery.isLoading || companyHousesQuery.isError) return;
+    const firstId = companyHousesQuery.data?.[0]?.id;
+    if (firstId == null) return;
+    autoSelectedRef.current = true;
+    switchMutation.mutate(firstId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- только при появлении списка домов
+  }, [isUk, user.house, companyHousesQuery.isLoading, companyHousesQuery.isError, companyHousesQuery.data]);
+
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => {
@@ -136,7 +136,7 @@ export default function Header({ onAddHouse }: Props) {
   return (
     <header className={s.header}>
       <Typography.Headline variant="small" asChild>
-        <h1>Умный город</h1>
+        <h1>Умный дом</h1>
       </Typography.Headline>
 
       <div className={s.menuRoot} ref={rootRef}>
@@ -161,7 +161,7 @@ export default function Header({ onAddHouse }: Props) {
               <ul className={s.list}>
                 {houses.map((item) => {
                   const approved = item.status === 'APPROVED';
-                  const selected = !isUk && item.active && approved;
+                  const selected = item.active && approved;
                   const busy = switchMutation.isPending || leaveMutation.isPending;
                   return (
                     <li key={`${item.status}-${item.houseId}`} className={s.row}>
@@ -170,9 +170,9 @@ export default function Header({ onAddHouse }: Props) {
                         role="option"
                         aria-selected={selected}
                         className={selected ? `${s.item} ${s.itemActive}` : s.item}
-                        disabled={isUk || !approved || selected || busy}
+                        disabled={!approved || selected || busy}
                         onClick={() => {
-                          if (isUk || !approved || selected) return;
+                          if (!approved || selected) return;
                           switchMutation.mutate(item.houseId);
                         }}
                       >

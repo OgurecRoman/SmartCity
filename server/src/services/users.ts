@@ -208,8 +208,18 @@ export async function joinHouse(input: JoinHouseInput): Promise<DbUser> {
 }
 
 export async function setActiveHouse(userId: number, houseId: number): Promise<DbUser> {
-  const user = await prisma.user.findUnique({ where: { id: userId } });
+  const user = await prisma.user.findUnique({ where: { id: userId }, include: userInclude });
   if (!user) throw errors.notFound('Пользователь не найден');
+
+  if (isEmployee(user)) {
+    await assertEmployeeHouseAccess(user, houseId);
+    return prisma.user.update({
+      where: { id: userId },
+      data: { houseId },
+      include: userInclude,
+    });
+  }
+
   const membership = await prisma.userHouse.findUnique({ where: { userId_houseId: { userId, houseId } } });
   if (!membership) throw errors.forbidden('Это не ваш дом');
   if (user.role === 'CHAIRMAN' && user.houseId !== houseId) {
