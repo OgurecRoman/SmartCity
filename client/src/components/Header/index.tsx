@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { Typography } from '@maxhub/max-ui';
 import { Check, ChevronDown, Plus, X } from 'lucide-react';
 import { api } from '../../api/client';
 import { useAuth } from '../../auth/AuthProvider';
 import { useInvalidateAppQueries } from '../../lib/invalidate';
+import { queryKeys } from '../../lib/queryKeys';
+import type { House } from '../../types/house';
 import type { User, UserHouseItem } from '../../types/user';
 import s from './Header.module.scss';
 
@@ -43,24 +45,55 @@ export default function Header({ onAddHouse }: Props) {
   const { invalidateAll } = useInvalidateAppQueries();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
-
-  const houses = housesFromUser(user);
-  const active = houses.find((h) => h.active && h.status === 'APPROVED') ?? houses.find((h) => h.active);
-  const triggerLabel = active
-    ? labelOf(active)
-    : user.house
-      ? labelOf({
-          houseId: user.house.id,
-          address: user.house.address,
-          apartment: user.apartment,
-          residentType: user.residentType,
-          residentTypeLabel: user.residentTypeLabel,
-          status: 'APPROVED',
-          active: true,
-          membershipRequestId: null,
-        })
-      : 'Выбрать дом';
+  const isUk = user.role === 'UK_EMPLOYEE';
   const canManage = user.role === 'RESIDENT' || user.role === 'CHAIRMAN';
+  const canAdd = canManage || isUk;
+
+  const companyHousesQuery = useQuery({
+    queryKey: queryKeys.houses,
+    queryFn: async () => {
+      const { data } = await api.get<House[]>('/houses');
+      return data;
+    },
+    enabled: isUk,
+  });
+
+  const houses = isUk
+    ? (companyHousesQuery.data ?? []).map(
+        (h): UserHouseItem => ({
+          houseId: h.id,
+          address: h.address,
+          apartment: null,
+          residentType: null,
+          residentTypeLabel: null,
+          status: 'APPROVED',
+          active: false,
+          membershipRequestId: null,
+        }),
+      )
+    : housesFromUser(user);
+
+  const active = !isUk
+    ? (houses.find((h) => h.active && h.status === 'APPROVED') ?? houses.find((h) => h.active))
+    : null;
+  const triggerLabel = isUk
+    ? houses.length > 0
+      ? `Домов УК: ${houses.length}`
+      : 'Дома УК'
+    : active
+      ? labelOf(active)
+      : user.house
+        ? labelOf({
+            houseId: user.house.id,
+            address: user.house.address,
+            apartment: user.apartment,
+            residentType: user.residentType,
+            residentTypeLabel: user.residentTypeLabel,
+            status: 'APPROVED',
+            active: true,
+            membershipRequestId: null,
+          })
+        : 'Выбрать дом';
 
   const switchMutation = useMutation({
     mutationFn: async (houseId: number) => {
@@ -121,14 +154,14 @@ export default function Header({ onAddHouse }: Props) {
         </button>
 
         {open && (
-          <div className={s.dropdown} role="listbox" aria-label="Квартиры">
+          <div className={s.dropdown} role="listbox" aria-label={isUk ? 'Дома УК' : 'Квартиры'}>
             {houses.length === 0 ? (
-              <p className={s.empty}>Нет домов</p>
+              <p className={s.empty}>{isUk ? 'Пока нет домов' : 'Нет домов'}</p>
             ) : (
               <ul className={s.list}>
                 {houses.map((item) => {
                   const approved = item.status === 'APPROVED';
-                  const selected = item.active && approved;
+                  const selected = !isUk && item.active && approved;
                   const busy = switchMutation.isPending || leaveMutation.isPending;
                   return (
                     <li key={`${item.status}-${item.houseId}`} className={s.row}>
@@ -137,14 +170,16 @@ export default function Header({ onAddHouse }: Props) {
                         role="option"
                         aria-selected={selected}
                         className={selected ? `${s.item} ${s.itemActive}` : s.item}
-                        disabled={!approved || selected || busy}
+                        disabled={isUk || !approved || selected || busy}
                         onClick={() => {
-                          if (!approved || selected) return;
+                          if (isUk || !approved || selected) return;
                           switchMutation.mutate(item.houseId);
                         }}
                       >
                         <span className={s.itemMain}>
-                          <span className={s.itemAddress}>{labelOf(item)}</span>
+                          <span className={s.itemAddress}>
+                            {isUk ? shortAddress(item.address) : labelOf(item)}
+                          </span>
                           {!approved && <span className={s.meta}>ожидает</span>}
                         </span>
                         {selected && <Check size={16} strokeWidth={2.25} className={s.check} aria-hidden />}
@@ -173,7 +208,7 @@ export default function Header({ onAddHouse }: Props) {
               <p className={s.error}>{(leaveMutation.error as Error).message}</p>
             )}
 
-            {canManage && onAddHouse && (
+            {canAdd && onAddHouse && (
               <>
                 <div className={s.sep} />
                 <button

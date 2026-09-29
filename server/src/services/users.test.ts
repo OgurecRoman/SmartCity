@@ -13,17 +13,18 @@ describe('isEmployee / isChairman', () => {
 
 describe('canManageAnnouncements', () => {
   it('УК может публиковать объявления в любом доме', () => {
-    expect(canManageAnnouncements({ role: 'UK_EMPLOYEE', houseId: null }, 1)).toBe(true);
-    expect(canManageAnnouncements({ role: 'UK_EMPLOYEE', houseId: 5 }, 1)).toBe(true);
+    expect(canManageAnnouncements({ role: 'UK_EMPLOYEE', houseId: null, companyId: 1 }, 1)).toBe(true);
+    expect(canManageAnnouncements({ role: 'UK_EMPLOYEE', houseId: 5, companyId: 1 }, 1, 1)).toBe(true);
+    expect(canManageAnnouncements({ role: 'UK_EMPLOYEE', houseId: 5, companyId: 1 }, 1, 2)).toBe(false);
   });
 
   it('председатель ТСЖ — только в своём доме', () => {
-    expect(canManageAnnouncements({ role: 'CHAIRMAN', houseId: 1 }, 1)).toBe(true);
-    expect(canManageAnnouncements({ role: 'CHAIRMAN', houseId: 2 }, 1)).toBe(false);
-    expect(canManageAnnouncements({ role: 'CHAIRMAN', houseId: null }, 1)).toBe(false);
+    expect(canManageAnnouncements({ role: 'CHAIRMAN', houseId: 1, companyId: null }, 1)).toBe(true);
+    expect(canManageAnnouncements({ role: 'CHAIRMAN', houseId: 2, companyId: null }, 1)).toBe(false);
+    expect(canManageAnnouncements({ role: 'CHAIRMAN', houseId: null, companyId: null }, 1)).toBe(false);
   });
 
   it('обычный житель не может управлять объявлениями', () => {
-    expect(canManageAnnouncements({ role: 'RESIDENT', houseId: 1 }, 1)).toBe(false);
+    expect(canManageAnnouncements({ role: 'RESIDENT', houseId: 1, companyId: null }, 1)).toBe(false);
   });
 });

@@ -18,8 +18,11 @@ type Candidate = {
   coords: YmapsCoords;
 };
 
+export type HouseJoinFlowMode = 'join' | 'uk-add';
+
 export type HouseJoinFlowProps = {
-  defaultFullName: string;
+  mode?: HouseJoinFlowMode;
+  defaultFullName?: string;
   onCancel?: () => void;
   onSuccess?: () => void;
   eyebrow?: string;
@@ -27,14 +30,16 @@ export type HouseJoinFlowProps = {
 };
 
 export default function HouseJoinFlow({
-  defaultFullName,
+  mode = 'join',
+  defaultFullName = '',
   onCancel,
   onSuccess,
   eyebrow = 'Умный город',
   title = 'Выберите дом',
 }: HouseJoinFlowProps) {
+  const isUkAdd = mode === 'uk-add';
   const apiKey = import.meta.env.VITE_YANDEX_MAPS_API_KEY?.trim() ?? '';
-  const { invalidateMe } = useInvalidateAppQueries();
+  const { invalidateMe, invalidateHouses } = useInvalidateAppQueries();
 
   const [center, setCenter] = useState<YmapsCoords>(DEFAULT_CENTER);
   const [zoom, setZoom] = useState(16);
@@ -99,6 +104,11 @@ export default function HouseJoinFlow({
     },
   });
 
+  const finishUkAdd = async () => {
+    await Promise.all([invalidateHouses(), housesQuery.refetch()]);
+    onSuccess?.();
+  };
+
   const busy =
     lookupLoading || createHouseMutation.isPending || submitMutation.isPending;
 
@@ -128,6 +138,10 @@ export default function HouseJoinFlow({
     if (!house) return;
     setError(null);
     setCandidate(null);
+    if (isUkAdd) {
+      void finishUkAdd();
+      return;
+    }
     setSelectedHouse(house);
   };
 
@@ -135,6 +149,13 @@ export default function HouseJoinFlow({
     if (!candidate) return;
     setError(null);
     try {
+      if (isUkAdd) {
+        await createHouseMutation.mutateAsync(candidate.coords);
+        setCandidate(null);
+        await finishUkAdd();
+        return;
+      }
+
       if (candidate.house) {
         setSelectedHouse(candidate.house);
         setCandidate(null);
@@ -173,7 +194,7 @@ export default function HouseJoinFlow({
     }
   };
 
-  if (selectedHouse) {
+  if (selectedHouse && !isUkAdd) {
     return (
       <div className={s.pageForm}>
         <button
@@ -328,7 +349,9 @@ export default function HouseJoinFlow({
           {candidate && (
             <div className={s.sheet}>
               <div className={s.sheetHandle} aria-hidden />
-              <Typography.Body variant="medium-strong">Это ваш дом?</Typography.Body>
+              <Typography.Body variant="medium-strong">
+                {isUkAdd ? 'Добавить этот дом в УК?' : 'Это ваш дом?'}
+              </Typography.Body>
               <div className={s.addressChip}>{candidate.building.address}</div>
               {candidate.building.entrances?.length > 0 && (
                 <p className={s.entrances}>
@@ -339,10 +362,19 @@ export default function HouseJoinFlow({
                 </p>
               )}
               <Typography.Body variant="small" className={s.hint}>
-                {candidate.house
-                  ? 'Дом уже в системе'
-                  : 'Добавим дом после подтверждения'}
+                {isUkAdd
+                  ? candidate.house
+                    ? 'Дом уже в системе — проверим, что он вашей УК'
+                    : 'Дом появится в списке домов УК сразу'
+                  : candidate.house
+                    ? 'Дом уже в системе'
+                    : 'Добавим дом после подтверждения'}
               </Typography.Body>
+              {error && (
+                <Typography.Body variant="small" className={s.error}>
+                  {error}
+                </Typography.Body>
+              )}
               <div className={s.sheetActions}>
                 <Button
                   size="medium"
@@ -351,14 +383,17 @@ export default function HouseJoinFlow({
                   loading={busy}
                   onClick={() => void handleConfirmBuilding()}
                 >
-                  Да, это он
+                  {isUkAdd ? 'Добавить' : 'Да, это он'}
                 </Button>
                 <Button
                   size="medium"
                   variant="secondary"
                   stretched
                   disabled={busy}
-                  onClick={() => setCandidate(null)}
+                  onClick={() => {
+                    setCandidate(null);
+                    setError(null);
+                  }}
                 >
                   Выбрать другой
                 </Button>

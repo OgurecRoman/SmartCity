@@ -18,12 +18,14 @@ import s from './App.module.scss';
 function AppShell() {
   const { user } = useAuth();
   const [addingHouse, setAddingHouse] = useState(false);
+  const isUk = user.role === 'UK_EMPLOYEE';
 
   if (addingHouse) {
     return (
       <HouseJoinFlow
+        mode={isUk ? 'uk-add' : 'join'}
         defaultFullName={user.verifiedFullName ?? user.name}
-        eyebrow="Ещё дом"
+        eyebrow={isUk ? 'Дома УК' : 'Ещё дом'}
         title="Выберите дом"
         onCancel={() => setAddingHouse(false)}
         onSuccess={() => setAddingHouse(false)}

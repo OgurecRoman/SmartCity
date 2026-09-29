@@ -83,12 +83,15 @@ export interface UpdateAnnouncementInput {
 
 export async function updateAnnouncement(
   id: number,
-  editor: Pick<DbUser, 'role' | 'houseId'>,
+  editor: Pick<DbUser, 'role' | 'houseId' | 'companyId'>,
   input: UpdateAnnouncementInput,
 ): Promise<AnnouncementWithRelations> {
-  const existing = await prisma.announcement.findUnique({ where: { id } });
+  const existing = await prisma.announcement.findUnique({
+    where: { id },
+    include: { house: { select: { companyId: true } } },
+  });
   if (!existing) throw errors.notFound('Объявление не найдено');
-  if (!canManageAnnouncements(editor, existing.houseId)) {
+  if (!canManageAnnouncements(editor, existing.houseId, existing.house.companyId)) {
     throw errors.forbidden('Редактировать объявление может УК или председатель ТСЖ этого дома');
   }
   const title = input.title !== undefined ? input.title.trim() : existing.title;
@@ -99,10 +102,13 @@ export async function updateAnnouncement(
   return updated;
 }
 
-export async function deleteAnnouncement(id: number, editor: Pick<DbUser, 'role' | 'houseId'>): Promise<void> {
-  const existing = await prisma.announcement.findUnique({ where: { id }, include: { photos: { select: { filename: true } } } });
+export async function deleteAnnouncement(id: number, editor: Pick<DbUser, 'role' | 'houseId' | 'companyId'>): Promise<void> {
+  const existing = await prisma.announcement.findUnique({
+    where: { id },
+    include: { photos: { select: { filename: true } }, house: { select: { companyId: true } } },
+  });
   if (!existing) throw errors.notFound('Объявление не найдено');
-  if (!canManageAnnouncements(editor, existing.houseId)) {
+  if (!canManageAnnouncements(editor, existing.houseId, existing.house.companyId)) {
     throw errors.forbidden('Удалить объявление может УК или председатель ТСЖ этого дома');
   }
   await prisma.announcement.delete({ where: { id } });
