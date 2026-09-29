@@ -4,7 +4,7 @@ solution:
   teamId: "171"
 api:
   baseUrl: "https://smartcity.visitly.ru"
-  openapi: "./openapi.yaml"
+  openapi: "./server/openapi.yaml"
   defaultHeaders:
     Accept: "application/json"
 checks:

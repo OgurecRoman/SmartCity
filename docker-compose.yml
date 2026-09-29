@@ -57,6 +57,12 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-}
+      S3_ENDPOINT: ${S3_ENDPOINT:-https://s3.ru1.storage.beget.cloud}
+      S3_REGION: ${S3_REGION:-ru1}
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+      S3_PUBLIC_URL: ${S3_PUBLIC_URL:-}
     volumes:
       - uploads:/app/uploads
     # Для отладки API с хоста раскомментируйте:
@@ -105,6 +111,7 @@ services:
       GIGACHAT_SCOPE: ${GIGACHAT_SCOPE:-GIGACHAT_API_PERS}
       MODERATION_TIMEOUT_MS: ${MODERATION_TIMEOUT_MS:-20000}
       MODERATION_FAIL_STRATEGY: ${MODERATION_FAIL_STRATEGY:-allow}
+      S3_PUBLIC_URL: ${S3_PUBLIC_URL:-}
     # Нужен только при BOT_MODE=webhook (проброс наружу через reverse-proxy)
     # ports:
     #   - "3001:3001"
