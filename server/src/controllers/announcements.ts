@@ -11,7 +11,13 @@ export async function list(req: Request, res: Response) {
   const query = parseQuery(listAnnouncementsQuerySchema, req);
 
   // Объявления доступны и до подтверждения — по дому из ожидающей заявки на вступление.
-  const houseId = isEmployee(user) ? query.houseId : await resolveHouseFor(user, query.houseId, { allowPending: true });
+  const houseId = isEmployee(user)
+    ? (query.houseId ?? user.houseId ?? undefined)
+    : await resolveHouseFor(user, query.houseId, { allowPending: true });
+  if (isEmployee(user) && houseId == null) {
+    res.json({ items: [], total: 0 });
+    return;
+  }
 
   const [announcements, total] = await Promise.all([
     listAnnouncements({ houseId, limit: query.limit, offset: query.offset }),
@@ -26,8 +32,9 @@ export async function create(req: Request, res: Response) {
 
   let houseId: number;
   if (isEmployee(user)) {
-    if (!input.houseId) throw errors.badRequest('Укажите дом (houseId)');
-    houseId = input.houseId;
+    const resolved = input.houseId ?? user.houseId;
+    if (resolved == null) throw errors.badRequest('Укажите дом (houseId)');
+    houseId = resolved;
   } else if (isChairman(user)) {
     if (!user.houseId) throw errors.badRequest('У председателя не указан дом');
     if (input.houseId && input.houseId !== user.houseId) {

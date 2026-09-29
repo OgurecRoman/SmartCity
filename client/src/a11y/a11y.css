@@ -31,6 +31,21 @@ html[data-a11y-font='opendyslexic'] {
   --a11y-font-family: 'OpenDyslexic', Verdana, sans-serif;
 }
 
+/*
+  MaxUI задаёт --family-base / --font на своём корне и перебивает наследование.
+  Без этого Typography, Button, badge и т.п. остаются на Roboto/system.
+*/
+html[data-a11y-font='verdana'] [class*='MaxUI_'],
+html[data-a11y-font='arial'] [class*='MaxUI_'],
+html[data-a11y-font='opendyslexic'] [class*='MaxUI_'],
+html[data-a11y-font='verdana'],
+html[data-a11y-font='arial'],
+html[data-a11y-font='opendyslexic'] {
+  --family-base: var(--a11y-font-family);
+  --family-headers: var(--a11y-font-family);
+  --font: var(--a11y-font-family);
+}
+
 html,
 body,
 #root,
@@ -44,6 +59,7 @@ select {
 #root {
   zoom: var(--a11y-zoom);
 }
+
 
 html.a11y-reduce-motion *,
 html.a11y-reduce-motion *::before,

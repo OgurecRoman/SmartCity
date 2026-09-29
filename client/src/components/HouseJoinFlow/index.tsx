@@ -34,7 +34,7 @@ export default function HouseJoinFlow({
   defaultFullName = '',
   onCancel,
   onSuccess,
-  eyebrow = 'Умный город',
+  eyebrow = 'Умный дом',
   title = 'Выберите дом',
 }: HouseJoinFlowProps) {
   const isUkAdd = mode === 'uk-add';

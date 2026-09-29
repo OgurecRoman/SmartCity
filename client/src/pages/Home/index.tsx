@@ -41,15 +41,19 @@ export default function Home() {
   });
 
   const requestsQuery = useQuery({
-    queryKey: [...queryKeys.requests, 'home-summary'],
+    queryKey: [...queryKeys.requests, 'home-summary', user.house?.id ?? null],
     queryFn: async () => {
       const path = isUk ? '/uk/requests' : '/requests';
       const { data } = await api.get<Paginated<RequestType>>(path, {
-        params: { limit: 50, offset: 0 },
+        params: {
+          limit: 50,
+          offset: 0,
+          ...(isUk && user.house?.id ? { houseId: user.house.id } : {}),
+        },
       });
       return data;
     },
-    enabled: user.onboarded || isUk,
+    enabled: (user.onboarded || isUk) && (!isUk || user.house != null),
   });
 
   const items = requestsQuery.data?.items ?? [];
@@ -64,7 +68,7 @@ export default function Home() {
         .filter(Boolean)
         .join(', ')
     : isUk
-      ? company?.name ?? 'Все дома в зоне ответственности'
+      ? 'Выберите дом в шапке'
       : 'Дом ещё не выбран';
 
   return (

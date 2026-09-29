@@ -7,7 +7,7 @@ import { buildRequestDocument } from '../services/documents.js';
 import { sendDelegationEmail } from '../services/mailer.js';
 import * as requestsService from '../services/requests.js';
 import { UK_ACTIVE_STATUSES } from '../services/rules.js';
-import { isEmployee, resolveHouseFor } from '../services/users.js';
+import { assertEmployeeHouseAccess, isEmployee, resolveHouseFor } from '../services/users.js';
 import { serializeRequest, serializeRequestDetailed } from '../routes/serialize.js';
 import { REQUEST_CATEGORIES, REQUEST_STATUSES } from '../validation/common.js';
 import { idParam, parseBody, parseQuery } from '../validation/parse.js';
@@ -164,7 +164,13 @@ export async function listForUk(req: Request, res: Response) {
     ...UK_ACTIVE_STATUSES,
   ];
   const categories = parseListParam(query.category, REQUEST_CATEGORIES, 'категория') as (keyof typeof CATEGORY_LABELS)[] | undefined;
-  const filter = { houseId: query.houseId, statuses, categories };
+  const houseId = query.houseId ?? user.houseId ?? undefined;
+  if (houseId == null) {
+    res.json({ items: [], total: 0 });
+    return;
+  }
+  await assertEmployeeHouseAccess(user, houseId);
+  const filter = { houseId, statuses, categories };
   const [requests, total] = await Promise.all([
     requestsService.listRequests({ ...filter, limit: query.limit, offset: query.offset }),
     requestsService.countRequests(filter),

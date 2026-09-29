@@ -59,6 +59,7 @@ export default function Feed({ defaultTab = 'announcements' }: Props) {
       });
       return data;
     },
+    enabled: !isUk || user.house != null,
   });
 
   const newsQuery = useQuery({
@@ -73,6 +74,7 @@ export default function Feed({ defaultTab = 'announcements' }: Props) {
       });
       return data;
     },
+    enabled: !isUk || user.house != null,
   });
 
   const [title, setTitle] = useState('');
@@ -219,7 +221,8 @@ export default function Feed({ defaultTab = 'announcements' }: Props) {
     setTitle('');
     setDescription('');
     setContact('');
-    if (isUk && houseOptions[0]) setHouseId(houseOptions[0].id);
+    if (isUk && user.house) setHouseId(user.house.id);
+    else if (isUk && houseOptions[0]) setHouseId(houseOptions[0].id);
     else if (user.house) setHouseId(user.house.id);
     setComposerOpen(true);
   }

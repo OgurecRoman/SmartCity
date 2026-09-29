@@ -62,10 +62,24 @@ html[data-a11y-scheme='dark'] select optgroup {
 }
 
 html {
-  scrollbar-gutter: stable;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+*::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 body {
   margin: 0;
-  overflow-y: scroll;
+  overflow-y: auto;
+}
+
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }

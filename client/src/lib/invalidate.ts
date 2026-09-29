@@ -25,6 +25,7 @@ export function useInvalidateAppQueries() {
         ? queryClient.invalidateQueries({ queryKey: queryKeys.residents(houseId) })
         : queryClient.invalidateQueries({ queryKey: ['residents'] }),
     invalidateHouses: () => queryClient.invalidateQueries({ queryKey: queryKeys.houses }),
+    invalidateCompany: () => queryClient.invalidateQueries({ queryKey: queryKeys.company }),
     invalidateAll: () =>
       Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.requests }),
@@ -34,6 +35,7 @@ export function useInvalidateAppQueries() {
         queryClient.invalidateQueries({ queryKey: queryKeys.membership }),
         queryClient.invalidateQueries({ queryKey: ['residents'] }),
         queryClient.invalidateQueries({ queryKey: queryKeys.houses }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.company }),
       ]),
   };
 }
