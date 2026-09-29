@@ -7,7 +7,7 @@
   "type": "module",
   "scripts": {
     "dev": "cross-env NODE_EXTRA_CA_CERTS=certs/russian_trusted_ca.pem tsx watch src/server.ts",
-    "postinstall": "prisma generate",
+    "prepublish": "prisma generate && prisma migrate deploy && prisma seed",
     "build": "prisma generate && tsc -p tsconfig.json",
     "start": "cross-env NODE_EXTRA_CA_CERTS=certs/russian_trusted_ca.pem node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
