@@ -33,18 +33,25 @@ api.interceptors.response.use(
     const data = error.response?.data as
       | { error?: { code?: string; message?: string } }
       | undefined;
+    const status = error.response?.status as number | undefined;
+    const code = data?.error?.code;
 
     const err = new Error(
       messageForApiError(
-        { code: data?.error?.code, message: data?.error?.message ?? error.message },
-        error.message,
+        {
+          code,
+          // Never fall back to axios' "Request failed with status code N"
+          message: data?.error?.message,
+          status,
+        },
+        'Что-то пошло не так',
       ),
     ) as Error & {
       status?: number;
       code?: string;
     };
-    err.status = error.response?.status;
-    err.code = data?.error?.code;
+    err.status = status;
+    err.code = code;
     return Promise.reject(err);
   },
 );
