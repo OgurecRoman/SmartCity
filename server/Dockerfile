@@ -14,7 +14,7 @@ RUN npm ci
 
 COPY tsconfig.json ./
 COPY src ./src
-COPY ../openapi.yaml ./
+COPY openapi.yaml ./
 COPY certs ./certs
 
 RUN npm run build \
@@ -29,7 +29,6 @@ ENV NODE_ENV=production \
     NODE_EXTRA_CA_CERTS=/app/certs/russian_trusted_ca.pem
 
 RUN addgroup -S app && adduser -S app -G app \
- && mkdir -p /app/uploads/photos \
  && chown -R app:app /app
 
 COPY --from=build --chown=app:app /app/node_modules ./node_modules
