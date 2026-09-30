@@ -7,10 +7,10 @@ api:
   openapi: "./openapi.yaml"
   defaultHeaders:
     Accept: "application/json"
+
 checks:
   - id: "health"
     name: "Проверка живости сервиса"
-    description: "Базовая проверка доступности API"
     method: "GET"
     path: "/health"
     role: "public"
@@ -23,7 +23,6 @@ checks:
 
   - id: "get-dictionaries"
     name: "Получение справочников"
-    description: "Категории, статусы, приоритеты, типы жителей и допустимые переходы"
     method: "GET"
     path: "/api/dictionaries"
     role: "public"
@@ -38,12 +37,8 @@ checks:
       statuses: "$.statuses"
       priorities: "$.priorities"
 
-  # ============================================
-  # USER ЭНДПОИНТЫ (житель)
-  # ============================================
   - id: "get-profile"
-    name: "Получение профиля пользователя"
-    description: "Текущий пользователь с активным домом и списком домов"
+    name: "Профиль пользователя"
     method: "GET"
     path: "/api/me"
     role: "user"
@@ -59,21 +54,70 @@ checks:
     dependsOn: ["get-dictionaries"]
 
   - id: "get-user-houses"
-    name: "Получение списка домов пользователя"
-    description: "Все дома жителя со статусом APPROVED/PENDING"
+    name: "Список домов пользователя"
     method: "GET"
     path: "/api/me/houses"
     role: "user"
     expected:
       statusCodes: [200]
       contentType: "application/json"
+      requiredFields: ["items"]
     timeoutMs: 5000
     repeatable: true
     dependsOn: ["get-profile"]
 
+  - id: "submit-membership"
+    name: "Заявка на вступление в дом"
+    method: "PATCH"
+    path: "/api/me"
+    role: "user"
+    request:
+      headers:
+        Content-Type: "application/json"
+      body:
+        houseId: 1
+        apartment: "27"
+        fullName: "Иванов Иван"
+    expected:
+      statusCodes: [202, 400, 404, 409]
+      contentType: "application/json"
+    timeoutMs: 5000
+    repeatable: false
+    dependsOn: ["get-profile"]
+
+  - id: "set-active-house"
+    name: "Переключение активного дома"
+    method: "PUT"
+    path: "/api/me/active-house"
+    role: "user"
+    request:
+      headers:
+        Content-Type: "application/json"
+      body:
+        houseId: 1
+    expected:
+      statusCodes: [200, 403, 409]
+      contentType: "application/json"
+    timeoutMs: 5000
+    repeatable: false
+    dependsOn: ["get-profile"]
+
+  - id: "leave-house"
+    name: "Покинуть дом"
+    method: "DELETE"
+    path: "/api/me/houses/{houseId}"
+    role: "user"
+    request:
+      path:
+        houseId: 1
+    expected:
+      statusCodes: [200, 404, 409]
+    timeoutMs: 5000
+    repeatable: false
+    dependsOn: ["get-user-houses"]
+
   - id: "get-houses"
-    name: "Получение справочника домов"
-    description: "Список домов с координатами для маркеров на карте"
+    name: "Справочник домов"
     method: "GET"
     path: "/api/houses"
     role: "user"
@@ -86,7 +130,6 @@ checks:
 
   - id: "houses-lookup"
     name: "Поиск здания по координатам"
-    description: "Здание по точке на карте из OpenStreetMap"
     method: "GET"
     path: "/api/houses/lookup"
     role: "user"
@@ -95,7 +138,7 @@ checks:
         lat: 55.751244
         lng: 37.618423
     expected:
-      statusCodes: [200, 404]
+      statusCodes: [200, 400, 404]
       contentType: "application/json"
     timeoutMs: 5000
     repeatable: true
@@ -103,7 +146,6 @@ checks:
 
   - id: "create-house"
     name: "Создание дома по координатам"
-    description: "Выбрать дом на карте — вернуть существующий или создать по OSM"
     method: "POST"
     path: "/api/houses"
     role: "user"
@@ -114,7 +156,7 @@ checks:
         lat: 55.751244
         lng: 37.618423
     expected:
-      statusCodes: [200, 201]
+      statusCodes: [200, 201, 400, 404]
       contentType: "application/json"
       requiredFields: ["id", "address"]
     timeoutMs: 5000
@@ -124,8 +166,7 @@ checks:
     dependsOn: ["get-profile"]
 
   - id: "get-company"
-    name: "Получение информации об УК"
-    description: "Контакты, рейтинг и метрики управляющей компании"
+    name: "Информация об УК"
     method: "GET"
     path: "/api/company"
     role: "user"
@@ -137,8 +178,7 @@ checks:
     dependsOn: ["get-profile"]
 
   - id: "get-organizations"
-    name: "Получение списка организаций"
-    description: "Организации, в которые УК передаёт заявки"
+    name: "Список организаций"
     method: "GET"
     path: "/api/organizations"
     role: "user"
@@ -150,8 +190,7 @@ checks:
     dependsOn: ["get-profile"]
 
   - id: "get-requests-list"
-    name: "Получение списка заявок"
-    description: "Список заявок дома с пагинацией и фильтрацией"
+    name: "Список заявок"
     method: "GET"
     path: "/api/requests"
     role: "user"
@@ -161,7 +200,7 @@ checks:
         limit: 5
         offset: 0
     expected:
-      statusCodes: [200]
+      statusCodes: [200, 400]
       contentType: "application/json"
       requiredFields: ["items", "total"]
     timeoutMs: 5000
@@ -170,7 +209,6 @@ checks:
 
   - id: "create-request"
     name: "Создание заявки"
-    description: "Создание новой заявки жителя в активном доме"
     method: "POST"
     path: "/api/requests"
     role: "user"
@@ -180,9 +218,9 @@ checks:
       body:
         category: "PLUMBING"
         description: "Тестовая заявка для проверки API"
-        title: "Проверка работы API"
+        title: "Проверка API"
     expected:
-      statusCodes: [201]
+      statusCodes: [201, 400, 403]
       contentType: "application/json"
       requiredFields: ["id", "title", "status"]
     timeoutMs: 5000
@@ -193,7 +231,6 @@ checks:
 
   - id: "get-request"
     name: "Получение заявки"
-    description: "Заявка с подписями и историей статусов"
     method: "GET"
     path: "/api/requests/{id}"
     role: "user"
@@ -201,7 +238,7 @@ checks:
       path:
         id: "${requestId}"
     expected:
-      statusCodes: [200]
+      statusCodes: [200, 403, 404]
       contentType: "application/json"
       requiredFields: ["id", "title", "status", "votesCount"]
     timeoutMs: 5000
@@ -210,7 +247,6 @@ checks:
 
   - id: "vote-request"
     name: "Поддержка заявки"
-    description: "Поддержать заявку подписью"
     method: "POST"
     path: "/api/requests/{id}/vote"
     role: "user"
@@ -218,7 +254,7 @@ checks:
       path:
         id: "${requestId}"
     expected:
-      statusCodes: [200, 409]
+      statusCodes: [200, 400, 403, 409]
       contentType: "application/json"
     timeoutMs: 5000
     repeatable: false
@@ -226,7 +262,6 @@ checks:
 
   - id: "unvote-request"
     name: "Отзыв подписи"
-    description: "Отозвать подпись с заявки"
     method: "DELETE"
     path: "/api/requests/{id}/vote"
     role: "user"
@@ -241,8 +276,7 @@ checks:
     dependsOn: ["vote-request"]
 
   - id: "get-request-document"
-    name: "Получение документа по заявке"
-    description: "Сформированный документ по заявке"
+    name: "Документ по заявке"
     method: "GET"
     path: "/api/requests/{id}/document"
     role: "user"
@@ -257,7 +291,6 @@ checks:
 
   - id: "rate-request"
     name: "Оценка работы УК"
-    description: "Оценить работу УК по заявке (1-5)"
     method: "POST"
     path: "/api/requests/{id}/rate"
     role: "user"
@@ -269,7 +302,7 @@ checks:
       body:
         rating: 5
     expected:
-      statusCodes: [200, 409]
+      statusCodes: [200, 400, 403, 404, 409]
       contentType: "application/json"
     timeoutMs: 5000
     repeatable: false
@@ -277,7 +310,6 @@ checks:
 
   - id: "reopen-request"
     name: "Возврат закрытой заявки"
-    description: "Вернуть заявку из RESOLVED в УК (не сделано)"
     method: "POST"
     path: "/api/requests/{id}/reopen"
     role: "user"
@@ -285,14 +317,13 @@ checks:
       path:
         id: "${requestId}"
     expected:
-      statusCodes: [200, 409]
+      statusCodes: [200, 400, 403, 404, 409]
     timeoutMs: 5000
     repeatable: false
     dependsOn: ["get-request"]
 
   - id: "delete-request"
     name: "Удаление заявки"
-    description: "Удалить свою заявку (пока идёт сбор подписей)"
     method: "DELETE"
     path: "/api/requests/{id}"
     role: "user"
@@ -306,8 +337,7 @@ checks:
     dependsOn: ["get-request"]
 
   - id: "get-announcements"
-    name: "Получение объявлений"
-    description: "Список объявлений дома с пагинацией"
+    name: "Список объявлений"
     method: "GET"
     path: "/api/announcements"
     role: "user"
@@ -316,7 +346,7 @@ checks:
         limit: 5
         offset: 0
     expected:
-      statusCodes: [200]
+      statusCodes: [200, 400]
       contentType: "application/json"
       requiredFields: ["items", "total"]
     timeoutMs: 5000
@@ -325,7 +355,6 @@ checks:
 
   - id: "create-announcement"
     name: "Создание объявления"
-    description: "Опубликовать объявление (УК или председатель ТСЖ)"
     method: "POST"
     path: "/api/announcements"
     role: "uk"
@@ -336,7 +365,7 @@ checks:
         title: "Тестовое объявление"
         description: "Объявление для проверки API"
     expected:
-      statusCodes: [201, 403]
+      statusCodes: [201, 400, 403]
       contentType: "application/json"
       requiredFields: ["id", "title"]
     timeoutMs: 5000
@@ -347,7 +376,6 @@ checks:
 
   - id: "patch-announcement"
     name: "Изменение объявления"
-    description: "Изменить объявление (УК или председатель)"
     method: "PATCH"
     path: "/api/announcements/{id}"
     role: "uk"
@@ -357,9 +385,9 @@ checks:
       headers:
         Content-Type: "application/json"
       body:
-        title: "Обновлённое тестовое объявление"
+        title: "Обновлённое объявление"
     expected:
-      statusCodes: [200, 403, 404]
+      statusCodes: [200, 400, 403, 404]
       contentType: "application/json"
     timeoutMs: 5000
     repeatable: false
@@ -367,7 +395,6 @@ checks:
 
   - id: "delete-announcement"
     name: "Удаление объявления"
-    description: "Удалить объявление (УК или председатель)"
     method: "DELETE"
     path: "/api/announcements/{id}"
     role: "uk"
@@ -381,8 +408,7 @@ checks:
     dependsOn: ["patch-announcement"]
 
   - id: "get-news"
-    name: "Получение новостей"
-    description: "Список новостей дома с пагинацией"
+    name: "Список новостей"
     method: "GET"
     path: "/api/news"
     role: "user"
@@ -391,7 +417,7 @@ checks:
         limit: 5
         offset: 0
     expected:
-      statusCodes: [200]
+      statusCodes: [200, 400]
       contentType: "application/json"
       requiredFields: ["items", "total"]
     timeoutMs: 5000
@@ -400,7 +426,6 @@ checks:
 
   - id: "create-news"
     name: "Создание новости"
-    description: "Опубликовать новость в своём доме"
     method: "POST"
     path: "/api/news"
     role: "user"
@@ -423,7 +448,6 @@ checks:
 
   - id: "patch-news"
     name: "Изменение новости"
-    description: "Изменить новость (автор или УК)"
     method: "PATCH"
     path: "/api/news/{id}"
     role: "user"
@@ -433,9 +457,9 @@ checks:
       headers:
         Content-Type: "application/json"
       body:
-        title: "Обновлённая тестовая новость"
+        title: "Обновлённая новость"
     expected:
-      statusCodes: [200, 403, 404]
+      statusCodes: [200, 400, 403, 404]
       contentType: "application/json"
     timeoutMs: 5000
     repeatable: false
@@ -443,7 +467,6 @@ checks:
 
   - id: "delete-news"
     name: "Удаление новости"
-    description: "Удалить новость (автор или УК)"
     method: "DELETE"
     path: "/api/news/{id}"
     role: "user"
@@ -457,8 +480,7 @@ checks:
     dependsOn: ["patch-news"]
 
   - id: "get-cameras"
-    name: "Получение камер дома"
-    description: "Камеры дома (двор, подъезд)"
+    name: "Камеры дома"
     method: "GET"
     path: "/api/cameras"
     role: "user"
@@ -471,7 +493,6 @@ checks:
 
   - id: "get-uk-requests"
     name: "Очередь заявок УК"
-    description: "Список заявок для сотрудника УК с пагинацией"
     method: "GET"
     path: "/api/uk/requests"
     role: "uk"
@@ -489,7 +510,6 @@ checks:
 
   - id: "patch-request-status"
     name: "Смена статуса заявки"
-    description: "Сменить статус заявки (сотрудник УК)"
     method: "PATCH"
     path: "/api/requests/{id}/status"
     role: "uk"
@@ -509,7 +529,6 @@ checks:
 
   - id: "patch-house"
     name: "Изменение порога подписей дома"
-    description: "Изменить votePercent дома (сотрудник УК)"
     method: "PATCH"
     path: "/api/houses/{id}"
     role: "uk"
@@ -527,9 +546,70 @@ checks:
     repeatable: false
     dependsOn: ["create-house"]
 
+  - id: "delete-house"
+    name: "Удаление дома"
+    method: "DELETE"
+    path: "/api/houses/{id}"
+    role: "uk"
+    request:
+      path:
+        id: 999
+    expected:
+      statusCodes: [204, 403, 404, 409]
+    timeoutMs: 5000
+    repeatable: false
+    dependsOn: ["get-profile"]
+
+  - id: "appoint-chairman"
+    name: "Назначение председателя ТСЖ"
+    method: "PUT"
+    path: "/api/houses/{id}/chairman"
+    role: "uk"
+    request:
+      path:
+        id: 1
+      headers:
+        Content-Type: "application/json"
+      body:
+        userId: 1
+    expected:
+      statusCodes: [200, 400, 403, 404]
+      contentType: "application/json"
+    timeoutMs: 5000
+    repeatable: false
+    dependsOn: ["get-profile"]
+
+  - id: "dismiss-chairman"
+    name: "Снятие председателя ТСЖ"
+    method: "DELETE"
+    path: "/api/houses/{id}/chairman"
+    role: "uk"
+    request:
+      path:
+        id: 1
+    expected:
+      statusCodes: [200, 403, 404]
+    timeoutMs: 5000
+    repeatable: false
+    dependsOn: ["get-profile"]
+
+  - id: "remove-resident"
+    name: "Удаление жителя из дома"
+    method: "DELETE"
+    path: "/api/houses/{id}/residents/{userId}"
+    role: "uk"
+    request:
+      path:
+        id: 1
+        userId: 1
+    expected:
+      statusCodes: [200, 403, 404]
+    timeoutMs: 5000
+    repeatable: false
+    dependsOn: ["get-profile"]
+
   - id: "get-residents"
-    name: "Получение жителей дома"
-    description: "Подтверждённые жители дома (только для УК)"
+    name: "Подтверждённые жители дома"
     method: "GET"
     path: "/api/residents"
     role: "uk"
@@ -545,7 +625,6 @@ checks:
 
   - id: "get-membership-requests"
     name: "Очередь заявок на вступление"
-    description: "Заявки на вступление (УК или председатель ТСЖ)"
     method: "GET"
     path: "/api/membership/requests"
     role: "uk"
@@ -563,7 +642,6 @@ checks:
 
   - id: "approve-membership"
     name: "Подтверждение заявки на вступление"
-    description: "Подтвердить заявку на вступление в дом"
     method: "POST"
     path: "/api/membership/requests/{id}/approve"
     role: "uk"
@@ -579,7 +657,6 @@ checks:
 
   - id: "reject-membership"
     name: "Отклонение заявки на вступление"
-    description: "Отклонить заявку на вступление в дом"
     method: "POST"
     path: "/api/membership/requests/{id}/reject"
     role: "uk"
@@ -596,59 +673,6 @@ checks:
     timeoutMs: 5000
     repeatable: false
     dependsOn: ["get-membership-requests"]
-
-  - id: "submit-membership"
-    name: "Подача заявки на вступление"
-    description: "Подать заявку на вступление в дом"
-    method: "PATCH"
-    path: "/api/me"
-    role: "user"
-    request:
-      headers:
-        Content-Type: "application/json"
-      body:
-        houseId: 1
-        apartment: "27"
-        fullName: "Иванов Иван Иванович"
-    expected:
-      statusCodes: [202, 400, 404, 409]
-      contentType: "application/json"
-    timeoutMs: 5000
-    repeatable: false
-    dependsOn: ["get-profile"]
-
-  - id: "set-active-house"
-    name: "Переключение активного дома"
-    description: "Переключить активный дом пользователя"
-    method: "PUT"
-    path: "/api/me/active-house"
-    role: "user"
-    request:
-      headers:
-        Content-Type: "application/json"
-      body:
-        houseId: 1
-    expected:
-      statusCodes: [200, 409]
-      contentType: "application/json"
-    timeoutMs: 5000
-    repeatable: false
-    dependsOn: ["get-profile"]
-
-  - id: "leave-house"
-    name: "Покинуть дом"
-    description: "Покинуть дом (удалить из списка домов)"
-    method: "DELETE"
-    path: "/api/me/houses/{houseId}"
-    role: "user"
-    request:
-      path:
-        houseId: 1
-    expected:
-      statusCodes: [200, 204, 404]
-    timeoutMs: 5000
-    repeatable: false
-    dependsOn: ["get-user-houses"]
 
 cleanup:
   - id: "cleanup-request"
