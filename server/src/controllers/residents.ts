@@ -1,9 +1,9 @@
 import type { Request, Response } from 'express';
-import { listResidentsOfHouse, isEmployee, isChairman } from '../services/users.js'; // ДОБАВЛЕНО: isEmployee, isChairman
+import { listResidentsOfHouse, isEmployee, isChairman } from '../services/users.js';
 import { serializeResident } from '../routes/serialize.js';
 import { parseQuery } from '../validation/parse.js';
 import { listResidentsQuerySchema } from '../validation/residents.js';
-import { errors } from '../lib/errors.js'; // ДОБАВЛЕНО
+import { errors } from '../lib/errors.js';
 
 export async function list(req: Request, res: Response) {
     const user = req.user!;
