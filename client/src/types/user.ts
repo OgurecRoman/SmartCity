@@ -34,6 +34,7 @@ export type User = {
   username: string | null;
   name: string;
   companyId: number | null;
+  chairmanHouseId: number | null;
   house: {
     id: number;
     address: string;

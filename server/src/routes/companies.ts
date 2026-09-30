@@ -17,14 +17,9 @@ const router = Router();
  *   patch:
  *     summary: Изменить контакты своей УК (только сотрудник этой УК)
  *     tags: [Компании]
- *   delete:
- *     summary: Удалить компанию
- *     tags: [Компании]
  */
 router.get('/companies', companiesController.getAllCompaniesController);
 router.get('/company/:id', companiesController.getCompanyController);
-router.post('/company', companiesController.createCompanyController);
 router.patch('/company/:id', requireEmployee, companiesController.updateCompanyContactsController);
-router.delete('/company/:id', companiesController.deleteCompanyController);
 
 export default router;

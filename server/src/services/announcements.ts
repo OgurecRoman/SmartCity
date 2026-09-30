@@ -83,7 +83,7 @@ export interface UpdateAnnouncementInput {
 
 export async function updateAnnouncement(
   id: number,
-  editor: Pick<DbUser, 'role' | 'houseId' | 'companyId'>,
+  editor: Pick<DbUser, 'role' | 'houseId' | 'companyId' | 'chairmanHouseId'>,
   input: UpdateAnnouncementInput,
 ): Promise<AnnouncementWithRelations> {
   const existing = await prisma.announcement.findUnique({
@@ -102,7 +102,7 @@ export async function updateAnnouncement(
   return updated;
 }
 
-export async function deleteAnnouncement(id: number, editor: Pick<DbUser, 'role' | 'houseId' | 'companyId'>): Promise<void> {
+export async function deleteAnnouncement(id: number, editor: Pick<DbUser, 'role' | 'houseId' | 'companyId' | 'chairmanHouseId'>): Promise<void> {
   const existing = await prisma.announcement.findUnique({
     where: { id },
     include: { photos: { select: { filename: true } }, house: { select: { companyId: true } } },

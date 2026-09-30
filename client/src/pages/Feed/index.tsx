@@ -38,8 +38,9 @@ export default function Feed({ defaultTab = 'announcements' }: Props) {
 
   const isUk = user.role === 'UK_EMPLOYEE';
   const isChairman = user.role === 'CHAIRMAN';
+  const onChairmanHouse = isChairman && user.chairmanHouseId != null && user.house?.id === user.chairmanHouseId;
   const canPostNews = user.role === 'RESIDENT' || user.role === 'CHAIRMAN';
-  const canPostAnnouncement = user.role === 'CHAIRMAN' || user.role === 'UK_EMPLOYEE';
+  const canPostAnnouncement = isUk || onChairmanHouse;
 
   const housesQuery = useQuery({
     queryKey: queryKeys.houses,
@@ -326,7 +327,7 @@ export default function Feed({ defaultTab = 'announcements' }: Props) {
 
   function canManageAnnouncement(item: AnnouncementItem) {
     if (isUk) return true;
-    if (isChairman && user.house?.id === item.houseId) return true;
+    if (isChairman && user.chairmanHouseId === item.houseId) return true;
     return false;
   }
 

@@ -25,7 +25,14 @@ export function createApp() {
   });
 
   app.get('/health', (_req, res) => {
-    res.json({ status: 'ok', service: 'backend', time: new Date().toISOString() });
+    const botEnabled = (process.env.BOT_ENABLED ?? 'true').trim().toLowerCase() !== 'false';
+    const botMode = (process.env.BOT_MODE ?? 'polling').trim().toLowerCase();
+    const bot = !botEnabled ? 'disabled' : botMode === 'webhook' ? 'webhook' : 'polling';
+    res.json({
+      status: 'ok',
+      bot,
+      time: new Date().toISOString(),
+    });
   });
 
   app.use('/api', apiRouter);
